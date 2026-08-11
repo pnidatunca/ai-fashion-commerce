@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dataset files
+data/*
+!data/.gitkeep
+
+# Model / embedding files
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.bin
+
+# Large generated files
+*.parquet
+*.jsonl
+*.csv
