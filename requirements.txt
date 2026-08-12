@@ -1,2 +1,5 @@
 pandas
 ftfy
+python-dotenv
+psycopg[binary]
+SQLAlchemy
