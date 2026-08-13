@@ -1,115 +1,171 @@
-import os
-from typing import Optional
-from fastapi import FastAPI, Depends, Query, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from sqlalchemy import text, or_
+from fastapi import Depends, FastAPI, HTTPException, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .database import engine, get_db
-from .models import Product
-# FastAPI uygulamasını oluşturuyoruz.
-app = FastAPI()
+from app import crud, schemas
+from app.database import engine, get_db
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+
+app = FastAPI(
+    title="AI Fashion Commerce API",
+    version="0.1.0",
 )
 
-# API: Tüm Ürünleri Listele (Sınırlandırılmış)
-@app.get("/api/products")
-def get_products(limit: int = 50, db: Session = Depends(get_db)):
-    return db.query(Product).limit(limit).all()
 
-# API: Kategorileri listele
-@app.get("/api/categories")
-def get_categories(db: Session = Depends(get_db)):
-    categories = db.query(Product.category).distinct().filter(Product.category.isnot(None)).all()
-    # categories: [('Shoes',), ('Shirts',), ...] formatından listeye dönüştürüyoruz
-    return [c[0] for c in categories]
+# =========================================================
+# ROOT
+# =========================================================
 
-# API: Ürünleri listele ve arama/filtreleme yap
-@app.get("/api/search")
-def search_products(
-    q: Optional[str] = None,
-    category: Optional[str] = None,
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
-    db: Session = Depends(get_db)
-):
-    query = db.query(Product)
-    
-    if q:
-        search_pattern = f"%{q}%"
-        query = query.filter(
-            or_(
-                Product.title.ilike(search_pattern),
-                Product.brand.ilike(search_pattern),
-                Product.category.ilike(search_pattern)
-            )
+@app.get("/")
+def home():
+    return {
+        "message": "AI Fashion Commerce API çalışıyor"
+    }
+
+
+# =========================================================
+# DATABASE TEST
+# =========================================================
+
+@app.get("/db-test")
+def db_test():
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("SELECT 1")
         )
-    
-    if category:
-        query = query.filter(Product.category == category)
-        
-    if min_price is not None:
-        query = query.filter(Product.price >= min_price)
-        
-    if max_price is not None:
-        query = query.filter(Product.price <= max_price)
-        
-    products = query.limit(50).all()
-    return products
 
-# API: Tekil ürün detayını getir
-@app.get("/api/products/{product_id}")
-def get_product(product_id: str, db: Session = Depends(get_db)):
-    product = db.query(Product).filter(Product.product_id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Ürün bulunamadı")
+        return {
+            "database": "connected",
+            "result": result.scalar(),
+        }
+
+
+# =========================================================
+# PRODUCTS LIST
+# =========================================================
+
+@app.get(
+    "/products",
+    response_model=list[schemas.ProductResponse],
+)
+def list_products(
+    limit: int = Query(
+        default=24,
+        ge=1,
+        le=100,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
+    db: Session = Depends(get_db),
+):
+    return crud.get_products(
+        db=db,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# =========================================================
+# CLASSIC PRODUCT SEARCH
+# =========================================================
+
+# Bu route'u /products/{product_id}'den
+# ONCE tanimliyoruz.
+#
+# Cunku "search" kelimesinin product_id
+# olarak algilanmasini istemiyoruz.
+
+@app.get(
+    "/products/search",
+    response_model=list[schemas.ProductResponse],
+)
+def search_products(
+    q: str = Query(
+        min_length=1,
+        max_length=200,
+    ),
+    limit: int = Query(
+        default=24,
+        ge=1,
+        le=100,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
+    db: Session = Depends(get_db),
+):
+    return crud.search_products(
+        db=db,
+        query=q,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# =========================================================
+# PRODUCT DETAIL
+# =========================================================
+
+@app.get(
+    "/products/{product_id}",
+    response_model=schemas.ProductResponse,
+)
+def product_detail(
+    product_id: str,
+    db: Session = Depends(get_db),
+):
+    product = crud.get_product(
+        db=db,
+        product_id=product_id,
+    )
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found",
+        )
+
     return product
 
 
-# Database bağlantısını test etmek için kullanacağımız endpoint.
-@app.get("/api/db-test")
-def db_test():
+# =========================================================
+# PRODUCT REVIEWS
+# =========================================================
 
-    # Database'e bağlantı açıyoruz.
-    with engine.connect() as connection:
+@app.get(
+    "/products/{product_id}/reviews",
+    response_model=list[schemas.ReviewResponse],
+)
+def product_reviews(
+    product_id: str,
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
+    db: Session = Depends(get_db),
+):
+    product = crud.get_product(
+        db=db,
+        product_id=product_id,
+    )
 
-        # PostgreSQL'e basit bir test sorgusu gönderiyoruz.
-        result = connection.execute(text("SELECT 1"))
-
-        # Database'den gelen sonucu döndürüyoruz.
-        return {
-            "database": "connected",
-            "result": result.scalar()
-        }
-
-class SemanticSearchRequest(BaseModel):
-    query: str
-    limit: int = 10
-
-@app.post("/api/semantic-search")
-def semantic_search(request: SemanticSearchRequest, db: Session = Depends(get_db)):
-    # NOT: Bu uç nokta Phase 6'da yapay zeka destekli vektör aramaya dönüştürülecektir.
-    # Şimdilik MVP için fallback olarak klasik arama kullanıyoruz.
-    search_pattern = f"%{request.query}%"
-    products = db.query(Product).filter(
-        or_(
-            Product.title.ilike(search_pattern),
-            Product.brand.ilike(search_pattern),
-            Product.category.ilike(search_pattern)
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found",
         )
-    ).limit(request.limit).all()
-    
-    return products
 
-# Frontend dosyalarını sunmak için StaticFiles kullanıyoruz.
-# Backend klasöründen bir üst dizine (..) çıkıp frontend klasörüne ulaşıyoruz.
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+    return crud.get_product_reviews(
+        db=db,
+        product_id=product_id,
+        limit=limit,
+        offset=offset,
+    )

@@ -1,88 +1,87 @@
-# İşletim sistemi değişkenlerine erişmek için kullanıyoruz.
-# Burada .env içerisindeki DATABASE_URL değerini okuyacağız.
 import os
+from pathlib import Path
 
-# .env dosyasını Python'a okutmak için kullanıyoruz.
-from dotenv import find_dotenv, load_dotenv
-
-# PostgreSQL bağlantısı oluşturmak için SQLAlchemy'den create_engine'i alıyoruz.
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-
-# Database oturumları (session) oluşturmak için kullanıyoruz.
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 
-# .env dosyasındaki değişkenleri yükler (otomatik olarak kök dizine kadar arar).
-load_dotenv(find_dotenv(usecwd=True))
+# ---------------------------------------------------------
+# .ENV
+# ---------------------------------------------------------
 
+ROOT = Path(__file__).resolve().parents[2]
+ENV_FILE = ROOT / ".env"
 
-# .env içerisindeki DATABASE_URL değerini alıyoruz.
+load_dotenv(ENV_FILE)
+
 DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    if DATABASE_URL.startswith("postgresql://"):
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
-    elif DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL bulunamadi. "
+        "Repo kokundeki .env dosyasini kontrol et."
+    )
 
 
+# ---------------------------------------------------------
+# PSYCOPG 3
+# ---------------------------------------------------------
 
-# Neon PostgreSQL ile bağlantı oluşturuyoruz.
+# Neon:
+# postgresql://...
 #
-# DATABASE_URL:
-# Neon'a ait bağlantı adresimiz.
-#
-# pool_pre_ping=True:
-# Kullanılmadan önce database bağlantısının çalışıp çalışmadığını
-# kontrol etmeye yardımcı olur.
+# SQLAlchemy + Psycopg 3:
+# postgresql+psycopg://...
+
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgresql://",
+        "postgresql+psycopg://",
+        1,
+    )
+
+
+# ---------------------------------------------------------
+# ENGINE
+# ---------------------------------------------------------
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
-    pool_recycle=300,
     connect_args={
-        "connect_timeout": 15,
-        "keepalives": 1,
-        "keepalives_idle": 30,
-        "keepalives_interval": 10,
-        "keepalives_count": 5
-    }
+        "connect_timeout": 10,
+    },
 )
 
 
-# Database ile işlem yaparken kullanacağımız session'ları oluşturur.
-#
-# Örneğin ileride:
-# - ürün ekleme
-# - ürün silme
-# - ürün arama
-# gibi işlemlerde bu session'ı kullanacağız.
+# ---------------------------------------------------------
+# SESSION
+# ---------------------------------------------------------
+
 SessionLocal = sessionmaker(
+    bind=engine,
     autocommit=False,
     autoflush=False,
-    bind=engine
 )
 
 
-# SQLAlchemy modellerimizin temelini oluşturur.
-#
-# Örneğin ileride:
-#
-# class Product(Base):
-#     ...
-#
-# dediğimizde Product modeli bu Base'i kullanacak.
+# ---------------------------------------------------------
+# BASE
+# ---------------------------------------------------------
+
 Base = declarative_base()
 
 
-# API endpointlerinde database bağlantısı almak için kullanacağımız fonksiyon.
-def get_db():
+# ---------------------------------------------------------
+# FASTAPI DEPENDENCY
+# ---------------------------------------------------------
 
-    # Yeni bir database session oluşturuyoruz.
+def get_db():
     db = SessionLocal()
 
     try:
-        # Oluşturduğumuz database bağlantısını endpoint'e veriyoruz.
         yield db
 
     finally:
-        # İşlem bittikten sonra database bağlantısını kapatıyoruz.
-        db.close()  
+        db.close()
