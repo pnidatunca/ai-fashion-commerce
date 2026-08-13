@@ -3,7 +3,7 @@
 import os
 
 # .env dosyasını Python'a okutmak için kullanıyoruz.
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 # PostgreSQL bağlantısı oluşturmak için SQLAlchemy'den create_engine'i alıyoruz.
 from sqlalchemy import create_engine
@@ -12,20 +12,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 
-# .env dosyasındaki değişkenleri yükler.
-# Örneğin:
-# DATABASE_URL=postgresql://...
-load_dotenv()
+# .env dosyasındaki değişkenleri yükler (otomatik olarak kök dizine kadar arar).
+load_dotenv(find_dotenv(usecwd=True))
 
 
 # .env içerisindeki DATABASE_URL değerini alıyoruz.
 DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgresql://",
-        "postgresql+psycopg://",
-        1
-    )
+if DATABASE_URL:
+    if DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+
 
 
 # Neon PostgreSQL ile bağlantı oluşturuyoruz.
@@ -38,7 +36,15 @@ if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
 # kontrol etmeye yardımcı olur.
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_recycle=300,
+    connect_args={
+        "connect_timeout": 15,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5
+    }
 )
 
 

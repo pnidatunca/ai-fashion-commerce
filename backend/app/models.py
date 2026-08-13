@@ -10,7 +10,7 @@ from sqlalchemy import (
 
 from sqlalchemy.orm import relationship
 
-from app.database import Base
+from .database import Base
 
 
 # =========================================================
@@ -120,6 +120,9 @@ class Review(Base):
     # Review metni
     review_text = Column(Text)
 
+    # Temizlenmiş orijinal review metni
+    source_cleaned_review_text = Column(Text)
+
     # Dataset içerisindeki sentiment skoru
     sentiment_score = Column(Float)
 
@@ -127,4 +130,4 @@ class Review(Base):
     product = relationship(
         "Product",
         back_populates="reviews",
-    )
+    )

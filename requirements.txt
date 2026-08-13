@@ -3,3 +3,6 @@ ftfy
 python-dotenv
 psycopg[binary]
 SQLAlchemy
+fastapi
+uvicorn
+
