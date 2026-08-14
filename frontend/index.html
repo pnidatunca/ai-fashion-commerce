@@ -1,93 +1,966 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Shopping - Yeni Nesil E-Ticaret</title>
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="/style.css">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>AURA — Modern Fashion</title>
+
+
+    <!-- =====================================================
+         FONTS
+    ====================================================== -->
+
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap"
+        rel="stylesheet"
+    >
+
+
+    <!-- =====================================================
+         ICONS
+    ====================================================== -->
+
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    >
+
+
+    <!-- =====================================================
+         PROJECT CSS
+    ====================================================== -->
+
+    <link
+        rel="stylesheet"
+        href="styles.css"
+    >
+
 </head>
+
+
 <body>
-    
-    <!-- Navbar / Header -->
-    <header class="navbar">
-        <div class="nav-container">
-            <h1 class="logo">AI<span>Shopping</span></h1>
-            <nav>
-                <a href="#" class="active">Katalog</a>
-                <a href="#">Yeni Gelenler</a>
-                <a href="#">Trendler</a>
-            </nav>
-            <div class="nav-actions">
-                <button class="icon-btn">🛒</button>
-                <button class="icon-btn">👤</button>
-            </div>
+
+
+<!-- =========================================================
+     HEADER
+========================================================= -->
+
+<header class="site-header">
+
+    <div class="header-inner">
+
+        <a
+            href="#new"
+            class="brand"
+        >
+            AURA
+        </a>
+
+
+        <nav class="main-nav">
+
+            <a href="#new">
+                YENİ
+            </a>
+
+            <a href="#products-section">
+                KADIN
+            </a>
+
+            <a href="#products-section">
+                ERKEK
+            </a>
+
+            <a href="#collections">
+                KOLEKSİYON
+            </a>
+
+            <a href="#offers">
+                FIRSATLAR
+            </a>
+
+        </nav>
+
+
+        <div class="header-actions">
+
+            <!-- Search -->
+
+            <button
+                type="button"
+                class="icon-button"
+                id="open-search-btn"
+                aria-label="Arama"
+            >
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+
+
+            <!-- Cart -->
+
+            <button
+                type="button"
+                class="icon-button"
+                id="cart-btn"
+                aria-label="Sepet"
+            >
+                <i class="fa-solid fa-bag-shopping"></i>
+
+                <span class="cart-number">
+                    0
+                </span>
+            </button>
+
+
+            <!-- Mobile menu -->
+
+            <button
+                type="button"
+                class="mobile-menu-button"
+                id="mobile-menu-btn"
+                aria-label="Menüyü aç"
+            >
+                <i class="fa-solid fa-bars"></i>
+            </button>
+
         </div>
-    </header>
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="hero-content">
-            <h2>Stilinizi Yapay Zeka İle Keşfedin</h2>
-            <p>Sizin için özel seçilmiş binlerce ürün arasında kolayca arama yapın.</p>
-            
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="Örn: Siyah günlük sneaker..." />
-                <button id="searchBtn" class="primary-btn">Ara</button>
-            </div>
+    </div>
+
+</header>
+
+
+<!-- =========================================================
+     MOBILE MENU
+========================================================= -->
+
+<div
+    class="mobile-menu"
+    id="mobile-menu"
+>
+
+    <button
+        type="button"
+        class="mobile-close"
+        id="mobile-close"
+        aria-label="Menüyü kapat"
+    >
+        <i class="fa-solid fa-xmark"></i>
+    </button>
+
+
+    <a href="#new">
+        YENİ
+    </a>
+
+    <a href="#products-section">
+        KADIN
+    </a>
+
+    <a href="#products-section">
+        ERKEK
+    </a>
+
+    <a href="#collections">
+        KOLEKSİYON
+    </a>
+
+    <a href="#offers">
+        FIRSATLAR
+    </a>
+
+    <a href="#ai-search-anchor">
+        ÜRÜN ARA
+    </a>
+
+</div>
+
+
+<!-- =========================================================
+     HERO
+========================================================= -->
+
+<section
+    class="hero"
+    id="new"
+>
+
+    <div class="hero-image">
+
+        <img
+            src="https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=2200&q=90"
+            alt="AURA Fashion"
+        >
+
+    </div>
+
+
+    <div class="hero-overlay"></div>
+
+
+    <div class="hero-content">
+
+        <p class="hero-small">
+            AURA / NEW SEASON
+        </p>
+
+
+        <h1>
+            Yeni Sezon
+            <br>
+
+            <em>
+                Şimdi AURA'da
+            </em>
+        </h1>
+
+
+        <p class="hero-description">
+            Zamansız parçalar, modern silüetler
+            ve sana özel keşif deneyimi.
+        </p>
+
+
+        <a
+            href="#products-section"
+            class="hero-button"
+        >
+            KOLEKSİYONU KEŞFET
+        </a>
+
+    </div>
+
+</section>
+
+
+<!-- =========================================================
+     CATEGORY STRIP
+========================================================= -->
+
+<section
+    class="category-strip"
+    id="collections"
+>
+
+    <div class="category-heading">
+
+        <span>
+            01
+        </span>
+
+        <h2>
+            Keşfet
+        </h2>
+
+    </div>
+
+
+    <div class="category-links">
+
+    <button
+        type="button"
+        data-category=""
+        class="active"
+    >
+        TÜMÜ
+    </button>
+
+    <button
+        type="button"
+        data-category="women"
+    >
+        KADIN
+    </button>
+
+    <button
+        type="button"
+        data-category="men"
+    >
+        ERKEK
+    </button>
+
+    <button
+        type="button"
+        data-category="dress"
+    >
+        ELBİSE
+    </button>
+
+    <button
+        type="button"
+        data-category="shirt"
+    >
+        GÖMLEK
+    </button>
+
+    <button
+        type="button"
+        data-category="pants"
+    >
+        PANTOLON
+    </button>
+
+    <button
+        type="button"
+        data-category="jacket"
+    >
+        CEKET
+    </button>
+
+    <button
+        type="button"
+        data-category="shoes"
+    >
+        AYAKKABI
+    </button>
+
+</div>
+
+</section>
+
+
+<!-- =========================================================
+     FEATURED / OFFERS
+========================================================= -->
+
+<section
+    class="featured-section"
+    id="offers"
+>
+
+    <div class="section-header">
+
+        <div>
+
+            <span class="section-number">
+                02
+            </span>
+
+            <h2>
+                Fırsatlar
+            </h2>
+
         </div>
-    </section>
 
-    <!-- Main Content -->
-    <main class="container">
-        
-        <div class="content-header">
-            <h3>Ürünlerimiz</h3>
-            <div class="filter-sort">
-                <span id="productCount">Yükleniyor...</span>
-            </div>
+
+        <a href="#products-section">
+
+            TÜMÜNÜ GÖR
+
+            <i class="fa-solid fa-arrow-right"></i>
+
+        </a>
+
+    </div>
+
+
+    <div
+        id="featured-products-grid"
+        class="featured-products-grid"
+    >
+        <!--
+            Gerçek indirimli ürünler
+            app.js tarafından yüklenecek.
+        -->
+    </div>
+
+</section>
+
+
+<!-- =========================================================
+     SEARCH SECTION
+========================================================= -->
+
+<section
+    class="ai-section"
+    id="ai-search-anchor"
+>
+
+    <div class="ai-inner">
+
+        <div class="ai-label">
+
+            <span class="ai-icon">
+                ✦
+            </span>
+
+            AURA SMART SEARCH
+
         </div>
 
-        <div class="layout-grid">
-            <!-- Sidebar / Filters -->
-            <aside class="sidebar glass">
-                <h4>Filtreler</h4>
-                <div class="filter-group">
-                    <label>Kategori</label>
-                    <select id="categoryFilter">
-                        <option value="">Tümü</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Min Fiyat ($)</label>
-                    <input type="number" id="minPriceFilter" placeholder="0">
-                </div>
-                <div class="filter-group">
-                    <label>Max Fiyat ($)</label>
-                    <input type="number" id="maxPriceFilter" placeholder="5000">
-                </div>
-                <button id="applyFiltersBtn" class="primary-btn" style="width: 100%; margin-top: 1rem;">Uygula</button>
-            </aside>
 
-            <!-- Products Grid -->
-            <div id="productsGrid" class="products-grid">
-                <!-- Loading Skeleton or Products will be injected here via JS -->
-                <div class="loading-spinner"></div>
+        <h2>
+            Ne aradığını
+            <em>anlat.</em>
+        </h2>
+
+
+        <p>
+            Koleksiyonda ürün adı, marka veya kategori
+            yazarak hızlıca arama yap.
+        </p>
+
+
+        <div class="ai-search">
+
+            <div class="ai-search-input">
+
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+
+
+                <input
+                    type="text"
+                    id="ai-search-input"
+                    placeholder="Örn. polo, shirt, jacket..."
+                    autocomplete="off"
+                >
+
             </div>
+
+
+            <button
+                type="button"
+                id="ai-search-btn"
+            >
+                ARA
+
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+
         </div>
 
-    </main>
 
-    <!-- Footer -->
-    <footer>
-        <p>&copy; 2026 AI Shopping Platform. Tüm hakları saklıdır.</p>
-    </footer>
+        <div class="ai-suggestions">
 
-    <script src="/app.js"></script>
+            <span>
+                Deneyebilirsin:
+            </span>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="polo"
+            >
+                Polo
+            </button>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="shirt"
+            >
+                Shirt
+            </button>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="jacket"
+            >
+                Jacket
+            </button>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="shoes"
+            >
+                Shoes
+            </button>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =========================================================
+     PRODUCTS
+========================================================= -->
+
+<main
+    id="products-section"
+    class="products-section"
+>
+
+    <div class="products-top">
+
+        <div>
+
+            <span class="section-number">
+                03
+            </span>
+
+
+            <h2 id="results-title">
+                Tüm Ürünler
+            </h2>
+
+
+            <span
+                id="results-count"
+                class="results-count"
+            >
+                Ürünler yükleniyor...
+            </span>
+
+        </div>
+
+
+        <!-- =================================================
+             SORT
+        ================================================== -->
+
+        <div class="product-controls">
+
+            <select
+                id="sort-select"
+                aria-label="Ürünleri sırala"
+            >
+
+                <option value="">
+                    Öne Çıkanlar
+                </option>
+
+
+                <option value="price_asc">
+                    Fiyat: Düşükten Yükseğe
+                </option>
+
+
+                <option value="price_desc">
+                    Fiyat: Yüksekten Düşüğe
+                </option>
+
+
+                <option value="rating">
+                    En Yüksek Puan
+                </option>
+
+
+                <option value="discount">
+                    En Çok İndirim
+                </option>
+
+            </select>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         FILTER BAR
+    ====================================================== -->
+
+    <div class="filter-bar">
+
+    <button
+        type="button"
+        class="filter-trigger active"
+        data-category=""
+    >
+        TÜMÜ
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="women"
+    >
+        KADIN
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="men"
+    >
+        ERKEK
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="dress"
+    >
+        ELBİSE
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="shirt"
+    >
+        GÖMLEK
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="pants"
+    >
+        PANTOLON
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="jacket"
+    >
+        CEKET
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="shoes"
+    >
+        AYAKKABI
+    </button>
+
+</div>
+
+
+    <!-- =====================================================
+         LOADER
+    ====================================================== -->
+
+    <div
+        id="loader"
+        class="loader-container hidden"
+    >
+
+        <div class="loader"></div>
+
+        <p>
+            Koleksiyon yükleniyor...
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         PRODUCT GRID
+    ====================================================== -->
+
+    <div
+        id="products-grid"
+        class="products-grid"
+    >
+        <!--
+            Gerçek ürün kartları app.js
+            tarafından oluşturulacak.
+        -->
+    </div>
+
+
+    <!-- =====================================================
+         EMPTY / ERROR STATE
+    ====================================================== -->
+
+    <div
+        id="empty-state"
+        class="empty-state hidden"
+    >
+
+        <div class="empty-icon">
+            ◌
+        </div>
+
+
+        <h3>
+            Ürün bulunamadı
+        </h3>
+
+
+        <p>
+            Farklı bir arama terimi deneyebilirsin.
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         PAGINATION
+    ====================================================== -->
+
+    <div
+        id="pagination"
+        class="pagination-container hidden"
+    >
+    </div>
+
+</main>
+
+
+<!-- =========================================================
+     SEARCH OVERLAY
+========================================================= -->
+
+<div
+    class="search-overlay"
+    id="search-overlay"
+>
+
+    <button
+        type="button"
+        class="search-close"
+        id="search-close"
+        aria-label="Aramayı kapat"
+    >
+
+        <i class="fa-solid fa-xmark"></i>
+
+    </button>
+
+
+    <div class="search-overlay-inner">
+
+        <span>
+            AURA SEARCH
+        </span>
+
+
+        <h2>
+            Ne arıyorsun?
+        </h2>
+
+
+        <div class="big-search">
+
+            <i class="fa-solid fa-magnifying-glass"></i>
+
+
+            <input
+                type="text"
+                id="global-search-input"
+                placeholder="Ürün, marka veya kategori ara..."
+                autocomplete="off"
+            >
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CART
+========================================================= -->
+
+<div
+    class="cart-overlay"
+    id="cart-overlay"
+>
+
+    <div class="cart-panel">
+
+
+        <!-- =================================================
+             CART HEADER
+        ================================================== -->
+
+        <div class="cart-header">
+
+            <h2>
+                Sepet
+            </h2>
+
+
+            <button
+                type="button"
+                id="close-cart"
+                aria-label="Sepeti kapat"
+            >
+
+                <i class="fa-solid fa-xmark"></i>
+
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             CART ITEMS
+        ================================================== -->
+
+        <div
+            id="cart-items"
+            class="cart-items"
+        >
+
+            <div class="cart-empty">
+
+                <i class="fa-solid fa-bag-shopping"></i>
+
+
+                <p>
+                    Sepetiniz boş.
+                </p>
+
+
+                <span>
+                    Beğendiğiniz ürünleri sepete ekleyin.
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             CART FOOTER
+        ================================================== -->
+
+        <div class="cart-footer">
+
+            <div class="cart-total">
+
+                <span>
+                    Toplam
+                </span>
+
+
+                <strong id="cart-total">
+                    $0.00
+                </strong>
+
+            </div>
+
+
+            <!--
+                Şimdilik checkout backend'i yok.
+                Butonu görsel olarak tutuyoruz.
+            -->
+
+            <button
+                type="button"
+                class="checkout-btn"
+                disabled
+                title="Checkout sistemi henüz geliştirilmedi."
+            >
+                SEPETİ GÖR
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     PRODUCT MODAL
+========================================================= -->
+
+<div
+    id="product-modal"
+    class="modal-overlay hidden"
+>
+
+    <div class="modal-card">
+
+        <button
+            type="button"
+            id="close-modal-btn"
+            class="modal-close"
+            aria-label="Ürün detayını kapat"
+        >
+
+            <i class="fa-solid fa-xmark"></i>
+
+        </button>
+
+
+        <div
+            id="modal-content"
+            class="modal-content"
+        >
+            <!--
+                Product detail + gerçek review'lar
+                app.js tarafından oluşturulacak.
+            -->
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+
+<footer class="footer">
+
+    <div class="footer-brand">
+        AURA
+    </div>
+
+
+    <p>
+        Modern fashion. Intelligent discovery.
+    </p>
+
+
+    <div class="footer-links">
+
+        <a href="#new">
+            Hakkımızda
+        </a>
+
+        <a href="#products-section">
+            Koleksiyon
+        </a>
+
+        <a href="#ai-search-anchor">
+            Arama
+        </a>
+
+        <a href="#offers">
+            Fırsatlar
+        </a>
+
+    </div>
+
+
+    <small>
+        © 2026 AURA Fashion AI
+    </small>
+
+</footer>
+
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================= -->
+
+<script src="app.js"></script>
+
+
 </body>
 </html>
