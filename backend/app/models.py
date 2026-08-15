@@ -9,6 +9,7 @@ from sqlalchemy import (
 )
 
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import VECTOR
 
 from .database import Base
 
@@ -64,6 +65,13 @@ class Product(Base):
     # Semantic Search için hazırladığımız
     # birleşik ürün metni
     search_text = Column(Text)
+
+    # Semantic Search icin urun metninin vector temsili.
+    # Embeddingler sonraki asamada uretilecegi icin nullable kalir.
+    search_embedding = Column(
+        VECTOR(1536),
+        nullable=True,
+    )
 
     # Bir ürünün birden fazla review'su olabilir.
     reviews = relationship(
@@ -130,4 +138,4 @@ class Review(Base):
     product = relationship(
         "Product",
         back_populates="reviews",
-    )
+    )
