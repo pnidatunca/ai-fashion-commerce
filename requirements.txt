@@ -3,6 +3,7 @@ ftfy
 python-dotenv
 psycopg[binary]
 pgvector
+google-genai
 SQLAlchemy
 fastapi
 uvicorn
