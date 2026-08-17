@@ -31,17 +31,11 @@ class ProductResponse(BaseModel):
     product_id: str
     title: str
 
-    # Türkçe alanlar
-    title_tr: str | None = None
-
     brand: str | None = None
     category: str | None = None
 
     description: str | None = None
-    description_tr: str | None = None
-
     features: str | None = None
-    features_tr: str | None = None
 
     availability: str | None = None
     product_url: str | None = None
