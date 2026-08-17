@@ -254,7 +254,7 @@ function renderProducts(products) {
 
 
         const title =
-            product.title || "Ürün";
+         product.title_tr || product.title || "Ürün";
 
         const brand =
             product.brand || "";
@@ -912,11 +912,16 @@ function renderProductModal(
 
     if (!modalContent) return;
 
-
     const description =
-        product.description ||
-        product.features ||
-        "Bu ürün için açıklama bulunmuyor.";
+    product.description_tr ||
+    product.description ||
+    "Bu ürün için açıklama bulunmuyor.";
+
+
+    const features =
+    product.features_tr ||
+    product.features ||
+    "";
 
 
     modalContent.innerHTML = `
