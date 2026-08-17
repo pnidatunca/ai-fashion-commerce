@@ -34,13 +34,22 @@ class Product(Base):
         nullable=False,
     )
 
+    # Türkçe başlık
+    title_tr = Column(Text)
+
     brand = Column(String)
 
     category = Column(Text)
 
     description = Column(Text)
 
+    # Türkçe açıklama
+    description_tr = Column(Text)
+
     features = Column(Text)
+
+    # Türkçe özellikler
+    features_tr = Column(Text)
 
     availability = Column(String)
 
@@ -130,4 +139,4 @@ class Review(Base):
     product = relationship(
         "Product",
         back_populates="reviews",
-    )
+    )
