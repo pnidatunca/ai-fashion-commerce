@@ -147,21 +147,26 @@ def search_products(
     statement = (
         select(Product)
         .where(
-            or_(
-                Product.title.ilike(
-                    search_pattern
-                ),
-                Product.brand.ilike(
-                    search_pattern
-                ),
-                Product.category.ilike(
-                    search_pattern
-                ),
+           or_(
+               Product.title.ilike(
+                   search_pattern
+                   ),
+               Product.title_tr.ilike(
+                   search_pattern
+                   ),
+               Product.brand.ilike(
+                   search_pattern
+                   ),
+               Product.category.ilike(
+                   search_pattern
+                   ),
             )
         )
-        .offset(offset)
-        .limit(limit)
+         .offset(offset)
+            .limit(limit)
     )
+   
+    
 
     return list(
         db.scalars(statement).all()
