@@ -5,6 +5,8 @@
 
 const API_BASE = "http://127.0.0.1:8000";
 
+let usdTryRate = 47.88;
+
 const state = {
     page: 1,
     limit: 12,
@@ -67,7 +69,7 @@ const mobileClose = $("mobile-close");
    START
 ========================================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
 
     setupNavigation();
     setupSearch();
@@ -78,6 +80,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     loadCart();
     updateCart();
+
+    await loadExchangeRate();
 
     loadProducts();
     loadFeaturedProducts();
@@ -114,6 +118,18 @@ async function apiGet(path, params = {}) {
     return response.json();
 }
 
+async function loadExchangeRate() {
+    try {
+        const data = await apiGet("/exchange-rate");
+
+        usdTryRate = data.rate;
+
+        console.log("Güncel kur:", usdTryRate);
+
+    } catch (error) {
+        console.error("Kur alınamadı:", error);
+    }
+}
 
 /* =========================================================
    PRODUCTS
@@ -1592,22 +1608,21 @@ function hideEmpty() {
 
 function formatPrice(value) {
 
-    const number =
-        Number(value);
-
+    const number = Number(value);
 
     if (!Number.isFinite(number)) {
         return "Fiyat yok";
     }
 
+    const tl = number * usdTryRate;
 
     return new Intl.NumberFormat(
-        "en-US",
+        "tr-TR",
         {
             style: "currency",
-            currency: "USD"
+            currency: "TRY"
         }
-    ).format(number);
+    ).format(tl);
 }
 
 

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import crud, schemas
 from app.database import engine, get_db
-
+import requests
 
 app = FastAPI(
     title="AI Fashion Commerce API",
@@ -184,3 +184,18 @@ def product_reviews(
         limit=limit,
         offset=offset,
     )
+
+import requests
+
+@app.get("/exchange-rate")
+def get_exchange_rate():
+
+    response = requests.get(
+        "https://open.er-api.com/v6/latest/USD"
+    )
+
+    data = response.json()
+
+    return {
+        "rate": data["rates"]["TRY"]
+    }
