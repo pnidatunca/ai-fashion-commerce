@@ -2,6 +2,7 @@
    AURA FASHION
    FastAPI Backend Connected Version
 ========================================================= */
+alert("APPJS YÜKLENDİ");
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -59,6 +60,10 @@ const cartOverlay = $("cart-overlay");
 const closeCartButton = $("close-cart");
 const cartItems = $("cart-items");
 const cartTotal = $("cart-total");
+const checkoutButton = $("checkout-btn");
+
+const authOverlay = $("auth-overlay");
+const authCloseButton = $("auth-close");
 
 const mobileMenu = $("mobile-menu");
 const mobileMenuButton = $("mobile-menu-btn");
@@ -71,22 +76,32 @@ const mobileClose = $("mobile-close");
 
 document.addEventListener("DOMContentLoaded", async () => {
 
+    console.log("A");
+
     setupNavigation();
+
+    console.log("B");
+
     setupSearch();
+
+    console.log("C");
+
     setupCategories();
+
+    console.log("D");
+
     setupSort();
+
+    console.log("E");
+
     setupModal();
+
+    console.log("F");
+
     setupCart();
 
-    loadCart();
-    updateCart();
-
-    await loadExchangeRate();
-
-    loadProducts();
-    loadFeaturedProducts();
+    console.log("G");
 });
-
 
 /* =========================================================
    API
@@ -1313,44 +1328,95 @@ function pageButton(
 /* =========================================================
    CART
 ========================================================= */
-
 function setupCart() {
 
-    cartButton?.addEventListener(
-        "click",
-        () => {
+    console.log("SETUPCART ÇALIŞTI");
 
-            cartOverlay
-                ?.classList.add("open");
+    const cartButton = document.getElementById("cart-btn");
+    const cartOverlay = document.getElementById("cart-overlay");
+    const closeCartButton = document.getElementById("close-cart");
+
+    const checkoutButton = document.getElementById("checkout-btn");
+
+    const authOverlay = document.getElementById("auth-overlay");
+    const authCloseButton = document.getElementById("auth-close");
+
+    const loginButton = document.getElementById("login-btn");
+     const registerButton = document.getElementById("register-btn");
+
+
+    console.log("loginButton =", loginButton);
+    console.log("registerButton =", registerButton);
+
+    registerButton?.addEventListener("click", () => {
+
+    console.log("HESAP OLUŞTUR tıklandı");
+
+    authOverlay?.classList.remove("open");
+
+     });
+
+    console.log("checkoutButton =", checkoutButton);
+    console.log("authOverlay =", authOverlay);
+
+    /* HEADER SEPET */
+
+    cartButton?.addEventListener("click", () => {
+        cartOverlay?.classList.add("open");
+    });
+
+    /* SEPETİ GÖR */
+
+    checkoutButton?.addEventListener("click", () => {
+
+        console.log("SEPETİ GÖR tıklandı");
+
+        authOverlay?.classList.add("open");
+
+    });
+
+    /* AUTH KAPAT */
+
+    authCloseButton?.addEventListener("click", () => {
+        authOverlay?.classList.remove("open");
+    });
+
+    authOverlay?.addEventListener("click", (event) => {
+
+        if (event.target === authOverlay) {
+            authOverlay.classList.remove("open");
         }
-    );
 
+    });
 
-    closeCartButton?.addEventListener(
-        "click",
-        closeCart
-    );
+    /* SEPET KAPAT */
 
+    closeCartButton?.addEventListener("click", () => {
+        cartOverlay?.classList.remove("open");
+    });
 
-    cartOverlay?.addEventListener(
-        "click",
-        event => {
+    cartOverlay?.addEventListener("click", (event) => {
 
-            if (
-                event.target === cartOverlay
-            ) {
-                closeCart();
-            }
+        if (event.target === cartOverlay) {
+            cartOverlay.classList.remove("open");
         }
-    );
+
+    });
 }
 
+function closeAuth() {
 
+    authOverlay
+        ?.classList.remove("open");
+}
 function closeCart() {
 
     cartOverlay
         ?.classList.remove("open");
 }
+
+
+
 
 
 function addToCart(product) {

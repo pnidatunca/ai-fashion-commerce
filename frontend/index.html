@@ -767,10 +767,202 @@
 
 </div>
 
+<!-- =========================================================
+     AUTH OVERLAY - STEP 1
+========================================================= -->
+
+<div
+    class="auth-overlay"
+    id="auth-overlay"
+>
+
+    <div class="auth-panel">
+
+        <button
+            type="button"
+            class="auth-close"
+            id="auth-close"
+            aria-label="Giriş ekranını kapat"
+        >
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+
+        <div class="auth-content">
+
+            <span class="auth-label">
+                AURA ACCOUNT
+            </span>
+
+
+            <h2>
+                Devam etmek için
+                <em>giriş yap</em>
+            </h2>
+
+
+            <p>
+                Sepetinize ulaşmak için hesabınıza giriş yapın
+                veya yeni bir hesap oluşturun.
+            </p>
+
+
+            <button
+                type="button"
+                class="auth-main-btn"
+                id="login-btn"
+            >
+                GİRİŞ YAP
+            </button>
+
+
+            <button
+                type="button"
+                class="auth-secondary-btn"
+                id="register-btn"
+            >
+                HESAP OLUŞTUR
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
 
 <!-- =========================================================
-     CART
+     REGISTER OVERLAY
 ========================================================= -->
+
+<div
+    class="auth-overlay"
+    id="register-overlay"
+>
+
+    <div class="auth-panel">
+
+        <button
+            type="button"
+            class="auth-close"
+            id="register-close"
+            aria-label="Kayıt ekranını kapat"
+        >
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+
+        <div class="auth-content">
+
+            <span class="auth-label">
+                AURA ACCOUNT
+            </span>
+
+
+            <h2>
+                Yeni hesabını
+                <em>oluştur</em>
+            </h2>
+
+
+            <p>
+                AURA deneyimine katılmak için bilgilerini gir.
+            </p>
+
+
+            <form id="register-form">
+
+                <input
+                    type="text"
+                    id="register-first-name"
+                    placeholder="Ad"
+                    required
+                >
+
+
+                <input
+                    type="text"
+                    id="register-last-name"
+                    placeholder="Soyad"
+                    required
+                >
+
+
+                <input
+                    type="email"
+                    id="register-email"
+                    placeholder="E-posta"
+                    required
+                >
+
+
+                <select
+                    id="register-gender"
+                    required
+                >
+
+                    <option value="">
+                        Cinsiyet
+                    </option>
+
+                    <option value="Kadın">
+                        Kadın
+                    </option>
+
+                    <option value="Erkek">
+                        Erkek
+                    </option>
+
+                    <option value="Belirtmek istemiyorum">
+                        Belirtmek istemiyorum
+                    </option>
+
+                </select>
+
+
+                <input
+                    type="number"
+                    id="register-age"
+                    placeholder="Yaş"
+                    min="13"
+                    max="100"
+                    required
+                >
+
+
+                <input
+                    type="password"
+                    id="register-password"
+                    placeholder="Şifre"
+                    minlength="6"
+                    required
+                >
+
+
+                <button
+                    type="submit"
+                    class="auth-main-btn"
+                    id="register-submit-btn"
+                >
+                    HESAP OLUŞTUR
+                </button>
+
+            </form>
+
+
+            <p
+                id="register-message"
+                class="auth-message"
+            ></p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+
 
 <div
     class="cart-overlay"
@@ -860,10 +1052,9 @@
             <button
                 type="button"
                 class="checkout-btn"
-                disabled
-                title="Checkout sistemi henüz geliştirilmedi."
-            >
-                SEPETİ GÖR
+                id="checkout-btn">
+
+            SEPETİ GÖR
             </button>
 
         </div>
