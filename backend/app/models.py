@@ -9,6 +9,7 @@ from sqlalchemy import (
 )
 
 from sqlalchemy.orm import relationship
+
 from pgvector.sqlalchemy import VECTOR
 
 from .database import Base
@@ -35,13 +36,27 @@ class Product(Base):
         nullable=False,
     )
 
+    # Türkçe başlık
+    title_tr = Column(Text)
+
     brand = Column(String)
 
     category = Column(Text)
 
     description = Column(Text)
 
+
     features = Column(Text)
+
+
+    # Türkçe açıklama
+    description_tr = Column(Text)
+
+    features = Column(Text)
+
+    # Türkçe özellikler
+    features_tr = Column(Text)
+
 
     availability = Column(String)
 
@@ -66,12 +81,14 @@ class Product(Base):
     # birleşik ürün metni
     search_text = Column(Text)
 
+
     # Semantic Search icin urun metninin vector temsili.
     # Embeddingler sonraki asamada uretilecegi icin nullable kalir.
     search_embedding = Column(
         VECTOR(1536),
         nullable=True,
     )
+
 
     # Bir ürünün birden fazla review'su olabilir.
     reviews = relationship(
@@ -138,4 +155,8 @@ class Review(Base):
     product = relationship(
         "Product",
         back_populates="reviews",
+
     )
+
+    
+

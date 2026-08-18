@@ -4,28 +4,64 @@ from sqlalchemy.orm import Session
 from app.models import Product, Review
 
 
-# =========================================================
-# PRODUCTS
-# =========================================================
-
 def get_products(
     db: Session,
     limit: int = 24,
     offset: int = 0,
+    category: str | None = None,
 ):
-    """
-    Urunleri pagination ile getirir.
+    statement = select(Product)
 
-    Ornek:
-    limit=24, offset=0
-    -> ilk 24 urun
+    if category:
 
-    limit=24, offset=24
-    -> sonraki 24 urun
-    """
+        category = category.lower()
+
+        if category == "men":
+            statement = statement.where(
+                Product.category.ilike("%› Men ›%")
+            )
+
+        elif category == "women":
+            statement = statement.where(
+                Product.category.ilike("%› Women ›%")
+            )
+
+        elif category == "dress":
+            statement = statement.where(
+                Product.category.ilike("%› Dresses%")
+            )
+
+        elif category == "shirt":
+            statement = statement.where(
+                or_(
+                    Product.category.ilike("%› Shirts%"),
+                    Product.category.ilike("%› Polos%"),
+                )
+            )
+
+        elif category == "pants":
+            statement = statement.where(
+                Product.category.ilike("%› Pants%")
+            )
+
+        elif category == "jacket":
+            statement = statement.where(
+                or_(
+                    Product.category.ilike("%Jackets%"),
+                    Product.category.ilike("%Coats%"),
+                )
+            )
+
+        elif category == "shoes":
+            statement = statement.where(
+                or_(
+                    Product.category.ilike("%› Shoes ›%"),
+                    Product.category.ilike("%› Shoes"),
+                )
+            )
 
     statement = (
-        select(Product)
+        statement
         .offset(offset)
         .limit(limit)
     )
@@ -111,21 +147,26 @@ def search_products(
     statement = (
         select(Product)
         .where(
-            or_(
-                Product.title.ilike(
-                    search_pattern
-                ),
-                Product.brand.ilike(
-                    search_pattern
-                ),
-                Product.category.ilike(
-                    search_pattern
-                ),
+           or_(
+               Product.title.ilike(
+                   search_pattern
+                   ),
+               Product.title_tr.ilike(
+                   search_pattern
+                   ),
+               Product.brand.ilike(
+                   search_pattern
+                   ),
+               Product.category.ilike(
+                   search_pattern
+                   ),
             )
         )
-        .offset(offset)
-        .limit(limit)
+         .offset(offset)
+            .limit(limit)
     )
+   
+    
 
     return list(
         db.scalars(statement).all()

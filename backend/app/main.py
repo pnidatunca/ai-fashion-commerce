@@ -1,15 +1,27 @@
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import crud, schemas
 from app.database import engine, get_db
-
+import requests
 
 app = FastAPI(
     title="AI Fashion Commerce API",
     version="0.1.0",
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+) 
 
 
 # =========================================================
@@ -43,7 +55,6 @@ def db_test():
 # =========================================================
 # PRODUCTS LIST
 # =========================================================
-
 @app.get(
     "/products",
     response_model=list[schemas.ProductResponse],
@@ -58,12 +69,16 @@ def list_products(
         default=0,
         ge=0,
     ),
+    category: str | None = Query(
+        default=None,
+    ),
     db: Session = Depends(get_db),
 ):
     return crud.get_products(
         db=db,
         limit=limit,
         offset=offset,
+        category=category,
     )
 
 
@@ -169,3 +184,18 @@ def product_reviews(
         limit=limit,
         offset=offset,
     )
+
+import requests
+
+@app.get("/exchange-rate")
+def get_exchange_rate():
+
+    response = requests.get(
+        "https://open.er-api.com/v6/latest/USD"
+    )
+
+    data = response.json()
+
+    return {
+        "rate": data["rates"]["TRY"]
+    }
