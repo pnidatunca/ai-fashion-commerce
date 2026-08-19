@@ -1352,8 +1352,6 @@ function setupCart() {
     const authOverlay = document.getElementById("auth-overlay");
     const authCloseButton = document.getElementById("auth-close");
 
-    const registerButton = document.getElementById("register-btn");
-
     const registerOverlay = document.getElementById("register-overlay");
     const registerClose = document.getElementById("register-close");
 
@@ -1366,124 +1364,187 @@ function setupCart() {
     const userMenuBtn = document.getElementById("user-menu-btn");
     const userDropdown = document.getElementById("user-dropdown");
 
-    const dropdownLoginBtn = document.getElementById("dropdown-login-btn");
-    const dropdownRegisterBtn = document.getElementById("dropdown-register-btn");
+    const dropdownLoginBtn =
+        document.getElementById("dropdown-login-btn");
+
+    const dropdownRegisterBtn =
+        document.getElementById("dropdown-register-btn");
 
 
-
-    /* USER MENU */
+    /* =====================================================
+       USER MENU
+    ===================================================== */
 
     userMenuBtn?.addEventListener("click", (e) => {
 
-    e.stopPropagation();
+        e.stopPropagation();
 
-    userDropdown?.classList.toggle("open");
-     });
+        userDropdown?.classList.toggle("open");
 
-     dropdownLoginBtn?.addEventListener("click", () => {
-
-    userDropdown?.classList.remove("open");
-    authOverlay?.classList.add("open");
-     });
-
-     dropdownRegisterBtn?.addEventListener("click", () => {
-
-    userDropdown?.classList.remove("open");
-    registerOverlay?.classList.add("open");
-      });
-
-     document.addEventListener("click", (e) => {
-
-    if (
-        !userMenuBtn?.contains(e.target) &&
-        !userDropdown?.contains(e.target)
-    ) {
-        userDropdown?.classList.remove("open");
-    }
-     });
-
-    /* SEPET AÇ */
-
-    cartButton?.addEventListener("click", () => {
-        cartOverlay?.classList.add("open");
     });
 
-    /* SEPETİ GÖR */
 
-   checkoutButton?.addEventListener("click", () => {
+    dropdownLoginBtn?.addEventListener("click", () => {
 
-    const user = localStorage.getItem("user");
+        userDropdown?.classList.remove("open");
 
-    if (user) {
-        alert("Sipariş ekranına geçilecek");
+        loginMessage.textContent = "";
+
+        loginForm?.reset();
+
+        authOverlay?.classList.add("open");
+
+    });
+
+
+    dropdownRegisterBtn?.addEventListener("click", () => {
+
+        userDropdown?.classList.remove("open");
+
+        registerOverlay?.classList.add("open");
+
+    });
+
+
+    document.addEventListener("click", (e) => {
+
+        if (
+            !userMenuBtn?.contains(e.target) &&
+            !userDropdown?.contains(e.target)
+        ) {
+
+            userDropdown?.classList.remove("open");
+
+        }
+
+    });
+
+
+    /* =====================================================
+       SEPET
+    ===================================================== */
+
+    cartButton?.addEventListener("click", () => {
+
+    cartOverlay?.classList.add("open");
+
+});
+
+
+   /* =========================================================
+   ÖDEMEYE GEÇ
+========================================================= */
+
+checkoutButton?.addEventListener("click", () => {
+
+    const user = getCurrentUser();
+
+    // Giriş yapılmamışsa login ekranını aç
+    if (!user) {
+
+        cartOverlay?.classList.remove("open");
+
+        loginMessage.textContent = "";
+
+        loginForm?.reset();
+
+        authOverlay?.classList.add("open");
+
         return;
     }
 
-    const answer = confirm(
-        "Devam etmek için giriş yapmanız gerekiyor.\n\nTamam = Giriş Yap\nİptal = Hesap Oluştur"
-    );
+    // Giriş yapılmışsa şimdilik ödeme aşamasına geç
+    console.log("Ödeme aşamasına geçiliyor...");
 
-    if (answer) {
-        authOverlay?.classList.add("open");
-    } else {
-        registerOverlay?.classList.add("open");
-    }
-    });
+    alert("Ödeme aşamasına geçilecek.");
 
-    /* AUTH KAPAT */
+});
+
+    /* =====================================================
+       LOGIN CLOSE
+    ===================================================== */
 
     authCloseButton?.addEventListener("click", () => {
+
         authOverlay?.classList.remove("open");
+
     });
+
 
     authOverlay?.addEventListener("click", (e) => {
+
         if (e.target === authOverlay) {
+
             authOverlay.classList.remove("open");
+
         }
+
     });
 
-    /* REGISTER AÇ */
 
-    registerButton?.addEventListener("click", () => {
-        authOverlay?.classList.remove("open");
-        registerOverlay?.classList.add("open");
-    });
-
-    /* REGISTER KAPAT */
+    /* =====================================================
+       REGISTER CLOSE
+    ===================================================== */
 
     registerClose?.addEventListener("click", () => {
+
         registerOverlay?.classList.remove("open");
+
     });
+
 
     registerOverlay?.addEventListener("click", (e) => {
+
         if (e.target === registerOverlay) {
+
             registerOverlay.classList.remove("open");
+
         }
+
     });
 
-    /* SEPET KAPAT */
+
+    /* =====================================================
+       CART CLOSE
+    ===================================================== */
 
     closeCartButton?.addEventListener("click", () => {
+
         cartOverlay?.classList.remove("open");
+
     });
+
 
     cartOverlay?.addEventListener("click", (e) => {
+
         if (e.target === cartOverlay) {
+
             cartOverlay.classList.remove("open");
+
         }
+
     });
 
-    /* LOGIN */
+
+    /* =====================================================
+       LOGIN
+    ===================================================== */
 
     loginForm?.addEventListener("submit", async (e) => {
 
         e.preventDefault();
 
+
         const email =
-            document.getElementById("login-email").value;
+            document.getElementById("login-email").value.trim();
+
 
         const password =
             document.getElementById("login-password").value;
+
+
+        loginMessage.textContent = "";
+
 
         try {
 
@@ -1491,9 +1552,11 @@ function setupCart() {
                 `${API_BASE}/auth/login`,
                 {
                     method: "POST",
+
                     headers: {
                         "Content-Type": "application/json"
                     },
+
                     body: JSON.stringify({
                         email,
                         password
@@ -1501,92 +1564,164 @@ function setupCart() {
                 }
             );
 
+
             const data = await response.json();
 
+
             if (!response.ok) {
-                throw new Error(data.detail);
+
+                throw new Error(
+                    data.detail ||
+                    "E-posta veya şifre hatalı."
+                );
+
             }
+
+
+            /* Kullanıcı bilgilerini kaydet */
 
             localStorage.setItem(
                 "user",
                 JSON.stringify(data.user)
             );
 
+
             loginMessage.textContent =
                 "Giriş başarılı.";
 
-            authOverlay.classList.remove("open");
+
+            authOverlay?.classList.remove("open");
+
+
+            loginForm?.reset();
+
+
+            /*
+                Sayfayı yenile:
+                kullanıcı durumu bütün frontend'de
+                güncel şekilde kullanılabilir.
+            */
 
             location.reload();
 
+
         } catch (error) {
 
-            loginMessage.textContent =
-                error.message;
-        }
-    });
-
-    /* REGISTER */
-
-    registerForm?.addEventListener("submit", async (event) => {
-
-        event.preventDefault();
-
-        const firstName =
-            document.getElementById("register-first-name").value;
-
-        const lastName =
-            document.getElementById("register-last-name").value;
-
-        const email =
-            document.getElementById("register-email").value;
-
-        const gender =
-            document.getElementById("register-gender").value;
-
-        const age =
-            document.getElementById("register-age").value;
-
-        const password =
-            document.getElementById("register-password").value;
-
-        try {
-
-            const response = await fetch(
-                `${API_BASE}/auth/register`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        first_name: firstName,
-                        last_name: lastName,
-                        email,
-                        gender,
-                        age: Number(age),
-                        password
-                    })
-                }
+            console.error(
+                "Login error:",
+                error
             );
 
-            const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.detail);
+            loginMessage.textContent =
+                error.message ||
+                "Giriş yapılırken bir hata oluştu.";
+
+        }
+
+    });
+
+
+    /* =====================================================
+       REGISTER
+       MEVCUT SİSTEM KORUNDU
+    ===================================================== */
+
+    registerForm?.addEventListener(
+        "submit",
+        async (event) => {
+
+            event.preventDefault();
+
+
+            const firstName =
+                document
+                    .getElementById("register-first-name")
+                    .value;
+
+
+            const lastName =
+                document
+                    .getElementById("register-last-name")
+                    .value;
+
+
+            const email =
+                document
+                    .getElementById("register-email")
+                    .value;
+
+
+            const gender =
+                document
+                    .getElementById("register-gender")
+                    .value;
+
+
+            const age =
+                document
+                    .getElementById("register-age")
+                    .value;
+
+
+            const password =
+                document
+                    .getElementById("register-password")
+                    .value;
+
+
+            try {
+
+                const response = await fetch(
+                    `${API_BASE}/auth/register`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            first_name: firstName,
+                            last_name: lastName,
+                            email,
+                            gender,
+                            age: Number(age),
+                            password
+                        })
+                    }
+                );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        data.detail
+                    );
+
+                }
+
+
+                registerMessage.textContent =
+                    "Hesap oluşturuldu.";
+
+
+                registerForm.reset();
+
+
+            } catch (error) {
+
+                registerMessage.textContent =
+                    error.message;
+
             }
 
-            registerMessage.textContent =
-                "Hesap oluşturuldu.";
-
-            registerForm.reset();
-
-        } catch (error) {
-
-            registerMessage.textContent =
-                error.message;
         }
-    });
+    );
 }
 
 function closeAuth() {
@@ -1856,6 +1991,30 @@ function hideEmpty() {
 /* =========================================================
    HELPERS
 ========================================================= */
+function getCurrentUser() {
+    try {
+        const user = localStorage.getItem("user");
+
+        if (!user) {
+            return null;
+        }
+
+        return JSON.parse(user);
+
+    } catch (error) {
+
+        console.error("Kullanıcı bilgisi okunamadı:", error);
+
+        localStorage.removeItem("user");
+
+        return null;
+    }
+}
+
+
+function isUserLoggedIn() {
+    return !!getCurrentUser();
+}
 
 function formatPrice(value) {
 
