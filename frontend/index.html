@@ -112,6 +112,37 @@
                 <i class="fa-solid fa-magnifying-glass"></i>
             </button>
 
+            <div class="user-area" id="user-area">
+
+          <button
+        type="button"
+        class="user-icon-btn"
+        id="user-menu-btn"
+        aria-label="Kullanıcı Menüsü"
+    >
+        <i class="fa-regular fa-user"></i>
+         </button>
+
+         <div class="user-dropdown" id="user-dropdown">
+
+        <button
+            type="button"
+            id="dropdown-login-btn"
+        >
+            Giriş Yap
+        </button>
+
+        <button
+            type="button"
+            id="dropdown-register-btn"
+        >
+            Hesap Oluştur
+        </button>
+
+         </div>
+
+        </div>
+
 
             <!-- Cart -->
 
@@ -788,44 +819,66 @@
         </button>
 
 
-        <div class="auth-content">
+       <div class="auth-content" id="auth-home">
 
-            <span class="auth-label">
-                AURA ACCOUNT
-            </span>
+    <span class="auth-label">
+        AURA ACCOUNT
+    </span>
 
+    <h2>
+        Devam etmek için
+        <em>giriş yap</em>
+    </h2>
 
-            <h2>
-                Devam etmek için
-                <em>giriş yap</em>
-            </h2>
-
-
-            <p>
-                Sepetinize ulaşmak için hesabınıza giriş yapın
-                veya yeni bir hesap oluşturun.
-            </p>
+    <p>
+        Hesabınıza giriş yapmak için e-posta ve şifrenizi girin.
+    </p>
 
 
-            <button
-                type="button"
-                class="auth-main-btn"
-                id="login-btn"
-            >
-                GİRİŞ YAP
-            </button>
+    <form id="login-form">
+
+        <input
+            type="email"
+            id="login-email"
+            placeholder="E-posta"
+            autocomplete="email"
+            required
+        >
+
+        <input
+            type="password"
+            id="login-password"
+            placeholder="Şifre"
+            autocomplete="current-password"
+            required
+        >
+
+        <button
+            type="submit"
+            class="auth-main-btn"
+            id="login-submit-btn"
+        >
+            GİRİŞ YAP
+        </button>
+
+    </form>
 
 
-            <button
-                type="button"
-                class="auth-secondary-btn"
-                id="register-btn"
-            >
-                HESAP OLUŞTUR
-            </button>
+    <p
+        id="login-message"
+        class="auth-message"
+    ></p>
 
-        </div>
 
+   <!-- <button
+        type="button"
+        class="auth-secondary-btn"
+        id="register-btn"
+    >
+        HESAP OLUŞTUR
+    </button>-->
+
+</div>
     </div>
 
 </div>
@@ -834,10 +887,7 @@
      REGISTER OVERLAY
 ========================================================= -->
 
-<div
-    class="auth-overlay"
-    id="register-overlay"
->
+<div class="auth-overlay " id="register-overlay">
 
     <div class="auth-panel">
 
@@ -851,7 +901,7 @@
         </button>
 
 
-        <div class="auth-content">
+        <div class="auth-content " id="auth-register">
 
             <span class="auth-label">
                 AURA ACCOUNT

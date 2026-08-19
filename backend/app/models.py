@@ -184,6 +184,7 @@ class User(Base):
     )
 
     created_at = Column(
-        DateTime,
-        nullable=False,
-    )
+    DateTime,
+    nullable=False,
+    server_default=text("NOW()"),
+     )

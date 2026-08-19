@@ -81,3 +81,12 @@ class RegisterRequest(BaseModel):
     gender: str | None = None
     age: int | None = None
     password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str

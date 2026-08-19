@@ -264,3 +264,49 @@ def register_user(
             "age": new_user.age,
         },
     }
+
+
+# =========================================================
+# USER LOGIN
+# =========================================================
+
+@app.post("/auth/login")
+def login_user(
+    user_data: schemas.LoginRequest,
+    db: Session = Depends(get_db),
+):
+
+    user = (
+        db.query(User)
+        .filter(User.email == user_data.email)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="E-posta veya şifre hatalı.",
+        )
+
+    password_correct = pwd_context.verify(
+        user_data.password,
+        user.password_hash,
+    )
+
+    if not password_correct:
+        raise HTTPException(
+            status_code=401,
+            detail="E-posta veya şifre hatalı.",
+        )
+
+    return {
+        "message": "Giriş başarılı.",
+        "user": {
+            "id": str(user.id),
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "gender": user.gender,
+            "age": user.age,
+        },
+    }

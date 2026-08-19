@@ -2,7 +2,7 @@
    AURA FASHION
    FastAPI Backend Connected Version
 ========================================================= */
-alert("APPJS YÜKLENDİ");
+
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -64,7 +64,13 @@ const checkoutButton = $("checkout-btn");
 
 const authOverlay = $("auth-overlay");
 const authCloseButton = $("auth-close");
+const headerLoginButton = $("header-login-btn");
+const userArea = $("user-area");
 
+const loginForm = $("login-form");
+const loginEmail = $("login-email");
+const loginPassword = $("login-password");
+const loginMessage = $("login-message");
 const mobileMenu = $("mobile-menu");
 const mobileMenuButton = $("mobile-menu-btn");
 const mobileClose = $("mobile-close");
@@ -101,6 +107,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupCart();
 
     console.log("G");
+
+    await loadExchangeRate();
+    await loadProducts();
+    await loadFeaturedProducts();
+
+    loadCart();
+    updateCart();
 });
 
 /* =========================================================
@@ -1330,8 +1343,6 @@ function pageButton(
 ========================================================= */
 function setupCart() {
 
-    console.log("SETUPCART ÇALIŞTI");
-
     const cartButton = document.getElementById("cart-btn");
     const cartOverlay = document.getElementById("cart-overlay");
     const closeCartButton = document.getElementById("close-cart");
@@ -1341,25 +1352,57 @@ function setupCart() {
     const authOverlay = document.getElementById("auth-overlay");
     const authCloseButton = document.getElementById("auth-close");
 
-    const loginButton = document.getElementById("login-btn");
-     const registerButton = document.getElementById("register-btn");
+    const registerButton = document.getElementById("register-btn");
+
+    const registerOverlay = document.getElementById("register-overlay");
+    const registerClose = document.getElementById("register-close");
+
+    const loginForm = document.getElementById("login-form");
+    const loginMessage = document.getElementById("login-message");
+
+    const registerForm = document.getElementById("register-form");
+    const registerMessage = document.getElementById("register-message");
+
+    const userMenuBtn = document.getElementById("user-menu-btn");
+    const userDropdown = document.getElementById("user-dropdown");
+
+    const dropdownLoginBtn = document.getElementById("dropdown-login-btn");
+    const dropdownRegisterBtn = document.getElementById("dropdown-register-btn");
 
 
-    console.log("loginButton =", loginButton);
-    console.log("registerButton =", registerButton);
 
-    registerButton?.addEventListener("click", () => {
+    /* USER MENU */
 
-    console.log("HESAP OLUŞTUR tıklandı");
+    userMenuBtn?.addEventListener("click", (e) => {
 
-    authOverlay?.classList.remove("open");
+    e.stopPropagation();
 
+    userDropdown?.classList.toggle("open");
      });
 
-    console.log("checkoutButton =", checkoutButton);
-    console.log("authOverlay =", authOverlay);
+     dropdownLoginBtn?.addEventListener("click", () => {
 
-    /* HEADER SEPET */
+    userDropdown?.classList.remove("open");
+    authOverlay?.classList.add("open");
+     });
+
+     dropdownRegisterBtn?.addEventListener("click", () => {
+
+    userDropdown?.classList.remove("open");
+    registerOverlay?.classList.add("open");
+      });
+
+     document.addEventListener("click", (e) => {
+
+    if (
+        !userMenuBtn?.contains(e.target) &&
+        !userDropdown?.contains(e.target)
+    ) {
+        userDropdown?.classList.remove("open");
+    }
+     });
+
+    /* SEPET AÇ */
 
     cartButton?.addEventListener("click", () => {
         cartOverlay?.classList.add("open");
@@ -1367,12 +1410,24 @@ function setupCart() {
 
     /* SEPETİ GÖR */
 
-    checkoutButton?.addEventListener("click", () => {
+   checkoutButton?.addEventListener("click", () => {
 
-        console.log("SEPETİ GÖR tıklandı");
+    const user = localStorage.getItem("user");
 
+    if (user) {
+        alert("Sipariş ekranına geçilecek");
+        return;
+    }
+
+    const answer = confirm(
+        "Devam etmek için giriş yapmanız gerekiyor.\n\nTamam = Giriş Yap\nİptal = Hesap Oluştur"
+    );
+
+    if (answer) {
         authOverlay?.classList.add("open");
-
+    } else {
+        registerOverlay?.classList.add("open");
+    }
     });
 
     /* AUTH KAPAT */
@@ -1381,12 +1436,29 @@ function setupCart() {
         authOverlay?.classList.remove("open");
     });
 
-    authOverlay?.addEventListener("click", (event) => {
-
-        if (event.target === authOverlay) {
+    authOverlay?.addEventListener("click", (e) => {
+        if (e.target === authOverlay) {
             authOverlay.classList.remove("open");
         }
+    });
 
+    /* REGISTER AÇ */
+
+    registerButton?.addEventListener("click", () => {
+        authOverlay?.classList.remove("open");
+        registerOverlay?.classList.add("open");
+    });
+
+    /* REGISTER KAPAT */
+
+    registerClose?.addEventListener("click", () => {
+        registerOverlay?.classList.remove("open");
+    });
+
+    registerOverlay?.addEventListener("click", (e) => {
+        if (e.target === registerOverlay) {
+            registerOverlay.classList.remove("open");
+        }
     });
 
     /* SEPET KAPAT */
@@ -1395,12 +1467,125 @@ function setupCart() {
         cartOverlay?.classList.remove("open");
     });
 
-    cartOverlay?.addEventListener("click", (event) => {
-
-        if (event.target === cartOverlay) {
+    cartOverlay?.addEventListener("click", (e) => {
+        if (e.target === cartOverlay) {
             cartOverlay.classList.remove("open");
         }
+    });
 
+    /* LOGIN */
+
+    loginForm?.addEventListener("submit", async (e) => {
+
+        e.preventDefault();
+
+        const email =
+            document.getElementById("login-email").value;
+
+        const password =
+            document.getElementById("login-password").value;
+
+        try {
+
+            const response = await fetch(
+                `${API_BASE}/auth/login`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        email,
+                        password
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail);
+            }
+
+            localStorage.setItem(
+                "user",
+                JSON.stringify(data.user)
+            );
+
+            loginMessage.textContent =
+                "Giriş başarılı.";
+
+            authOverlay.classList.remove("open");
+
+            location.reload();
+
+        } catch (error) {
+
+            loginMessage.textContent =
+                error.message;
+        }
+    });
+
+    /* REGISTER */
+
+    registerForm?.addEventListener("submit", async (event) => {
+
+        event.preventDefault();
+
+        const firstName =
+            document.getElementById("register-first-name").value;
+
+        const lastName =
+            document.getElementById("register-last-name").value;
+
+        const email =
+            document.getElementById("register-email").value;
+
+        const gender =
+            document.getElementById("register-gender").value;
+
+        const age =
+            document.getElementById("register-age").value;
+
+        const password =
+            document.getElementById("register-password").value;
+
+        try {
+
+            const response = await fetch(
+                `${API_BASE}/auth/register`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        first_name: firstName,
+                        last_name: lastName,
+                        email,
+                        gender,
+                        age: Number(age),
+                        password
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail);
+            }
+
+            registerMessage.textContent =
+                "Hesap oluşturuldu.";
+
+            registerForm.reset();
+
+        } catch (error) {
+
+            registerMessage.textContent =
+                error.message;
+        }
     });
 }
 
