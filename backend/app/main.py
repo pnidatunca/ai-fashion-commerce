@@ -6,7 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import crud, schemas
 from app.database import engine, get_db
+import requests
+from app.models import User
+from passlib.context import CryptContext
 
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+)
 
 app = FastAPI(
     title="AI Fashion Commerce API",
@@ -184,3 +191,122 @@ def product_reviews(
         limit=limit,
         offset=offset,
     )
+
+import requests
+
+@app.get("/exchange-rate")
+def get_exchange_rate():
+
+    response = requests.get(
+        "https://open.er-api.com/v6/latest/USD"
+    )
+
+    data = response.json()
+
+    return {
+        "rate": data["rates"]["TRY"]
+    }
+
+# =========================================================
+# USER REGISTER
+# =========================================================
+
+# =========================================================
+# USER REGISTER
+# =========================================================
+
+@app.post("/auth/register")
+def register_user(
+    user_data: schemas.RegisterRequest,
+    db: Session = Depends(get_db),
+):
+    # Email daha önce kayıtlı mı?
+    existing_user = (
+        db.query(User)
+        .filter(User.email == user_data.email)
+        .first()
+    )
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Bu email adresi zaten kayıtlı.",
+        )
+
+    # Şifreyi hashle
+    hashed_password = pwd_context.hash(
+        user_data.password
+    )
+
+    # Yeni kullanıcı
+    new_user = User(
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
+        email=user_data.email,
+        gender=user_data.gender,
+        age=user_data.age,
+        password_hash=hashed_password,
+    )
+
+    # Neon'a kaydet
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "message": "Hesap başarıyla oluşturuldu.",
+        "user": {
+            "id": new_user.id,
+            "first_name": new_user.first_name,
+            "last_name": new_user.last_name,
+            "email": new_user.email,
+            "gender": new_user.gender,
+            "age": new_user.age,
+        },
+    }
+
+
+# =========================================================
+# USER LOGIN
+# =========================================================
+
+@app.post("/auth/login")
+def login_user(
+    user_data: schemas.LoginRequest,
+    db: Session = Depends(get_db),
+):
+
+    user = (
+        db.query(User)
+        .filter(User.email == user_data.email)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="E-posta veya şifre hatalı.",
+        )
+
+    password_correct = pwd_context.verify(
+        user_data.password,
+        user.password_hash,
+    )
+
+    if not password_correct:
+        raise HTTPException(
+            status_code=401,
+            detail="E-posta veya şifre hatalı.",
+        )
+
+    return {
+        "message": "Giriş başarılı.",
+        "user": {
+            "id": str(user.id),
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "gender": user.gender,
+            "age": user.age,
+        },
+    }

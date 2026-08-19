@@ -68,3 +68,25 @@ class ProductResponse(BaseModel):
 
 class ProductDetailResponse(ProductResponse):
     reviews: list[ReviewResponse] = []
+
+
+# =========================================================
+# USER REGISTER
+# =========================================================
+
+class RegisterRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+    gender: str | None = None
+    age: int | None = None
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str

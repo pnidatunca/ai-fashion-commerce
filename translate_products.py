@@ -66,7 +66,7 @@ for item in product_data:
 
         try:
 
-            print(f"\nÇevriliyor: {product_id}")
+            #print(f"\nÇevriliyor: {product_id}")
 
             # =================================================
             # GEMINI
@@ -102,7 +102,8 @@ FEATURES:
             )
 
 
-            text = response.text.strip()
+
+            text = response.text if response.text else ""
 
 
             # =================================================
@@ -118,7 +119,7 @@ FEATURES:
                 print("⚠ Gemini cevabı beklenen formatta değil.")
                 print("5 saniye sonra tekrar deneniyor...")
 
-                time.sleep(5)
+                time.sleep(1)
 
                 continue
 
@@ -152,14 +153,14 @@ FEATURES:
             # BOŞ CEVAP KONTROLÜ
             # =================================================
 
-            if not title_tr or not description_tr:
+            if not title_tr:
 
-                print("⚠ Çeviri boş geldi.")
-                print("5 saniye sonra tekrar deneniyor...")
+              print("⚠ Title boş geldi.")
+              print("5 saniye sonra tekrar deneniyor...")
 
-                time.sleep(5)
+              time.sleep(5)
 
-                continue
+              continue
 
 
             # =================================================

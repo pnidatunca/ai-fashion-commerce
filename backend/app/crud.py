@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.models import Product, Review
 
+from app.models import User
+
 
 def get_products(
     db: Session,
@@ -170,4 +172,17 @@ def search_products(
 
     return list(
         db.scalars(statement).all()
+    )
+
+
+
+
+def get_user_by_email(
+    db: Session,
+    email: str,
+):
+    return (
+        db.query(User)
+        .filter(User.email == email)
+        .first()
     )
