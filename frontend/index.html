@@ -80,11 +80,17 @@
                 YENİ
             </a>
 
-            <a href="#products-section">
+            <a
+                href="#products-section"
+                data-category="women"
+            >
                 KADIN
             </a>
 
-            <a href="#products-section">
+            <a
+                href="#products-section"
+                data-category="men"
+            >
                 ERKEK
             </a>
 
@@ -94,6 +100,10 @@
 
             <a href="#offers">
                 FIRSATLAR
+            </a>
+
+            <a href="#explore">
+                KEŞFET
             </a>
 
         </nav>
@@ -125,10 +135,29 @@
 
          <div class="user-dropdown" id="user-dropdown">
 
+        <!-- Giris yapilmis kullanici bilgisi -->
+
+        <div
+            class="user-dropdown-head hidden"
+            id="user-dropdown-head"
+        >
+            <span class="user-dropdown-label">
+                HESABIM
+            </span>
+
+            <strong id="user-dropdown-name"></strong>
+
+            <small id="user-dropdown-email"></small>
+        </div>
+
+
+        <!-- Misafir -->
+
         <button
             type="button"
             id="dropdown-login-btn"
         >
+            <i class="fa-regular fa-circle-user"></i>
             Giriş Yap
         </button>
 
@@ -136,7 +165,20 @@
             type="button"
             id="dropdown-register-btn"
         >
+            <i class="fa-solid fa-plus"></i>
             Hesap Oluştur
+        </button>
+
+
+        <!-- Giris yapilmis -->
+
+        <button
+            type="button"
+            class="hidden"
+            id="dropdown-logout-btn"
+        >
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            Çıkış Yap
         </button>
 
          </div>
@@ -144,20 +186,21 @@
         </div>
 
 
-            <!-- Cart -->
+            <!-- Wishlist -->
 
             <button
                 type="button"
                 class="icon-button"
-                id="cart-btn"
-                aria-label="Sepet"
+                id="wishlist-btn"
+                aria-label="Favoriler"
             >
-                <i class="fa-solid fa-bag-shopping"></i>
+                <span data-icon="heart"></span>
 
-                <span class="cart-number">
+                <span class="wishlist-number">
                     0
                 </span>
             </button>
+
 
 
             <!-- Mobile menu -->
@@ -201,11 +244,17 @@
         YENİ
     </a>
 
-    <a href="#products-section">
+    <a
+        href="#products-section"
+        data-category="women"
+    >
         KADIN
     </a>
 
-    <a href="#products-section">
+    <a
+        href="#products-section"
+        data-category="men"
+    >
         ERKEK
     </a>
 
@@ -215,6 +264,10 @@
 
     <a href="#offers">
         FIRSATLAR
+    </a>
+
+    <a href="#explore">
+        KEŞFET
     </a>
 
     <a href="#ai-search-anchor">
@@ -297,7 +350,7 @@
         </span>
 
         <h2>
-            Keşfet
+            Kategoriler
         </h2>
 
     </div>
@@ -410,6 +463,177 @@
             Gerçek indirimli ürünler
             app.js tarafından yüklenecek.
         -->
+    </div>
+
+</section>
+
+
+<!-- =========================================================
+     KEŞFET / EXPLORE FEED
+========================================================= -->
+
+<section
+    class="explore-section"
+    id="explore"
+>
+
+    <div class="explore-header">
+
+        <div>
+
+            <span class="section-number">
+                03
+            </span>
+
+            <h2>
+                Keşfet
+            </h2>
+
+            <p class="explore-lead">
+                Beğendiklerini kalple işaretle, sevmediklerini
+                aşağı başparmakla ele. Seçimlerin sana özel
+                önerileri şekillendirir.
+            </p>
+
+
+            <!-- Aktif AI profili -->
+
+            <div
+                class="ai-status hidden"
+                id="ai-status"
+            >
+                <span class="ai-chip">
+                    <span class="ai-dot"></span>
+                    AURA AI
+                </span>
+
+                <span class="ai-status-text" id="ai-status-text"></span>
+
+                <button
+                    type="button"
+                    class="ai-status-change"
+                    id="ai-status-change"
+                >
+                    değiştir
+                </button>
+            </div>
+
+        </div>
+
+
+        <div class="explore-meta">
+
+            <button
+                type="button"
+                class="explore-refresh"
+                id="explore-refresh"
+            >
+                <i class="fa-solid fa-rotate"></i>
+                YENİLE
+            </button>
+
+            <span
+                class="explore-count"
+                id="explore-count"
+            ></span>
+
+        </div>
+
+    </div>
+
+
+    <!-- Misafir bilgilendirmesi -->
+
+    <div
+        class="explore-notice hidden"
+        id="explore-notice"
+    >
+        <i class="fa-regular fa-circle-user"></i>
+
+        <span>
+            Seçimlerinin kaydedilmesi ve sana özel öneriler
+            için giriş yap.
+        </span>
+
+        <button
+            type="button"
+            id="explore-login-btn"
+        >
+            GİRİŞ YAP
+        </button>
+    </div>
+
+
+    <!-- Feed -->
+
+    <div
+        class="explore-grid"
+        id="explore-grid"
+    ></div>
+
+
+    <!-- Yükleniyor -->
+
+    <div
+        class="explore-loader hidden"
+        id="explore-loader"
+    >
+        <div class="loader"></div>
+
+        <p>
+            Yeni ürünler getiriliyor...
+        </p>
+    </div>
+
+
+    <!-- Sonsuz akış -->
+
+    <div
+        class="feed-sentinel"
+        id="explore-sentinel"
+        aria-hidden="true"
+    ></div>
+
+    <div
+        class="feed-more hidden"
+        id="explore-more"
+    >
+        <button
+            type="button"
+            class="feed-more-btn"
+            id="explore-more-btn"
+        >
+            DAHA FAZLA KEŞFET
+        </button>
+    </div>
+
+
+    <!-- Havuz tükendi -->
+
+    <div
+        class="explore-exhausted hidden"
+        id="explore-exhausted"
+    >
+        <div class="empty-icon">
+            ✦
+        </div>
+
+        <h3>
+            Şimdilik hepsi bu
+        </h3>
+
+        <p>
+            Bu koleksiyondaki tüm ürünleri değerlendirdin.
+            Favorilerine göz atabilirsin.
+        </p>
+
+        <button
+            type="button"
+            class="view-detail-btn"
+            id="exhausted-wishlist-btn"
+        >
+            FAVORİLERİMİ GÖR
+        </button>
     </div>
 
 </section>
@@ -541,7 +765,7 @@
         <div>
 
             <span class="section-number">
-                03
+                04
             </span>
 
 
@@ -735,13 +959,39 @@
 
 
     <!-- =====================================================
-         PAGINATION
+         SONSUZ AKIS
+         ---------------------------------------------------
+         Sayfa numaralari ve ok isaretleri KALDIRILDI.
+         Sentinel gorunur olunca bir sonraki parti yuklenir.
+         Buton, IntersectionObserver desteklenmeyen ortamlar
+         ve klavye kullanicilari icin yedek.
     ====================================================== -->
 
     <div
-        id="pagination"
-        class="pagination-container hidden"
+        class="feed-sentinel"
+        id="products-sentinel"
+        aria-hidden="true"
+    ></div>
+
+    <div
+        class="feed-more hidden"
+        id="products-more"
     >
+        <div class="feed-more-spinner">
+            <div class="loader"></div>
+        </div>
+
+        <button
+            type="button"
+            class="feed-more-btn"
+            id="products-more-btn"
+        >
+            DAHA FAZLA GÖSTER
+        </button>
+
+        <p class="feed-more-end hidden" id="products-end">
+            Bu koleksiyonun sonuna geldin.
+        </p>
     </div>
 
 </main>
@@ -831,27 +1081,63 @@
     </h2>
 
     <p>
-        Hesabınıza giriş yapmak için e-posta ve şifrenizi girin.
+        Siparişlerini takip etmek ve daha hızlı
+        ödeme yapmak için hesabına giriş yap.
     </p>
 
 
-    <form id="login-form">
+    <form
+        id="login-form"
+        class="auth-form"
+        novalidate
+    >
 
-        <input
-            type="email"
-            id="login-email"
-            placeholder="E-posta"
-            autocomplete="email"
-            required
-        >
+        <div class="field">
 
-        <input
-            type="password"
-            id="login-password"
-            placeholder="Şifre"
-            autocomplete="current-password"
-            required
-        >
+            <label for="login-email">
+                E-POSTA
+            </label>
+
+            <input
+                type="email"
+                id="login-email"
+                placeholder="ornek@aura.com"
+                autocomplete="email"
+                required
+            >
+
+        </div>
+
+
+        <div class="field">
+
+            <label for="login-password">
+                ŞİFRE
+            </label>
+
+            <div class="field-password">
+
+                <input
+                    type="password"
+                    id="login-password"
+                    placeholder="••••••••"
+                    autocomplete="current-password"
+                    required
+                >
+
+                <button
+                    type="button"
+                    class="reveal-btn"
+                    data-reveal="login-password"
+                    aria-label="Şifreyi göster"
+                >
+                    <i class="fa-regular fa-eye"></i>
+                </button>
+
+            </div>
+
+        </div>
+
 
         <button
             type="submit"
@@ -870,13 +1156,18 @@
     ></p>
 
 
-   <!-- <button
-        type="button"
-        class="auth-secondary-btn"
-        id="register-btn"
-    >
-        HESAP OLUŞTUR
-    </button>-->
+    <div class="auth-switch">
+
+        Hesabın yok mu?
+
+        <button
+            type="button"
+            id="go-register-btn"
+        >
+            Hesap oluştur
+        </button>
+
+    </div>
 
 </div>
     </div>
@@ -901,7 +1192,7 @@
         </button>
 
 
-        <div class="auth-content " id="auth-register">
+        <div class="auth-content" id="auth-register">
 
             <span class="auth-label">
                 AURA ACCOUNT
@@ -919,73 +1210,154 @@
             </p>
 
 
-            <form id="register-form">
+            <form
+                id="register-form"
+                class="auth-form"
+                novalidate
+            >
 
-                <input
-                    type="text"
-                    id="register-first-name"
-                    placeholder="Ad"
-                    required
-                >
+                <div class="field-row">
 
+                    <div class="field">
 
-                <input
-                    type="text"
-                    id="register-last-name"
-                    placeholder="Soyad"
-                    required
-                >
+                        <label for="register-first-name">
+                            AD
+                        </label>
 
+                        <input
+                            type="text"
+                            id="register-first-name"
+                            placeholder="Ad"
+                            autocomplete="given-name"
+                            required
+                        >
 
-                <input
-                    type="email"
-                    id="register-email"
-                    placeholder="E-posta"
-                    required
-                >
-
-
-                <select
-                    id="register-gender"
-                    required
-                >
-
-                    <option value="">
-                        Cinsiyet
-                    </option>
-
-                    <option value="Kadın">
-                        Kadın
-                    </option>
-
-                    <option value="Erkek">
-                        Erkek
-                    </option>
-
-                    <option value="Belirtmek istemiyorum">
-                        Belirtmek istemiyorum
-                    </option>
-
-                </select>
+                    </div>
 
 
-                <input
-                    type="number"
-                    id="register-age"
-                    placeholder="Yaş"
-                    min="13"
-                    max="100"
-                    required
-                >
+                    <div class="field">
+
+                        <label for="register-last-name">
+                            SOYAD
+                        </label>
+
+                        <input
+                            type="text"
+                            id="register-last-name"
+                            placeholder="Soyad"
+                            autocomplete="family-name"
+                            required
+                        >
+
+                    </div>
+
+                </div>
 
 
-                <input
-                    type="password"
-                    id="register-password"
-                    placeholder="Şifre"
-                    minlength="6"
-                    required
-                >
+                <div class="field">
+
+                    <label for="register-email">
+                        E-POSTA
+                    </label>
+
+                    <input
+                        type="email"
+                        id="register-email"
+                        placeholder="ornek@aura.com"
+                        autocomplete="email"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="register-gender">
+                            CİNSİYET
+                        </label>
+
+                        <select
+                            id="register-gender"
+                            required
+                        >
+
+                            <option value="">
+                                Seç
+                            </option>
+
+                            <option value="Kadın">
+                                Kadın
+                            </option>
+
+                            <option value="Erkek">
+                                Erkek
+                            </option>
+
+                            <option value="Belirtmek istemiyorum">
+                                Belirtmek istemiyorum
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="field">
+
+                        <label for="register-age">
+                            YAŞ
+                        </label>
+
+                        <input
+                            type="number"
+                            id="register-age"
+                            placeholder="18"
+                            min="13"
+                            max="100"
+                            required
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <div class="field">
+
+                    <label for="register-password">
+                        ŞİFRE
+                    </label>
+
+                    <div class="field-password">
+
+                        <input
+                            type="password"
+                            id="register-password"
+                            placeholder="En az 6 karakter"
+                            autocomplete="new-password"
+                            minlength="6"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            class="reveal-btn"
+                            data-reveal="register-password"
+                            aria-label="Şifreyi göster"
+                        >
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+
+                    </div>
+
+                    <span class="field-hint">
+                        En az 6 karakter kullan.
+                    </span>
+
+                </div>
 
 
                 <button
@@ -1004,6 +1376,20 @@
                 class="auth-message"
             ></p>
 
+
+            <div class="auth-switch">
+
+                Zaten hesabın var mı?
+
+                <button
+                    type="button"
+                    id="go-login-btn"
+                >
+                    Giriş yap
+                </button>
+
+            </div>
+
         </div>
 
     </div>
@@ -1014,97 +1400,267 @@
 
 
 
+========================================================= -->
+
+<!-- =========================================================
+     FAVORİLER / WISHLIST
+     ---------------------------------------------------------
+     Sepet kaldirildi; Wishlist onun yerini aliyor.
+     "Sonra al" listesi + tek tikla satin alma noktasi.
+========================================================= -->
+
 <div
-    class="cart-overlay"
-    id="cart-overlay"
+    class="wishlist-overlay"
+    id="wishlist-overlay"
 >
 
-    <div class="cart-panel">
-
-
-        <!-- =================================================
-             CART HEADER
-        ================================================== -->
+    <div class="wishlist-panel">
 
         <div class="cart-header">
 
             <h2>
-                Sepet
+                Favoriler
             </h2>
-
 
             <button
                 type="button"
-                id="close-cart"
-                aria-label="Sepeti kapat"
+                id="close-wishlist"
+                aria-label="Favorileri kapat"
             >
-
                 <i class="fa-solid fa-xmark"></i>
-
             </button>
 
         </div>
 
 
-        <!-- =================================================
-             CART ITEMS
-        ================================================== -->
-
         <div
-            id="cart-items"
-            class="cart-items"
+            class="wishlist-items"
+            id="wishlist-items"
+        ></div>
+
+
+        <p
+            class="wishlist-footer-note"
+            id="wishlist-footer-note"
+        ></p>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     HIZLI SATIN ALMA  (sepetsiz, tek ekran)
+     ---------------------------------------------------------
+     Uc adimli sepet akisi kaldirildi. Tek urun, tek ekran:
+     ozet + teslimat + kart aynı görünümde.
+
+     Neden tek ekran: uc adim demek uc kez "devam"a basmak
+     demek. Tek urun alan biri icin bu gereksiz surtunme.
+========================================================= -->
+
+<div
+    class="checkout-overlay"
+    id="checkout-overlay"
+>
+
+    <div class="quick-panel">
+
+        <button
+            type="button"
+            class="checkout-close"
+            id="checkout-close"
+            aria-label="Kapat"
         >
-
-            <div class="cart-empty">
-
-                <i class="fa-solid fa-bag-shopping"></i>
+            <span data-icon="x"></span>
+        </button>
 
 
-                <p>
-                    Sepetiniz boş.
-                </p>
+        <!-- ---------- FORM ---------- -->
 
+        <div class="quick-body" id="quick-body">
 
-                <span>
-                    Beğendiğiniz ürünleri sepete ekleyin.
+            <div class="quick-head">
+
+                <span class="ai-chip">
+                    <span class="ai-dot"></span>
+                    HIZLI SATIN ALMA
                 </span>
 
+                <h2>
+                    Tek ürün,
+                    <em>tek ekran</em>
+                </h2>
+
             </div>
+
+
+            <!-- Ürün özeti -->
+
+            <div class="quick-product" id="quick-product"></div>
+
+
+            <form
+                id="quick-form"
+                class="auth-form quick-form"
+                novalidate
+            >
+
+                <!-- Teslimat -->
+
+                <div class="quick-section">
+
+                    <span class="quick-section-label">
+                        TESLİMAT
+                    </span>
+
+                    <div class="field-row">
+
+                        <div class="field">
+                            <label for="quick-name">AD SOYAD</label>
+                            <input
+                                type="text"
+                                id="quick-name"
+                                placeholder="Ad Soyad"
+                                autocomplete="name"
+                                required
+                            >
+                        </div>
+
+                        <div class="field">
+                            <label for="quick-phone">TELEFON</label>
+                            <input
+                                type="tel"
+                                id="quick-phone"
+                                placeholder="5XX XXX XX XX"
+                                autocomplete="tel"
+                                inputmode="numeric"
+                                required
+                            >
+                        </div>
+
+                    </div>
+
+                    <div class="field">
+                        <label for="quick-address">ADRES</label>
+                        <textarea
+                            id="quick-address"
+                            rows="2"
+                            placeholder="Mahalle, sokak, bina, daire · İlçe / İl"
+                            autocomplete="street-address"
+                            required
+                        ></textarea>
+                    </div>
+
+                </div>
+
+
+                <!-- Ödeme -->
+
+                <div class="quick-section">
+
+                    <span class="quick-section-label">
+                        ÖDEME
+                    </span>
+
+                    <div class="field">
+                        <label for="quick-card">KART NUMARASI</label>
+                        <input
+                            type="text"
+                            id="quick-card"
+                            placeholder="0000 0000 0000 0000"
+                            autocomplete="cc-number"
+                            inputmode="numeric"
+                            maxlength="23"
+                            required
+                        >
+                    </div>
+
+                    <div class="field-row">
+
+                        <div class="field">
+                            <label for="quick-expiry">SON KULLANMA</label>
+                            <input
+                                type="text"
+                                id="quick-expiry"
+                                placeholder="AA/YY"
+                                autocomplete="cc-exp"
+                                inputmode="numeric"
+                                maxlength="5"
+                                required
+                            >
+                        </div>
+
+                        <div class="field">
+                            <label for="quick-cvc">CVC</label>
+                            <input
+                                type="text"
+                                id="quick-cvc"
+                                placeholder="123"
+                                autocomplete="cc-csc"
+                                inputmode="numeric"
+                                maxlength="4"
+                                required
+                            >
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <label class="checkbox-field">
+                    <input type="checkbox" id="quick-terms">
+                    <span>
+                        Mesafeli satış sözleşmesini okudum,
+                        onaylıyorum.
+                    </span>
+                </label>
+
+
+                <button
+                    type="submit"
+                    class="auth-main-btn quick-submit"
+                    id="quick-submit"
+                >
+                    <span data-icon="zap"></span>
+                    SİPARİŞİ TAMAMLA
+                </button>
+
+
+                <p class="checkout-secure">
+                    <span data-icon="lock"></span>
+                    Demo ödeme ekranı. Kart bilgileri hiçbir
+                    yere gönderilmez.
+                </p>
+
+            </form>
 
         </div>
 
 
-        <!-- =================================================
-             CART FOOTER
-        ================================================== -->
+        <!-- ---------- ONAY ---------- -->
 
-        <div class="cart-footer">
+        <div class="quick-success hidden" id="quick-success">
 
-            <div class="cart-total">
-
-                <span>
-                    Toplam
-                </span>
-
-
-                <strong id="cart-total">
-                    $0.00
-                </strong>
-
+            <div class="success-mark">
+                <span data-icon="check"></span>
             </div>
 
+            <h3>Siparişin alındı</h3>
 
-            <!--
-                Şimdilik checkout backend'i yok.
-                Butonu görsel olarak tutuyoruz.
-            -->
+            <p>
+                Sipariş numaran
+                <strong id="quick-order-number"></strong>.
+                <span id="quick-success-note"></span>
+            </p>
 
             <button
                 type="button"
-                class="checkout-btn"
-                id="checkout-btn">
-
-            SEPETİ GÖR
+                class="auth-main-btn"
+                id="quick-done"
+            >
+                KEŞFETMEYE DEVAM ET
             </button>
 
         </div>
@@ -1194,6 +1750,179 @@
     </small>
 
 </footer>
+
+
+<!-- =========================================================
+     ARKETİP SEÇİMİ (COLD START)
+========================================================= -->
+
+<div
+    class="archetype-overlay"
+    id="archetype-overlay"
+>
+
+    <div class="archetype-panel">
+
+        <button
+            type="button"
+            class="archetype-skip"
+            id="archetype-skip"
+        >
+            Şimdilik geç
+        </button>
+
+
+        <div class="archetype-head">
+
+            <span class="ai-chip">
+                <span class="ai-dot"></span>
+                AURA AI
+            </span>
+
+            <h2>
+                Tarzını
+                <em>birkaç dokunuşta</em>
+                tanıyalım
+            </h2>
+
+            <p>
+                Sana en yakın <strong>1–3 tarzı</strong> seç.
+                Akışın buna göre kurulur, sonra istediğin
+                zaman değiştirirsin.
+            </p>
+
+        </div>
+
+
+        <div
+            class="archetype-grid"
+            id="archetype-grid"
+        ></div>
+
+
+        <!-- Ince havuz uyarisi -->
+
+        <p
+            class="archetype-warning hidden"
+            id="archetype-warning"
+        ></p>
+
+
+        <div class="archetype-footer">
+
+            <span
+                class="archetype-counter"
+                id="archetype-counter"
+            >
+                Henüz seçim yapmadın
+            </span>
+
+            <button
+                type="button"
+                class="auth-main-btn archetype-confirm"
+                id="archetype-confirm"
+                disabled
+            >
+                AKIŞIMI HAZIRLA
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     AI ANALİZ EKRANI
+========================================================= -->
+
+<div
+    class="ai-analyzing"
+    id="ai-analyzing"
+    aria-live="polite"
+>
+
+    <div class="ai-analyzing-inner">
+
+        <div class="ai-orbit">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+
+        <p
+            class="ai-analyzing-text"
+            id="ai-analyzing-text"
+        >
+            Tarzın analiz ediliyor...
+        </p>
+
+        <div class="ai-analyzing-steps" id="ai-analyzing-steps">
+            <span data-step="1">Stil profili oluşturuluyor</span>
+            <span data-step="2">Katalog taranıyor</span>
+            <span data-step="3">Akışın hazırlanıyor</span>
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     WISHLIST ODAKLI ALT BAR
+     ---------------------------------------------------------
+     Sepet kaldirildigi icin "devam eden alisveris" hissini
+     bu bar tasiyor. Favorilere bir sey eklenince beliriyor,
+     son eklenenlerin kucuk gorsellerini ve tek dokunusla
+     hizli satin alma noktasini gosteriyor.
+
+     Mobilde asagida durmasi onemli: bas parmak orada.
+========================================================= -->
+
+<div
+    class="wishlist-bar hidden"
+    id="wishlist-bar"
+>
+
+    <button
+        type="button"
+        class="wishlist-bar-main"
+        id="wishlist-bar-open"
+    >
+
+        <span class="wishlist-bar-thumbs" id="wishlist-bar-thumbs"></span>
+
+        <span class="wishlist-bar-text">
+            <strong id="wishlist-bar-count">0 favori</strong>
+            <small id="wishlist-bar-hint">Listeni aç</small>
+        </span>
+
+    </button>
+
+
+    <button
+        type="button"
+        class="wishlist-bar-buy"
+        id="wishlist-bar-buy"
+    >
+        <span data-icon="zap"></span>
+        <span class="wishlist-bar-buy-text">HIZLI AL</span>
+    </button>
+
+</div>
+
+
+<!-- =========================================================
+     TOAST BİLDİRİMLERİ
+========================================================= -->
+
+<div
+    class="toast-stack"
+    id="toast-stack"
+    aria-live="polite"
+    aria-atomic="false"
+></div>
 
 
 <!-- =========================================================

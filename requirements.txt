@@ -5,4 +5,5 @@ psycopg[binary]
 SQLAlchemy
 fastapi
 uvicorn
-
+passlib[bcrypt]
+requests
