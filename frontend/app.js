@@ -998,6 +998,9 @@ function runSearch(value) {
 
         state.searchMode = false;
         state.searchQuery = "";
+        state.category = "";
+        state.color = "";
+        state.gender = "";
 
         loadProducts({ reset: true });
 
@@ -1018,25 +1021,13 @@ function runSearch(value) {
     state.gender =
     detectGenderFromQuery(query);
 
-    document
-        .querySelectorAll("[data-category]")
-        .forEach(item => {
-            item.classList.remove("active");
-        });
-
-    document
-        .querySelectorAll('[data-category=""]')
-        .forEach(item => {
-            item.classList.add("active");
-        });
-
     /*
-       Arama yapildiginda kategori filtresi devre disi kalir.
-       Filtre cubugunun yanlis kategoriyi aktif gostermemesi
-       icin secimi TUMU'ye aliyoruz.
+       Filtre cubugu semantic aramanin arka planda sectigi
+       kategoriyi degil, hep "TUMU"yu aktif gosterir — kategori
+       state'i (yukarida tespit edilen deger) sorguya yine de
+       gonderilir, sadece UI'da yaniltici bir sekme aktif
+       gorunmesin diye butonlar TUMU'ye alinir.
     */
-
-    state.category = "";
 
     document
         .querySelectorAll("[data-category]")

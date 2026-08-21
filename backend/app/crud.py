@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, joinedload
 
@@ -391,13 +391,13 @@ def semantic_search_products(
     # COLOR FILTER
     # =====================================================
 
-    # Renk kelimesi urun basliginda birebir gecmiyor diye
-    # urunu tamamen elemek yerine, renk eslesen urunleri
-    # siralamada one alan yumusak bir agirlik uyguluyoruz.
-    # Boylece kategori+cinsiyet ile tutarli ama basliginda
-    # rengi gecmeyen urunler de sonuclardan tamamen kaybolmuyor.
-
-    ranking_expression = distance
+    # Kullanici bir renk belirttiginde SADECE o renk gelmeli.
+    # Yumusak siralama (eslesmeyeni cezalandirip yine de
+    # gostermek) denenmisti ama kullanici deneyiminde "beyaz
+    # gomlek" arayip mavi/siyah urunlerin de listede cikmasina
+    # yol acti. Bu yuzden renk sert bir filtre: eslesen urun
+    # sayisi limit'ten az bile olsa, sadece gercekten eslesenler
+    # donuyor.
 
     if color:
 
@@ -423,22 +423,34 @@ def semantic_search_products(
             [color],
         )
 
+        # Renk cogu zaman baslikta degil, description/features
+        # alanlarinda geciyor (bazen hic gecmiyor). Sadece
+        # title/title_tr'a bakmak eslesmeleri gereksiz yere
+        # daraltiyordu (ör. erkek gomleklerinde "white" kelimesi
+        # hicbir baslikta yokken description'da var).
+
+        color_fields = [
+            Product.title,
+            Product.title_tr,
+            Product.description,
+            Product.description_tr,
+            Product.features,
+            Product.features_tr,
+        ]
+
         color_conditions = []
 
         for term in terms:
 
             pattern = f"%{term}%"
 
-            color_conditions.extend([
-                Product.title.ilike(pattern),
-                Product.title_tr.ilike(pattern),
-            ])
+            color_conditions.extend(
+                field.ilike(pattern)
+                for field in color_fields
+            )
 
-        color_match = or_(*color_conditions)
-
-        ranking_expression = case(
-            (color_match, distance),
-            else_=distance + 0.15,
+        statement = statement.where(
+            or_(*color_conditions)
         )
 
     # =====================================================
@@ -447,7 +459,7 @@ def semantic_search_products(
 
     statement = (
         statement
-        .order_by(ranking_expression)
+        .order_by(distance)
         .offset(offset)
         .limit(limit)
     )
