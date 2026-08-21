@@ -131,6 +131,11 @@
         aria-label="Kullanıcı Menüsü"
     >
         <i class="fa-regular fa-user"></i>
+        <span
+            class="user-avatar-initials"
+            id="user-avatar-initials"
+            aria-hidden="true"
+        ></span>
          </button>
 
          <div class="user-dropdown" id="user-dropdown">
@@ -171,6 +176,15 @@
 
 
         <!-- Giris yapilmis -->
+
+        <button
+            type="button"
+            class="hidden"
+            id="dropdown-account-btn"
+        >
+            <i class="fa-regular fa-id-badge"></i>
+            Hesabım
+        </button>
 
         <button
             type="button"
@@ -328,6 +342,140 @@
         >
             KOLEKSİYONU KEŞFET
         </a>
+
+    </div>
+
+</section>
+
+
+<!-- =========================================================
+     SEARCH SECTION
+========================================================= -->
+
+<section
+    class="ai-section"
+    id="ai-search-anchor"
+>
+
+    <div class="ai-inner">
+
+        <div class="ai-label">
+
+            <span class="ai-icon">
+                ✦
+            </span>
+
+            AURA SMART SEARCH
+
+        </div>
+
+
+        <h2>
+            Ne aradığını
+            <em>anlat.</em>
+        </h2>
+
+
+        <p id="search-mode-description">
+            Ne aradığını doğal bir şekilde tarif et.
+            AURA anlamına göre en uygun ürünleri bulsun.
+        </p>
+
+
+        <div class="ai-search">
+
+            <div class="ai-search-input">
+
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+
+
+                <input
+                    type="text"
+                    id="ai-search-input"
+                    placeholder="Örn. Yaz için hafif ve rahat erkek gömleği..."
+                    autocomplete="off"
+                >
+
+            </div>
+
+
+            <button
+                type="button"
+                id="ai-search-btn"
+            >
+                ARA
+
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+
+        </div>
+
+        <div class="search-mode-switch">
+
+            <button
+                type="button"
+                id="semantic-search-mode"
+                class="search-mode-btn active"
+            >
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                AI Arama
+            </button>
+
+            <button
+                type="button"
+                id="classic-search-mode"
+                class="search-mode-btn"
+            >
+                <i class="fa-solid fa-magnifying-glass"></i>
+                Klasik Arama
+            </button>
+
+        </div>
+
+
+        <div class="ai-suggestions">
+
+            <span>
+                Deneyebilirsin:
+            </span>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="polo"
+            >
+                Polo
+            </button>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="shirt"
+            >
+                Shirt
+            </button>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="jacket"
+            >
+                Jacket
+            </button>
+
+
+            <button
+                type="button"
+                class="chip"
+                data-query="shoes"
+            >
+                Shoes
+            </button>
+
+        </div>
 
     </div>
 
@@ -564,12 +712,31 @@
     </div>
 
 
-    <!-- Feed -->
+    <!-- Feed
+         Yatay kaydirma: sentinel, kartlarin en sonuna
+         eklenen bir grid child'i olarak duruyor (bkz.
+         appendExploreCards). Yeni kartlar hep ondan once
+         eklenir, boylece sentinel her zaman en sonda kalir.
 
-    <div
-        class="explore-grid"
-        id="explore-grid"
-    ></div>
+         explore-carousel: sag/sol solma efektleri (daha
+         fazla urun oldugunu gorsel olarak belli eder) bu
+         sarmalayicinin ::after/::before'u ile ciziliyor,
+         JS kaydirma konumuna gore aciyor/kapatiyor. -->
+
+    <div class="explore-carousel" id="explore-carousel">
+
+        <div
+            class="explore-grid"
+            id="explore-grid"
+        >
+            <div
+                class="feed-sentinel"
+                id="explore-sentinel"
+                aria-hidden="true"
+            ></div>
+        </div>
+
+    </div>
 
 
     <!-- Yükleniyor -->
@@ -584,15 +751,6 @@
             Yeni ürünler getiriliyor...
         </p>
     </div>
-
-
-    <!-- Sonsuz akış -->
-
-    <div
-        class="feed-sentinel"
-        id="explore-sentinel"
-        aria-hidden="true"
-    ></div>
 
     <div
         class="feed-more hidden"
@@ -634,140 +792,6 @@
         >
             FAVORİLERİMİ GÖR
         </button>
-    </div>
-
-</section>
-
-
-<!-- =========================================================
-     SEARCH SECTION
-========================================================= -->
-
-<section
-    class="ai-section"
-    id="ai-search-anchor"
->
-
-    <div class="ai-inner">
-
-        <div class="ai-label">
-
-            <span class="ai-icon">
-                ✦
-            </span>
-
-            AURA SMART SEARCH
-
-        </div>
-
-
-        <h2>
-            Ne aradığını
-            <em>anlat.</em>
-        </h2>
-
-
-        <p id="search-mode-description">
-            Ne aradığını doğal bir şekilde tarif et.
-            AURA anlamına göre en uygun ürünleri bulsun.
-        </p>
-
-
-        <div class="ai-search">
-
-            <div class="ai-search-input">
-
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-
-
-                <input
-                    type="text"
-                    id="ai-search-input"
-                    placeholder="Örn. Yaz için hafif ve rahat erkek gömleği..."
-                    autocomplete="off"
-                >
-
-            </div>
-
-
-            <button
-                type="button"
-                id="ai-search-btn"
-            >
-                ARA
-
-                <i class="fa-solid fa-arrow-right"></i>
-            </button>
-
-        </div>
-
-        <div class="search-mode-switch">
-
-            <button
-                type="button"
-                id="semantic-search-mode"
-                class="search-mode-btn active"
-            >
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-                AI Arama
-            </button>
-
-            <button
-                type="button"
-                id="classic-search-mode"
-                class="search-mode-btn"
-            >
-                <i class="fa-solid fa-magnifying-glass"></i>
-                Klasik Arama
-            </button>
-
-        </div>
-
-
-        <div class="ai-suggestions">
-
-            <span>
-                Deneyebilirsin:
-            </span>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="polo"
-            >
-                Polo
-            </button>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="shirt"
-            >
-                Shirt
-            </button>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="jacket"
-            >
-                Jacket
-            </button>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="shoes"
-            >
-                Shoes
-            </button>
-
-        </div>
-
     </div>
 
 </section>
@@ -1489,10 +1513,310 @@
 </div>
 
 
-
-
-
+<!-- =========================================================
+     HESABIM
+     ---------------------------------------------------------
+     Uc ayri form: profil bilgileri, e-posta, sifre. Bilincli
+     olarak ayri tutuldu — e-posta ve sifre degisikligi mevcut
+     sifre dogrulamasi gerektiren daha hassas islemler, tek bir
+     "kaydet" butonuna gizlenmemeli.
 ========================================================= -->
+
+<div
+    class="auth-overlay"
+    id="account-overlay"
+>
+
+    <div class="auth-panel account-panel">
+
+        <button
+            type="button"
+            class="auth-close"
+            id="account-close"
+            aria-label="Hesap ekranını kapat"
+        >
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+
+        <div class="auth-content account-content">
+
+            <div class="account-head">
+
+                <span
+                    class="account-avatar-lg"
+                    id="account-avatar-lg"
+                ></span>
+
+                <div>
+                    <span class="auth-label">
+                        AURA ACCOUNT
+                    </span>
+
+                    <h2>Hesabım</h2>
+                </div>
+
+            </div>
+
+
+            <!-- PROFIL BILGILERI -->
+
+            <form
+                id="account-profile-form"
+                class="auth-form"
+                novalidate
+            >
+                <span class="quick-section-label">
+                    PROFİL BİLGİLERİ
+                </span>
+
+                <div class="field-row">
+
+                    <div class="field">
+                        <label for="account-first-name">AD</label>
+                        <input
+                            type="text"
+                            id="account-first-name"
+                            autocomplete="given-name"
+                            required
+                        >
+                    </div>
+
+                    <div class="field">
+                        <label for="account-last-name">SOYAD</label>
+                        <input
+                            type="text"
+                            id="account-last-name"
+                            autocomplete="family-name"
+                            required
+                        >
+                    </div>
+
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+                        <label for="account-gender">CİNSİYET</label>
+                        <select id="account-gender">
+                            <option value="">Seç</option>
+                            <option value="Kadın">Kadın</option>
+                            <option value="Erkek">Erkek</option>
+                            <option value="Belirtmek istemiyorum">
+                                Belirtmek istemiyorum
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="account-age">YAŞ</label>
+                        <input
+                            type="number"
+                            id="account-age"
+                            min="13"
+                            max="100"
+                        >
+                    </div>
+
+                </div>
+
+                <button
+                    type="submit"
+                    class="auth-main-btn"
+                    id="account-profile-submit"
+                >
+                    BİLGİLERİ KAYDET
+                </button>
+
+                <p
+                    id="account-profile-message"
+                    class="auth-message"
+                ></p>
+
+            </form>
+
+
+            <!-- E-POSTA -->
+
+            <form
+                id="account-email-form"
+                class="auth-form account-section"
+                novalidate
+            >
+                <span class="quick-section-label">
+                    E-POSTA
+                </span>
+
+                <p class="field-hint account-email-note">
+                    E-posta değişikliği doğrulama maili
+                    göndermez; şifreni doğrular doğrulamaz
+                    yeni adres hemen aktif olur.
+                </p>
+
+                <div class="field">
+                    <label for="account-current-email">
+                        MEVCUT E-POSTA
+                    </label>
+                    <input
+                        type="email"
+                        id="account-current-email"
+                        disabled
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="account-new-email">
+                        YENİ E-POSTA
+                    </label>
+                    <input
+                        type="email"
+                        id="account-new-email"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="account-email-password">
+                        MEVCUT ŞİFRE
+                    </label>
+                    <div class="field-password">
+                        <input
+                            type="password"
+                            id="account-email-password"
+                            autocomplete="current-password"
+                            required
+                        >
+                        <button
+                            type="button"
+                            class="reveal-btn"
+                            data-reveal="account-email-password"
+                            aria-label="Şifreyi göster"
+                        >
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="auth-main-btn"
+                    id="account-email-submit"
+                >
+                    E-POSTAYI GÜNCELLE
+                </button>
+
+                <p
+                    id="account-email-message"
+                    class="auth-message"
+                ></p>
+
+            </form>
+
+
+            <!-- SIFRE DEGISTIR -->
+
+            <form
+                id="account-password-form"
+                class="auth-form account-section"
+                novalidate
+            >
+                <span class="quick-section-label">
+                    ŞİFRE DEĞİŞTİR
+                </span>
+
+                <div class="field">
+                    <label for="account-current-password">
+                        MEVCUT ŞİFRE
+                    </label>
+                    <div class="field-password">
+                        <input
+                            type="password"
+                            id="account-current-password"
+                            autocomplete="current-password"
+                            required
+                        >
+                        <button
+                            type="button"
+                            class="reveal-btn"
+                            data-reveal="account-current-password"
+                            aria-label="Şifreyi göster"
+                        >
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="account-new-password">
+                        YENİ ŞİFRE
+                    </label>
+                    <div class="field-password">
+                        <input
+                            type="password"
+                            id="account-new-password"
+                            autocomplete="new-password"
+                            minlength="8"
+                            required
+                        >
+                        <button
+                            type="button"
+                            class="reveal-btn"
+                            data-reveal="account-new-password"
+                            aria-label="Şifreyi göster"
+                        >
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    <span class="field-hint">
+                        En az 8 karakter, en az bir harf ve
+                        bir rakam içermeli.
+                    </span>
+                </div>
+
+                <div class="field">
+                    <label for="account-confirm-password">
+                        YENİ ŞİFRE (TEKRAR)
+                    </label>
+                    <div class="field-password">
+                        <input
+                            type="password"
+                            id="account-confirm-password"
+                            autocomplete="new-password"
+                            required
+                        >
+                        <button
+                            type="button"
+                            class="reveal-btn"
+                            data-reveal="account-confirm-password"
+                            aria-label="Şifreyi göster"
+                        >
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="auth-main-btn"
+                    id="account-password-submit"
+                >
+                    ŞİFREYİ DEĞİŞTİR
+                </button>
+
+                <p
+                    id="account-password-message"
+                    class="auth-message"
+                ></p>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
 
 <!-- =========================================================
      FAVORİLER / WISHLIST

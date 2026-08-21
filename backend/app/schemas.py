@@ -1,8 +1,15 @@
-﻿from datetime import datetime
+﻿import re
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 # =========================================================
@@ -172,6 +179,121 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+# =========================================================
+# HESAP YONETIMI
+# =========================================================
+
+PASSWORD_MIN_LENGTH = 8
+
+
+def _validate_password_strength(value: str) -> str:
+    """
+    Minimum guvenlik kurali: en az 8 karakter, en az bir harf
+    ve bir rakam. Register akisindaki 6 karakter kuralindan
+    kasitli olarak daha siki — kullanici burada zaten var olan
+    bir hesabi koruyor, ilk kayittaki surtunmeyi degistirmiyoruz.
+    """
+
+    if len(value) < PASSWORD_MIN_LENGTH:
+        raise ValueError(
+            f"Şifre en az {PASSWORD_MIN_LENGTH} karakter olmalı."
+        )
+
+    if not re.search(r"[A-Za-z]", value):
+        raise ValueError("Şifre en az bir harf içermeli.")
+
+    if not re.search(r"\d", value):
+        raise ValueError("Şifre en az bir rakam içermeli.")
+
+    return value
+
+
+class UpdateProfileRequest(BaseModel):
+    """Ad/soyad ve temel profil alanlari. E-posta ve sifre
+    ayri, daha hassas uclardan degistirilir."""
+
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    gender: str | None = None
+    age: int | None = Field(default=None, ge=13, le=100)
+
+
+class ChangeEmailRequest(BaseModel):
+    """
+    E-posta degisikligi hassas bir islem oldugu icin mevcut
+    sifre tekrar istenir.
+
+    NOT: projede e-posta dogrulama (mail gonderimi, link/kod
+    onayi) altyapisi YOK. Bu uc, sifre dogrulandiktan sonra
+    e-postayi DOGRUDAN degistirir. Gercek bir urunde bu adim
+    "yeni adrese dogrulama maili gonder, onaylanana kadar eski
+    adresi aktif tut" seklinde olmali; o altyapi kurulana kadar
+    bunu taklit eden sahte bir akis eklemiyoruz.
+    """
+
+    new_email: str = Field(min_length=3, max_length=200)
+    current_password: str
+
+    @field_validator("new_email")
+    @classmethod
+    def _normalize_and_validate_email(cls, value: str) -> str:
+
+        normalized = value.strip().lower()
+
+        # Frontend'deki isValidEmail ile ayni kural.
+        if not re.match(
+            r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
+            normalized,
+        ):
+            raise ValueError("Geçerli bir e-posta adresi gir.")
+
+        return normalized
+
+
+class ChangePasswordRequest(BaseModel):
+    """
+    Sifre degisikligi mevcut sifre dogrulanmadan yapilamaz.
+    Yeni sifre minimum guvenlik kuralini gecmeli ve tekrari ile
+    eslesmeli. Gercek dogrulama (hash karsilastirmasi) endpoint
+    icinde yapilir; burada sadece sekil/eslesme kontrolu var.
+    """
+
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_new_password_strength(cls, value: str) -> str:
+        return _validate_password_strength(value)
+
+    @model_validator(mode="after")
+    def _check_confirmation_and_change(self):
+
+        if self.new_password != self.confirm_password:
+            raise ValueError("Yeni şifreler eşleşmiyor.")
+
+        if self.new_password == self.current_password:
+            raise ValueError(
+                "Yeni şifre mevcut şifreyle aynı olamaz."
+            )
+
+        return self
+
+
+class AccountResponse(BaseModel):
+    """Login/register ile ayni kullanici sekli — frontend
+    tek bir signIn/updateSession yardimcisini her yerde
+    kullanabilsin diye alan adlari birebir eslesiyor."""
+
+    id: str
+    first_name: str
+    last_name: str
+    email: str
+    gender: str | None = None
+    age: int | None = None
 
 
 # =========================================================

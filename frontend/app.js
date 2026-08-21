@@ -141,6 +141,7 @@ const closeWishlistButton = $("close-wishlist");
 const wishlistItems = $("wishlist-items");
 
 const exploreGrid = $("explore-grid");
+const exploreCarousel = $("explore-carousel");
 const exploreRefreshButton = $("explore-refresh");
 
 const archetypeOverlay = $("archetype-overlay");
@@ -797,7 +798,6 @@ async function loadFeaturedProducts() {
                 offset: 0
             }
         );
-
 
         const featured =
             products
@@ -1703,7 +1703,8 @@ function setupInfiniteScroll(
     sentinelId,
     buttonId,
     loadMore,
-    shouldLoad
+    shouldLoad,
+    observerOptions = {}
 ) {
 
     const button = $(buttonId);
@@ -1729,10 +1730,13 @@ function setupInfiniteScroll(
         },
         {
             /*
-               Sentinel ekrana girmeden 300 px once tetikle:
-               kullanici bekleme gormesin.
+               Sentinel ekrana girmeden onceden tetikle:
+               kullanici bekleme gormesin. Dikey akista
+               yukari/asagi, yatay akista sag tarafa dogru
+               genisletiyoruz (bkz. root/rootMargin override).
             */
-            rootMargin: "300px 0px",
+            root: observerOptions.root ?? null,
+            rootMargin: observerOptions.rootMargin ?? "300px 0px",
             threshold: 0,
         }
     );
@@ -1754,6 +1758,7 @@ const registerMessage = $("register-message");
 
 const userMenuButton = $("user-menu-btn");
 const userDropdown = $("user-dropdown");
+const userAvatarInitials = $("user-avatar-initials");
 
 const userDropdownHead = $("user-dropdown-head");
 const userDropdownName = $("user-dropdown-name");
@@ -1761,7 +1766,27 @@ const userDropdownEmail = $("user-dropdown-email");
 
 const dropdownLoginButton = $("dropdown-login-btn");
 const dropdownRegisterButton = $("dropdown-register-btn");
+const dropdownAccountButton = $("dropdown-account-btn");
 const dropdownLogoutButton = $("dropdown-logout-btn");
+
+
+/* =========================================================
+   HESABIM — DOM
+========================================================= */
+
+const accountOverlay = $("account-overlay");
+const accountCloseButton = $("account-close");
+const accountAvatarLarge = $("account-avatar-lg");
+
+const accountProfileForm = $("account-profile-form");
+const accountProfileMessage = $("account-profile-message");
+
+const accountCurrentEmailInput = $("account-current-email");
+const accountEmailForm = $("account-email-form");
+const accountEmailMessage = $("account-email-message");
+
+const accountPasswordForm = $("account-password-form");
+const accountPasswordMessage = $("account-password-message");
 
 
 /* =========================================================
@@ -1807,6 +1832,14 @@ function setupAuth() {
     });
 
 
+    dropdownAccountButton?.addEventListener("click", () => {
+
+        userDropdown?.classList.remove("open");
+
+        openAccount();
+    });
+
+
     dropdownLogoutButton?.addEventListener("click", logout);
 
 
@@ -1842,6 +1875,17 @@ function setupAuth() {
     });
 
 
+    accountCloseButton
+        ?.addEventListener("click", closeAccount);
+
+    accountOverlay?.addEventListener("click", event => {
+
+        if (event.target === accountOverlay) {
+            closeAccount();
+        }
+    });
+
+
     /* ESC ile açık katmanı kapat */
 
     document.addEventListener("keydown", event => {
@@ -1850,6 +1894,7 @@ function setupAuth() {
 
         closeAuth();
         closeRegister();
+        closeAccount();
         closeQuickCheckout();
         closeWishlistPanel();
         closeModal();
@@ -1894,6 +1939,15 @@ function setupAuth() {
     loginForm?.addEventListener("submit", handleLogin);
 
     registerForm?.addEventListener("submit", handleRegister);
+
+    accountProfileForm
+        ?.addEventListener("submit", handleAccountProfileSubmit);
+
+    accountEmailForm
+        ?.addEventListener("submit", handleAccountEmailSubmit);
+
+    accountPasswordForm
+        ?.addEventListener("submit", handleAccountPasswordSubmit);
 }
 
 
@@ -1943,6 +1997,400 @@ function openRegister() {
 function closeRegister() {
 
     registerOverlay?.classList.remove("open");
+}
+
+
+/* ---------------------------------------------------------
+   HESABIM
+--------------------------------------------------------- */
+
+function renderAccountAvatar() {
+
+    const user = getCurrentUser();
+
+    if (accountAvatarLarge) {
+
+        accountAvatarLarge.textContent =
+            user
+                ? getInitials(user.first_name, user.last_name)
+                : "";
+    }
+}
+
+
+/**
+ * Hesap ekranini acar ve formlari mevcut kullanici bilgisiyle
+ * doldurur. Once localStorage'daki (anlik gorunum icin), sonra
+ * /auth/me'den gelen guncel veriyle (bkz. arka planda cagri) —
+ * boylece ekran hemen acilir ama gosterilen veri sunucudan
+ * dogrulanmis olur.
+ */
+async function openAccount() {
+
+    const user = getCurrentUser();
+
+    if (!user) {
+
+        openAuth("Hesabını görüntülemek için giriş yap.");
+
+        return;
+    }
+
+
+    closeAuth();
+    closeRegister();
+
+    [
+        accountProfileForm,
+        accountEmailForm,
+        accountPasswordForm,
+    ].forEach(form => {
+
+        clearFieldErrors(form);
+    });
+
+    setMessage(accountProfileMessage, "");
+    setMessage(accountEmailMessage, "");
+    setMessage(accountPasswordMessage, "");
+
+    accountPasswordForm?.reset();
+
+    fillAccountForms(user);
+    renderAccountAvatar();
+
+    accountOverlay?.classList.add("open");
+
+
+    /* Ekran acildiktan sonra sunucudaki guncel veriyle
+       senkronize et — baska bir sekmede degisiklik olmus
+       olabilir. Basarisiz olursa sessizce onbellekte kalinir. */
+
+    try {
+
+        const fresh = await apiFetch("/auth/me");
+
+        updateSessionUser(fresh);
+
+        fillAccountForms(fresh);
+
+    } catch (error) {
+
+        console.warn(
+            "Güncel hesap bilgisi alınamadı:",
+            error
+        );
+    }
+}
+
+
+function closeAccount() {
+
+    accountOverlay?.classList.remove("open");
+}
+
+
+function fillAccountForms(user) {
+
+    if (!user) return;
+
+
+    const firstNameInput = $("account-first-name");
+    const lastNameInput = $("account-last-name");
+    const genderInput = $("account-gender");
+    const ageInput = $("account-age");
+
+    if (firstNameInput) firstNameInput.value = user.first_name || "";
+    if (lastNameInput) lastNameInput.value = user.last_name || "";
+    if (genderInput) genderInput.value = user.gender || "";
+    if (ageInput) ageInput.value = user.age ?? "";
+
+    if (accountCurrentEmailInput) {
+        accountCurrentEmailInput.value = user.email || "";
+    }
+}
+
+
+async function handleAccountProfileSubmit(event) {
+
+    event.preventDefault();
+
+    clearFieldErrors(accountProfileForm);
+
+    setMessage(accountProfileMessage, "");
+
+
+    const firstNameInput = $("account-first-name");
+    const lastNameInput = $("account-last-name");
+    const genderInput = $("account-gender");
+    const ageInput = $("account-age");
+
+    const firstName = firstNameInput?.value.trim() || "";
+    const lastName = lastNameInput?.value.trim() || "";
+    const gender = genderInput?.value || "";
+
+    const ageRaw = ageInput?.value.trim() || "";
+    const age = ageRaw ? Number(ageRaw) : null;
+
+
+    let valid = true;
+
+    if (!firstName) {
+        setFieldError(firstNameInput, "Adını gir.");
+        valid = false;
+    }
+
+    if (!lastName) {
+        setFieldError(lastNameInput, "Soyadını gir.");
+        valid = false;
+    }
+
+    if (
+        age !== null &&
+        (!Number.isFinite(age) || age < 13 || age > 100)
+    ) {
+        setFieldError(
+            ageInput,
+            "Yaş 13 ile 100 arasında olmalı."
+        );
+        valid = false;
+    }
+
+    if (!valid) return;
+
+
+    const submitButton = $("account-profile-submit");
+
+    setButtonLoading(submitButton, true);
+
+    try {
+
+        const updated = await apiFetch("/auth/profile", {
+            method: "PATCH",
+            body: JSON.stringify({
+                first_name: firstName,
+                last_name: lastName,
+                gender: gender || null,
+                age,
+            }),
+        });
+
+        updateSessionUser(updated);
+        fillAccountForms(updated);
+
+        setMessage(
+            accountProfileMessage,
+            "Bilgilerin güncellendi.",
+            "success"
+        );
+
+    } catch (error) {
+
+        console.error("Profil güncelleme hatası:", error);
+
+        setMessage(
+            accountProfileMessage,
+            error.message ||
+            "Bilgiler güncellenirken bir hata oluştu.",
+            "error"
+        );
+
+    } finally {
+
+        setButtonLoading(submitButton, false);
+    }
+}
+
+
+async function handleAccountEmailSubmit(event) {
+
+    event.preventDefault();
+
+    clearFieldErrors(accountEmailForm);
+
+    setMessage(accountEmailMessage, "");
+
+
+    const newEmailInput = $("account-new-email");
+    const passwordInput = $("account-email-password");
+
+    const newEmail = newEmailInput?.value.trim() || "";
+    const currentPassword = passwordInput?.value || "";
+
+
+    let valid = true;
+
+    if (!isValidEmail(newEmail)) {
+        setFieldError(
+            newEmailInput,
+            "Geçerli bir e-posta adresi gir."
+        );
+        valid = false;
+    }
+
+    if (!currentPassword) {
+        setFieldError(passwordInput, "Mevcut şifreni gir.");
+        valid = false;
+    }
+
+    if (!valid) return;
+
+
+    const submitButton = $("account-email-submit");
+
+    setButtonLoading(submitButton, true);
+
+    try {
+
+        const updated = await apiFetch("/auth/email", {
+            method: "PATCH",
+            body: JSON.stringify({
+                new_email: newEmail,
+                current_password: currentPassword,
+            }),
+        });
+
+        updateSessionUser(updated);
+        fillAccountForms(updated);
+
+        if (newEmailInput) newEmailInput.value = "";
+        if (passwordInput) passwordInput.value = "";
+
+        setMessage(
+            accountEmailMessage,
+            "E-posta adresin güncellendi.",
+            "success"
+        );
+
+    } catch (error) {
+
+        console.error("E-posta güncelleme hatası:", error);
+
+        setMessage(
+            accountEmailMessage,
+            error.message ||
+            "E-posta güncellenirken bir hata oluştu.",
+            "error"
+        );
+
+    } finally {
+
+        setButtonLoading(submitButton, false);
+    }
+}
+
+
+async function handleAccountPasswordSubmit(event) {
+
+    event.preventDefault();
+
+    clearFieldErrors(accountPasswordForm);
+
+    setMessage(accountPasswordMessage, "");
+
+
+    const currentInput = $("account-current-password");
+    const newInput = $("account-new-password");
+    const confirmInput = $("account-confirm-password");
+
+    const currentPassword = currentInput?.value || "";
+    const newPassword = newInput?.value || "";
+    const confirmPassword = confirmInput?.value || "";
+
+
+    let valid = true;
+
+    if (!currentPassword) {
+        setFieldError(currentInput, "Mevcut şifreni gir.");
+        valid = false;
+    }
+
+    if (newPassword.length < 8) {
+
+        setFieldError(
+            newInput,
+            "Şifre en az 8 karakter olmalı."
+        );
+
+        valid = false;
+
+    } else if (
+        !/[A-Za-z]/.test(newPassword) ||
+        !/\d/.test(newPassword)
+    ) {
+
+        setFieldError(
+            newInput,
+            "Şifre en az bir harf ve bir rakam içermeli."
+        );
+
+        valid = false;
+    }
+
+    if (confirmPassword !== newPassword) {
+
+        setFieldError(
+            confirmInput,
+            "Yeni şifreler eşleşmiyor."
+        );
+
+        valid = false;
+    }
+
+    if (
+        valid &&
+        currentPassword &&
+        newPassword === currentPassword
+    ) {
+
+        setFieldError(
+            newInput,
+            "Yeni şifre mevcut şifreyle aynı olamaz."
+        );
+
+        valid = false;
+    }
+
+    if (!valid) return;
+
+
+    const submitButton = $("account-password-submit");
+
+    setButtonLoading(submitButton, true);
+
+    try {
+
+        await apiFetch("/auth/change-password", {
+            method: "POST",
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword,
+                confirm_password: confirmPassword,
+            }),
+        });
+
+        accountPasswordForm?.reset();
+
+        setMessage(
+            accountPasswordMessage,
+            "Şifren başarıyla değiştirildi.",
+            "success"
+        );
+
+    } catch (error) {
+
+        console.error("Şifre değiştirme hatası:", error);
+
+        setMessage(
+            accountPasswordMessage,
+            error.message ||
+            "Şifre değiştirilirken bir hata oluştu.",
+            "error"
+        );
+
+    } finally {
+
+        setButtonLoading(submitButton, false);
+    }
 }
 
 
@@ -2301,6 +2749,9 @@ function logout() {
     clearFieldErrors(quickForm);
 
     closeQuickCheckout();
+    closeAccount();
+
+    accountPasswordForm?.reset();
 
     renderUserArea();
 
@@ -2313,15 +2764,48 @@ function logout() {
 }
 
 
+/**
+ * Ad/soyaddan avatar bas harflerini uretir.
+ *
+ * "Pınar Tunca" -> "PT", "Pınar" -> "P". Alanlar bastan/sondan
+ * ve aradan fazla bosluktan arindirilir; sadece ilk harf
+ * kullanildigi icin bir alan icindeki fazladan bosluklar
+ * sonucu etkilemez. toLocaleUpperCase("tr") kullaniliyor ki
+ * "i" -> "İ" gibi Turkce harf kurallarina uysun.
+ */
+function getInitials(firstName, lastName) {
+
+    const first =
+        String(firstName || "").trim().charAt(0);
+
+    const last =
+        String(lastName || "").trim().charAt(0);
+
+    return (first + last).toLocaleUpperCase("tr");
+}
+
+
 function renderUserArea() {
 
     const user = getCurrentUser();
 
     const signedIn = Boolean(user);
 
+    const initials =
+        signedIn
+            ? getInitials(user.first_name, user.last_name)
+            : "";
+
 
     userMenuButton
         ?.classList.toggle("signed-in", signedIn);
+
+    userMenuButton
+        ?.classList.toggle("has-avatar", Boolean(initials));
+
+    if (userAvatarInitials) {
+        userAvatarInitials.textContent = initials;
+    }
 
     userDropdownHead
         ?.classList.toggle("hidden", !signedIn);
@@ -2331,6 +2815,9 @@ function renderUserArea() {
 
     dropdownRegisterButton
         ?.classList.toggle("hidden", signedIn);
+
+    dropdownAccountButton
+        ?.classList.toggle("hidden", !signedIn);
 
     dropdownLogoutButton
         ?.classList.toggle("hidden", !signedIn);
@@ -2371,6 +2858,27 @@ function renderUserArea() {
         "aria-label",
         `${fullName || "Hesabım"} — hesap menüsü`
     );
+}
+
+
+/**
+ * Sunucudan donen guncel kullaniciyi oturuma yazar ve
+ * baglayici butun UI'i (avatar, dropdown, hesap ekrani basligi)
+ * sayfa yenilenmeden gunceller. signIn'den farki: yeni bir
+ * "giris" degil, VAR OLAN oturumun bilgisini tazelemesi
+ * (profil/e-posta guncellemesi sonrasi).
+ */
+function updateSessionUser(user) {
+
+    if (!user) return;
+
+    localStorage.setItem(
+        "user",
+        JSON.stringify(user)
+    );
+
+    renderUserArea();
+    renderAccountAvatar();
 }
 
 
@@ -4826,12 +5334,17 @@ function setupExplore() {
 
     setupExploreObserver();
 
+    setupExploreWheelScroll();
+    setupExploreEdgeFades();
+
 
     exploreRefreshButton
         ?.addEventListener("click", () => refreshExplore());
 
 
-    /* Sonsuz akis */
+    /* Sonsuz akis — yatay kaydirma, root olarak
+       exploreGrid'in kendisini kullaniyoruz (sag tarafa
+       dogru genislet, ustte/altta degil). */
 
     explore.scrollObserver = setupInfiniteScroll(
         "explore-sentinel",
@@ -4840,7 +5353,11 @@ function setupExplore() {
         () =>
             !explore.loading &&
             explore.hasMore &&
-            explore.rendered.length > 0
+            explore.rendered.length > 0,
+        {
+            root: exploreGrid,
+            rootMargin: "0px 400px 0px 0px",
+        }
     );
 
 
@@ -4897,6 +5414,101 @@ function setupExplore() {
             handleExploreDislike(card);
         }
     });
+}
+
+
+/**
+ * Masaustunde duz fare tekerlegi (trackpad degil) sadece
+ * dikey scroll ureter. Kesfet yatay bir seritte ilerledigi
+ * icin dikey tekerlek hareketini yatay kaydirmaya ceviriyoruz.
+ *
+ * Trackpad'in dogal yatay swipe'i (deltaX baskin) dokunulmadan
+ * gecer; sadece dikey agirlikli hareketi (duz mouse tekerlegi)
+ * yakalayip yonlendiriyoruz. Serit zaten sona/basa gelmisse
+ * sayfanin normal dikey kaymasina izin veriyoruz.
+ */
+function setupExploreWheelScroll() {
+
+    exploreGrid.addEventListener(
+        "wheel",
+        event => {
+
+            if (
+                Math.abs(event.deltaY) <=
+                Math.abs(event.deltaX)
+            ) {
+                return;
+            }
+
+
+            const {
+                scrollLeft,
+                scrollWidth,
+                clientWidth,
+            } = exploreGrid;
+
+            const atStart =
+                scrollLeft <= 0 && event.deltaY < 0;
+
+            const atEnd =
+                scrollLeft + clientWidth >= scrollWidth - 1 &&
+                event.deltaY > 0;
+
+            if (atStart || atEnd) {
+                return;
+            }
+
+
+            event.preventDefault();
+
+            exploreGrid.scrollLeft += event.deltaY;
+        },
+        { passive: false }
+    );
+}
+
+
+/**
+ * Sagda/solda daha fazla urun oldugunu gosteren solma
+ * efektlerini kaydirma konumuna gore acip kapatir.
+ */
+function updateExploreEdgeFades() {
+
+    if (!exploreCarousel || !exploreGrid) return;
+
+
+    const {
+        scrollLeft,
+        scrollWidth,
+        clientWidth,
+    } = exploreGrid;
+
+    exploreCarousel.classList.toggle(
+        "can-scroll-left",
+        scrollLeft > 4
+    );
+
+    exploreCarousel.classList.toggle(
+        "can-scroll-right",
+        scrollLeft + clientWidth < scrollWidth - 4
+    );
+}
+
+
+function setupExploreEdgeFades() {
+
+    exploreGrid.addEventListener(
+        "scroll",
+        () => updateExploreEdgeFades(),
+        { passive: true }
+    );
+
+    window.addEventListener(
+        "resize",
+        () => updateExploreEdgeFades()
+    );
+
+    updateExploreEdgeFades();
 }
 
 
@@ -5144,7 +5756,17 @@ async function loadExplore({ reset = false } = {}) {
         explore.fillChain = null;
         explore.buffer = [];
         explore.rendered = [];
-        exploreGrid.innerHTML = "";
+
+        /* Sadece kartlari kaldir, sentinel (yatay kaydirma
+           tetikleyicisi) grid'in child'i oldugu icin yerinde
+           kalmali. */
+        exploreGrid
+            .querySelectorAll(".explore-card, .explore-error")
+            .forEach(node => node.remove());
+
+        exploreGrid.scrollLeft = 0;
+        updateExploreEdgeFades();
+
         explore.exhausted = false;
         hideExploreExhausted();
     }
@@ -5186,7 +5808,7 @@ async function loadExplore({ reset = false } = {}) {
         refillExploreBuffer();
 
 
-        if (!exploreGrid.children.length) {
+        if (!explore.rendered.length) {
 
             explore.exhausted = true;
 
@@ -5198,14 +5820,23 @@ async function loadExplore({ reset = false } = {}) {
 
         console.error("Keşfet yüklenemedi:", error);
 
-        if (!exploreGrid.children.length) {
+        if (!explore.rendered.length) {
 
-            exploreGrid.innerHTML = `
-                <div class="explore-error">
-                    Keşfet akışı yüklenemedi.
-                    Backend bağlantısını kontrol et.
-                </div>
-            `;
+            const errorNode = document.createElement("div");
+
+            errorNode.className = "explore-error";
+
+            errorNode.textContent =
+                "Keşfet akışı yüklenemedi. Backend bağlantısını kontrol et.";
+
+            exploreGrid
+                .querySelectorAll(".explore-error")
+                .forEach(node => node.remove());
+
+            exploreGrid.insertBefore(
+                errorNode,
+                exploreGrid.firstChild
+            );
         }
 
         explore.hasMore = false;
@@ -5227,6 +5858,11 @@ async function loadExplore({ reset = false } = {}) {
  * Kademeli giriş (stagger): her kart 55 ms sonra beliriyor.
  * Framer Motion'daki `staggerChildren` karşılığı; CSS
  * animation-delay ile yapılıyor.
+ *
+ * Sentinel (#explore-sentinel) grid'in son child'i olarak
+ * duruyor (yatay kaydirmada sonsuz akis tetikleyicisi).
+ * Yeni kartlar hep ONDAN ONCE eklenir ki sentinel her zaman
+ * en sonda kalsin.
  */
 function appendExploreCards(items) {
 
@@ -5253,7 +5889,13 @@ function appendExploreCards(items) {
     });
 
 
-    exploreGrid.appendChild(fragment);
+    const sentinel = $("explore-sentinel");
+
+    if (sentinel && sentinel.parentElement === exploreGrid) {
+        exploreGrid.insertBefore(fragment, sentinel);
+    } else {
+        exploreGrid.appendChild(fragment);
+    }
 
     hydrateIcons(exploreGrid);
 
@@ -5265,6 +5907,10 @@ function appendExploreCards(items) {
             observeCard(card);
         }
     });
+
+
+    /* Yeni kartlarla genislik degisti; sag solmayi guncelle. */
+    updateExploreEdgeFades();
 }
 
 

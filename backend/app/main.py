@@ -484,6 +484,159 @@ def get_optional_user(
     return db.get(User, user_uuid)
 
 
+# =========================================================
+# HESAP YONETIMI
+# =========================================================
+
+def _account_response(user: User) -> schemas.AccountResponse:
+    """Login/register'in dondurdugu kullanici sekliyle
+    birebir ayni; frontend tek bir güncelleme yardimcisini
+    (updateSessionUser) her yerde kullanabilir."""
+
+    return schemas.AccountResponse(
+        id=str(user.id),
+        first_name=user.first_name,
+        last_name=user.last_name,
+        email=user.email,
+        gender=user.gender,
+        age=user.age,
+    )
+
+
+@app.get(
+    "/auth/me",
+    response_model=schemas.AccountResponse,
+)
+def get_my_account(
+    user: User = Depends(get_current_user),
+):
+    """Hesabım ekraninin acilista okudugu, sunucudaki
+    guncel bilgi (localStorage'daki onbellege degil)."""
+
+    return _account_response(user)
+
+
+@app.patch(
+    "/auth/profile",
+    response_model=schemas.AccountResponse,
+)
+def update_profile(
+    payload: schemas.UpdateProfileRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Ad, soyad ve temel profil alanlarini gunceller.
+
+    E-posta ve sifre burada DEGISTIRILMEZ; onlar ayri, daha
+    siki dogrulamali uclardan (change-email, change-password)
+    yonetilir."""
+
+    user.first_name = payload.first_name
+    user.last_name = payload.last_name
+    user.gender = payload.gender
+    user.age = payload.age
+
+    db.commit()
+    db.refresh(user)
+
+    return _account_response(user)
+
+
+@app.patch(
+    "/auth/email",
+    response_model=schemas.AccountResponse,
+)
+def change_email(
+    payload: schemas.ChangeEmailRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    E-posta degisikligi.
+
+    GUVENLIK: X-User-Id basligi tek basina kimlik kaniti
+    degil (bkz. get_current_user docstring'i), bu yuzden bu
+    hassas islem icin mevcut sifre ayrica dogrulanir.
+
+    NOT: e-posta dogrulama (yeni adrese mail/kod gonderme)
+    altyapisi yok. Sifre doğrulanir doğrulanmaz e-posta
+    DOGRUDAN degisir; sahte bir "onay maili" akisi taklit
+    edilmiyor.
+    """
+
+    if not pwd_context.verify(
+        payload.current_password,
+        user.password_hash,
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Mevcut şifre hatalı.",
+        )
+
+    if payload.new_email == user.email.lower():
+        raise HTTPException(
+            status_code=422,
+            detail="Bu zaten kayıtlı e-posta adresin.",
+        )
+
+    # Buyuk/kucuk harf farkina ragmen ayni adresi yakalamak
+    # icin ilike (register/login tarafinda henuz normalize
+    # edilmedigi icin buradaki kontrol case-insensitive).
+    existing = (
+        db.query(User)
+        .filter(User.email.ilike(payload.new_email))
+        .first()
+    )
+
+    if existing is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Bu email adresi zaten kayıtlı.",
+        )
+
+    user.email = payload.new_email
+
+    db.commit()
+    db.refresh(user)
+
+    return _account_response(user)
+
+
+@app.post("/auth/change-password")
+def change_password(
+    payload: schemas.ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Sifre degisikligi.
+
+    Mevcut sifre hash ile dogrulanmadan degisiklik YAPILMAZ.
+    Yeni sifrenin gucu ve tekrarla eslesmesi schema'da
+    (ChangePasswordRequest) zaten kontrol edildi.
+
+    Sifre hicbir zaman response'a dahil edilmez; sadece bir
+    basari mesaji doner.
+    """
+
+    if not pwd_context.verify(
+        payload.current_password,
+        user.password_hash,
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Mevcut şifre hatalı.",
+        )
+
+    user.password_hash = pwd_context.hash(
+        payload.new_password
+    )
+
+    db.commit()
+
+    return {"message": "Şifren başarıyla değiştirildi."}
+
+
 def _parse_exclude(raw: str | None) -> list[str]:
     """
     "A,B,C" -> ["A", "B", "C"]

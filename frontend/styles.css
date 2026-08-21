@@ -26,6 +26,10 @@
 
 html {
     scroll-behavior: smooth;
+
+    /* Header fixed oldugu icin # linkleri hedefi header'in
+       arkasina gizliyordu. Header yuksekligi kadar pay birak. */
+    scroll-padding-top: 100px;
 }
 
 body {
@@ -1185,6 +1189,10 @@ a {
 
 @media (max-width: 800px) {
 
+    html {
+        scroll-padding-top: 84px;
+    }
+
     .site-header {
         height: 70px;
     }
@@ -1877,6 +1885,66 @@ a {
 
 
 /* =========================================================
+   HESABIM PANELI
+   Login/register ile ayni auth-overlay/auth-panel sistemini
+   kullanir; sadece daha genis ve uc form ust uste durur.
+========================================================= */
+
+.account-panel {
+    width: min(560px, 100%);
+
+    padding: 48px 45px 40px;
+}
+
+.account-content {
+    text-align: left;
+}
+
+.account-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    margin-bottom: 34px;
+}
+
+.account-head h2 {
+    margin-top: 4px;
+    font-size: 28px;
+}
+
+.account-avatar-lg {
+    flex: 0 0 auto;
+
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--gold);
+    color: var(--white);
+
+    font-family: var(--sans);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.account-section {
+    margin-top: 30px;
+    padding-top: 26px;
+
+    border-top: 1px solid var(--line);
+}
+
+.account-email-note {
+    margin-top: -6px;
+}
+
+
+/* =========================================================
    USER AREA / DROPDOWN
 ========================================================= */
 
@@ -1905,7 +1973,9 @@ a {
     background: var(--cream);
 }
 
-/* Giris yapilmisken ikonun kosesinde altin nokta */
+/* Giris yapilmisken ikonun kosesinde altin nokta.
+   Avatar (bas harfler) varken bu nokta gereksiz, o modda
+   gizleniyor (bkz. .has-avatar altindaki override). */
 
 .user-icon-btn.signed-in::after {
     content: "";
@@ -1920,6 +1990,42 @@ a {
     border-radius: 50%;
 
     background: var(--gold);
+}
+
+/* AVATAR (BAS HARFLER)
+   Giris yapilmis kullanici icin genel kullanici ikonu yerine
+   ad+soyad bas harflerini gosteren sade, yuvarlak bir avatar. */
+
+.user-icon-btn.has-avatar i.fa-user {
+    display: none;
+}
+
+.user-icon-btn.has-avatar::after {
+    display: none;
+}
+
+.user-avatar-initials {
+    display: none;
+    align-items: center;
+    justify-content: center;
+
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+
+    background: var(--gold);
+    color: var(--white);
+
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .3px;
+
+    line-height: 1;
+}
+
+.user-icon-btn.has-avatar .user-avatar-initials {
+    display: flex;
 }
 
 .user-dropdown {
@@ -2136,7 +2242,7 @@ a {
 }
 
 .explore-header,
-.explore-grid,
+.explore-carousel,
 .explore-notice,
 .explore-loader,
 .explore-exhausted {
@@ -2266,12 +2372,94 @@ a {
 }
 
 
-/* IZGARA */
+/* IZGARA
+   Dikey sonsuz akis yerine yatay kaydirma: sayfada daha az
+   yer kaplasin diye kartlar tek satirda yana dogru ilerliyor. */
+
+.explore-carousel {
+    position: relative;
+}
 
 .explore-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    display: flex;
     gap: 22px;
+    width: 100%;
+
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    padding-bottom: 18px;
+    margin-bottom: -18px;
+
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.explore-grid::-webkit-scrollbar {
+    height: 6px;
+}
+
+.explore-grid::-webkit-scrollbar-thumb {
+    background: var(--light-gray);
+}
+
+/* Sagda/solda daha fazla urun oldugunu belli eden solma
+   efekti. JS scroll konumuna gore .can-scroll-left /
+   .can-scroll-right classlarini acip kapatiyor
+   (bkz. updateExploreEdgeFades). */
+
+.explore-carousel::before,
+.explore-carousel::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 18px;
+
+    width: 64px;
+
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .25s ease;
+
+    z-index: 2;
+}
+
+.explore-carousel::before {
+    left: 0;
+    background: linear-gradient(
+        to right,
+        var(--cream),
+        transparent
+    );
+}
+
+.explore-carousel::after {
+    right: 0;
+    background: linear-gradient(
+        to left,
+        var(--cream),
+        transparent
+    );
+}
+
+.explore-carousel.can-scroll-left::before {
+    opacity: 1;
+}
+
+.explore-carousel.can-scroll-right::after {
+    opacity: 1;
+}
+
+/* Yatay akista sonraki partiyi tetikleyen gorunmez alan.
+   Sagdan 400px genisletilmis, sona gelmeden once tetiklenir. */
+.explore-grid .feed-sentinel {
+    flex: 0 0 1px;
+    width: 1px;
+    height: 100%;
+
+    margin: 0 0 0 -400px;
+    padding: 0 0 0 400px;
 }
 
 
@@ -2280,6 +2468,11 @@ a {
 .explore-card {
     display: flex;
     flex-direction: column;
+
+    flex: 0 0 260px;
+    width: 260px;
+
+    scroll-snap-align: start;
 
     background: var(--white);
     border: 1px solid var(--line);
@@ -2772,8 +2965,9 @@ a {
 
 @media (max-width: 1100px) {
 
-    .explore-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+    .explore-card {
+        flex-basis: 220px;
+        width: 220px;
     }
 }
 
@@ -2784,7 +2978,7 @@ a {
     }
 
     .explore-header,
-    .explore-grid,
+    .explore-carousel,
     .explore-notice,
     .explore-loader,
     .explore-exhausted {
@@ -2802,8 +2996,12 @@ a {
     }
 
     .explore-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 14px;
+    }
+
+    .explore-card {
+        flex-basis: 168px;
+        width: 168px;
     }
 
     .explore-header h2 {
