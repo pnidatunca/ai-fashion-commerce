@@ -13,8 +13,11 @@ const state = {
 
     searchQuery: "",
     searchMode: false,
+    searchType: "semantic",
 
     category: "",
+    color: "",
+    gender: "",
 
     products: [],
     hasNextPage: false,
@@ -44,6 +47,13 @@ const sortSelect = $("sort-select");
 
 const searchInput = $("ai-search-input");
 const searchButton = $("ai-search-btn");
+
+const semanticSearchModeButton =
+    $("semantic-search-mode");
+const classicSearchModeButton =
+    $("classic-search-mode");
+const searchModeDescription =
+    $("search-mode-description");
 
 const productModal = $("product-modal");
 const modalContent = $("modal-content");
@@ -149,16 +159,33 @@ async function loadProducts() {
 
         if (state.searchMode && state.searchQuery) {
 
-            data = await apiGet(
-                "/products/search",
-                {
-                    q: state.searchQuery,
-                    limit: state.limit,
-                    offset: offset
-                }
-            );
+    if (state.searchType === "semantic") {
 
-        } else {
+        data = await apiGet(
+            "/products/semantic-search",
+            {
+                q: state.searchQuery,
+                limit: state.limit,
+                offset: offset,
+                category: state.category,
+                color: state.color,
+                gender: state.gender
+            }
+        );
+
+    } else {
+
+        data = await apiGet(
+            "/products/search",
+            {
+                q: state.searchQuery,
+                limit: state.limit,
+                offset: offset
+            }
+        );
+    }
+
+} else {
 
             data = await apiGet(
                 "/products",
@@ -529,29 +556,70 @@ async function loadFeaturedProducts() {
 }
 
 
-/* =========================================================
+/*=========================================================
    SEARCH
 ========================================================= */
 
+function setSearchType(type) {
+
+    state.searchType = type;
+
+    semanticSearchModeButton?.classList.toggle(
+        "active",
+        type === "semantic"
+    );
+
+    classicSearchModeButton?.classList.toggle(
+        "active",
+        type === "classic"
+    );
+
+    if (searchModeDescription) {
+
+        searchModeDescription.textContent =
+            type === "semantic"
+                ? "Ne aradığını doğal bir şekilde tarif et. AURA anlamına göre en uygun ürünleri bulsun."
+                : "Ürün adı, marka veya kategori üzerinden anahtar kelimeyle ara.";
+    }
+
+    if (state.searchMode && state.searchQuery) {
+
+        state.page = 1;
+
+        loadProducts();
+    }
+}
+
 function setupSearch() {
+
+    semanticSearchModeButton?.addEventListener(
+        "click",
+        () => {
+            setSearchType("semantic");
+        }
+    );
+
+    classicSearchModeButton?.addEventListener(
+        "click",
+        () => {
+            setSearchType("classic");
+        }
+    );
 
     searchButton?.addEventListener(
         "click",
         () => {
-
             runSearch(
                 searchInput?.value
             );
         }
     );
 
-
     searchInput?.addEventListener(
         "keydown",
         event => {
 
             if (event.key === "Enter") {
-
                 runSearch(
                     searchInput.value
                 );
@@ -649,7 +717,6 @@ function runSearch(value) {
     const query =
         String(value || "").trim();
 
-
     if (!query) {
 
         state.searchMode = false;
@@ -661,14 +728,34 @@ function runSearch(value) {
         return;
     }
 
-
     state.searchMode = true;
     state.searchQuery = query;
     state.page = 1;
 
+    // Yeni bir arama başladığında
+    // eski kategori filtresini temizle.
+    state.category =
+    detectCategoryFromQuery(query);
+
+    state.color =
+    detectColorFromQuery(query);
+
+    state.gender =
+    detectGenderFromQuery(query);
+
+    document
+        .querySelectorAll("[data-category]")
+        .forEach(item => {
+            item.classList.remove("active");
+        });
+
+    document
+        .querySelectorAll('[data-category=""]')
+        .forEach(item => {
+            item.classList.add("active");
+        });
 
     loadProducts();
-
 
     $("products-section")
         ?.scrollIntoView({
@@ -1648,4 +1735,144 @@ function escapeHTML(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function detectCategoryFromQuery(query) {
+
+    const text = query.toLowerCase();
+
+    const categoryTerms = {
+
+        dress: [
+            "elbise",
+            "dress",
+            "gown"
+        ],
+
+        shirt: [
+            "gömlek",
+            "gomlek",
+            "shirt",
+            "tişört",
+            "tisort",
+            "t-shirt",
+            "tshirt",
+            "tee",
+            "polo",
+            "bluz",
+            "blouse",
+            "top"
+        ],
+
+        pants: [
+            "pantolon",
+            "pants",
+            "trousers",
+            "jean",
+            "jeans"
+        ],
+
+        jacket: [
+            "ceket",
+            "jacket",
+            "coat",
+            "mont",
+            "blazer"
+        ],
+
+        shoes: [
+            "ayakkabı",
+            "ayakkabi",
+            "shoe",
+            "shoes",
+            "sneaker",
+            "sneakers",
+            "bot",
+            "boots",
+            "sandal",
+            "sandals"
+        ]
+    };
+
+    for (const [category, words] of Object.entries(categoryTerms)) {
+
+        if (
+            words.some(word =>
+                text.includes(word)
+            )
+        ) {
+            return category;
+        }
+    }
+
+    return "";
+}
+
+function detectColorFromQuery(query) {
+
+    const text = query.toLowerCase();
+
+    const colors = {
+        "beyaz": "white",
+        "siyah": "black",
+        "kırmızı": "red",
+        "mavi": "blue",
+        "lacivert": "navy",
+        "yeşil": "green",
+        "sarı": "yellow",
+        "pembe": "pink",
+        "mor": "purple",
+        "gri": "gray",
+        "kahverengi": "brown",
+        "bej": "beige",
+
+        "white": "white",
+        "black": "black",
+        "red": "red",
+        "blue": "blue",
+        "navy": "navy",
+        "green": "green",
+        "yellow": "yellow",
+        "pink": "pink",
+        "purple": "purple",
+        "gray": "gray",
+        "grey": "gray",
+        "brown": "brown",
+        "beige": "beige"
+    };
+
+    for (const [word, color] of Object.entries(colors)) {
+
+        if (text.includes(word)) {
+            return color;
+        }
+    }
+
+    return "";
+}
+
+function detectGenderFromQuery(query) {
+
+    const text = query.toLowerCase();
+
+    if (
+        text.includes("kadın") ||
+        text.includes("kadin") ||
+        text.includes("women") ||
+        text.includes("woman") ||
+        text.includes("female")
+    ) {
+        return "women";
+    }
+
+    if (
+        text.includes("erkek") ||
+        text.includes("men") ||
+        text.includes("man") ||
+        text.includes("male")
+    ) {
+        return "men";
+    }
+
+    return "";
 }

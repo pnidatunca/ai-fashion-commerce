@@ -8,6 +8,8 @@ from app import crud, schemas
 from app.database import engine, get_db
 import requests
 
+from app.embeddings import generate_embedding
+
 app = FastAPI(
     title="AI Fashion Commerce API",
     version="0.1.0",
@@ -119,6 +121,66 @@ def search_products(
         offset=offset,
     )
 
+# =========================================================
+# Semantic search endpoint
+# =========================================================
+@app.get(
+    "/products/semantic-search",
+    response_model=list[schemas.SemanticProductResponse],
+)
+def semantic_search(
+    q: str = Query(
+        ...,
+        min_length=1,
+    ),
+    limit: int = Query(
+        default=10,
+        ge=1,
+        le=50,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
+    category: str | None = Query(
+        default=None,
+    ),
+    color: str | None = Query(
+        default=None,
+    ),
+    gender: str | None = Query(
+        default=None,
+    ),
+    db: Session = Depends(get_db),
+):
+    query_embedding = generate_embedding(q)
+
+    results = crud.semantic_search_products(
+        db=db,
+        query_embedding=query_embedding,
+        limit=limit,
+        offset=offset,
+        category=category,
+        color=color,
+        gender=gender,
+    )
+
+    response = []
+
+    for item in results:
+        product = item["product"]
+
+        product_data = schemas.ProductResponse.model_validate(
+            product
+        ).model_dump()
+
+        product_data["similarity_score"] = item[
+            "similarity_score"
+        ]
+
+        response.append(product_data)
+
+    return response
 
 # =========================================================
 # PRODUCT DETAIL

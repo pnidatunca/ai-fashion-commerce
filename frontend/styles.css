@@ -597,6 +597,43 @@ a {
     color: white;
 }
 
+.search-mode-switch {
+    margin-top: 20px;
+
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.search-mode-btn {
+    border: 1px solid #333;
+    background: transparent;
+    color: #aaa;
+
+    padding: 10px 18px;
+
+    font-size: 10px;
+    letter-spacing: 1px;
+    font-weight: 600;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    transition: .3s ease;
+}
+
+.search-mode-btn:hover {
+    border-color: #aaa;
+    color: white;
+}
+
+.search-mode-btn.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: white;
+}
+
 /* =========================================================
    PRODUCTS
 ========================================================= */

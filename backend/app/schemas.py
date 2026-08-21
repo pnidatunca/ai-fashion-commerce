@@ -68,3 +68,6 @@ class ProductResponse(BaseModel):
 
 class ProductDetailResponse(ProductResponse):
     reviews: list[ReviewResponse] = []
+
+class SemanticProductResponse(ProductResponse):
+    similarity_score: float

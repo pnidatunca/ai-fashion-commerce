@@ -412,9 +412,9 @@
         </h2>
 
 
-        <p>
-            Koleksiyonda ürün adı, marka veya kategori
-            yazarak hızlıca arama yap.
+        <p id="search-mode-description">
+            Ne aradığını doğal bir şekilde tarif et.
+            AURA anlamına göre en uygun ürünleri bulsun.
         </p>
 
 
@@ -428,7 +428,7 @@
                 <input
                     type="text"
                     id="ai-search-input"
-                    placeholder="Örn. polo, shirt, jacket..."
+                    placeholder="Örn. Yaz için hafif ve rahat erkek gömleği..."
                     autocomplete="off"
                 >
 
@@ -442,6 +442,28 @@
                 ARA
 
                 <i class="fa-solid fa-arrow-right"></i>
+            </button>
+
+        </div>
+
+        <div class="search-mode-switch">
+
+            <button
+                type="button"
+                id="semantic-search-mode"
+                class="search-mode-btn active"
+            >
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                AI Arama
+            </button>
+
+            <button
+                type="button"
+                id="classic-search-mode"
+                class="search-mode-btn"
+            >
+                <i class="fa-solid fa-magnifying-glass"></i>
+                Klasik Arama
             </button>
 
         </div>
