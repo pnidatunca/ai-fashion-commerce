@@ -78,6 +78,86 @@ class SemanticProductResponse(ProductResponse):
 
 
 # =========================================================
+# AKILLI ARAMA  (/api/search)
+# =========================================================
+
+class SearchChip(BaseModel):
+    """
+    "AI ne anladi" etiketi.
+
+    strict=True olanlar sert filtre (o urun gelmezse hic
+    gelmez), strict=False olanlar siralama bonusu.
+    Kullaniciya bu ayrimi gostermek onemli: renk filtresinin
+    sonucu daraltmasi ile "yazlik" niyetinin sadece one
+    almasi ayni sey degil.
+    """
+
+    kind: str
+    label: str
+    strict: bool
+
+
+class SearchAnalysis(BaseModel):
+    """Sorgu cozumlemesinin kullaniciya gosterilen hali."""
+
+    raw: str
+    cleaned: str
+
+    gender: str | None = None
+    category: str | None = None
+    colors: list[str] = []
+
+    season: list[str] = []
+    patterns: list[str] = []
+    fabrics: list[str] = []
+    fits: list[str] = []
+    occasions: list[str] = []
+
+    # Embedding'e giden zenginlestirilmis metin. Aciga
+    # cikariyoruz cunku "AI aramayi nasil degistirdi"
+    # sorusunun en dogru cevabi bu.
+    embed_text: str = ""
+
+    alternatives: list[str] = []
+    chips: list[SearchChip] = []
+    note: str = ""
+
+
+class SearchItem(BaseModel):
+    product: ProductResponse
+
+    # Ham vektor benzerligi (0-1)
+    similarity_score: float
+
+    # Vektor + kelime bonuslarinin toplami
+    search_score: float
+
+    # Bu urunun hangi niyetlere uydugu
+    reasons: list[str] = []
+
+
+class SearchMeta(BaseModel):
+    stage: int
+    stage_label: str
+
+    # Bu asamaya gelmek icin nelerin birakildigi
+    relaxed: list[str] = []
+
+    min_results: int
+    has_more: bool
+
+    # False ise embedding uretilemedi ve arama yalnizca
+    # kelime eslesmesiyle calisti.
+    semantic: bool = True
+
+
+class SearchResponse(BaseModel):
+    query: SearchAnalysis
+    items: list[SearchItem]
+    meta: SearchMeta
+
+
+# =========================================================
 # USER REGISTER
 # =========================================================
 
