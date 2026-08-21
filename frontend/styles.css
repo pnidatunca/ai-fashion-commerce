@@ -245,10 +245,18 @@ a {
 
 .hero-overlay {
     background:
+        /* Metnin okunurlugu icin soldan koyu sag */
         linear-gradient(
             90deg,
             rgba(0,0,0,.68),
             rgba(0,0,0,.18) 70%
+        ),
+        /* Altta AI bolumunun siyahina akici bir gecis:
+           keskin kesim yerine fotograf yumusakca eriyor. */
+        linear-gradient(
+            to bottom,
+            rgba(0,0,0,0) 55%,
+            var(--black) 100%
         );
 }
 
@@ -265,6 +273,27 @@ a {
     justify-content: center;
 
     max-width: 900px;
+}
+
+.hero-content > * {
+    animation: heroRise .9s cubic-bezier(.16,1,.3,1) both;
+}
+
+.hero-content > .hero-small { animation-delay: .05s; }
+.hero-content > h1 { animation-delay: .15s; }
+.hero-content > .hero-description { animation-delay: .3s; }
+.hero-content > .hero-button { animation-delay: .42s; }
+
+@keyframes heroRise {
+    from {
+        opacity: 0;
+        transform: translateY(22px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .hero-small {
@@ -313,12 +342,13 @@ a {
     font-weight: 600;
     letter-spacing: 2px;
 
-    transition: .3s ease;
+    transition: .3s ease, transform .3s ease;
 }
 
 .hero-button:hover {
     background: var(--gold);
     color: white;
+    transform: translateY(-2px);
 }
 
 /* =========================================================
@@ -436,13 +466,64 @@ a {
 ========================================================= */
 
 .ai-section {
+    position: relative;
+    overflow: hidden;
+
     background: var(--black);
     color: white;
 
     padding: 120px 30px;
 }
 
+/* Fare imleciyle hareket eden yumusak isik.
+   Konum (--x/--y) app.js'te mousemove ile guncelleniyor;
+   burada sadece gorunumu ve yumusak takip animasyonu var.
+   Mouse bolumden ayrilinca opacity 0'a doner. */
+.ai-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 640px;
+    height: 640px;
+
+    border-radius: 50%;
+
+    background: radial-gradient(
+        closest-side,
+        rgba(182, 155, 98, .28),
+        rgba(182, 155, 98, .08) 55%,
+        transparent 75%
+    );
+
+    transform:
+        translate(-50%, -50%)
+        translate(var(--x, 50vw), var(--y, -10vh));
+
+    opacity: 0;
+
+    transition:
+        transform .5s cubic-bezier(.16,1,.3,1),
+        opacity .4s ease;
+
+    pointer-events: none;
+    will-change: transform;
+}
+
+.ai-section.glow-active .ai-glow {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ai-glow {
+        transition: opacity .4s ease;
+    }
+}
+
 .ai-inner {
+    position: relative;
+    z-index: 1;
+
     width: min(900px, 100%);
     margin: auto;
     text-align: center;
@@ -2230,6 +2311,33 @@ a {
     color: var(--like);
 }
 
+/* Header'daki sepet sayaci — wishlist ile ayni desen,
+   karismasinlar diye altin (gold) renk kullaniliyor. */
+
+.cart-number {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: 17px;
+    height: 17px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+
+    background: var(--gold);
+    color: var(--white);
+
+    font-size: 8px;
+    font-weight: 600;
+}
+
+#cart-btn.has-items i {
+    color: var(--gold);
+}
+
 
 /* BÖLÜM */
 
@@ -2570,6 +2678,61 @@ a {
 
 .explore-card.liked .explore-liked-badge {
     display: flex;
+}
+
+/* Sag ust: favori/sepet sembol butonlari. AI eslesme rozeti
+   (.explore-match / .explore-explore-tag) bunlarin altina
+   kaydırıldı (top: 54px) — cakismasinlar diye. */
+
+.explore-quick-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+
+    display: flex;
+    gap: 8px;
+}
+
+.explore-quick-btn {
+    width: 32px;
+    height: 32px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, .55);
+    background: rgba(17, 17, 17, .45);
+
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+
+    color: var(--white);
+
+    font-size: 13px;
+
+    transition: .2s ease;
+}
+
+.explore-quick-btn:hover {
+    background: var(--black);
+    border-color: var(--black);
+}
+
+.explore-quick-like.active {
+    background: var(--like);
+    border-color: var(--like);
+}
+
+.explore-quick-cart.active {
+    background: var(--gold);
+    border-color: var(--gold);
+}
+
+.explore-quick-btn[disabled] {
+    opacity: .4;
+    cursor: not-allowed;
 }
 
 
@@ -2919,6 +3082,86 @@ a {
 
 
 /* =========================================================
+   SEPET PANELI
+   ---------------------------------------------------------
+   Favoriler paneliyle ayni .wishlist-overlay/.wishlist-panel/
+   .wishlist-row iskeletini kullanir; burada sadece sepete
+   ozgu miktar secici ve alt toplam/odeme barini ekliyoruz.
+========================================================= */
+
+.cart-qty-stepper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    margin-top: auto;
+    margin-bottom: 10px;
+}
+
+.cart-qty-btn {
+    width: 26px;
+    height: 26px;
+
+    display: grid;
+    place-items: center;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+
+    transition: .2s ease;
+}
+
+.cart-qty-btn:hover {
+    background: var(--black);
+    border-color: var(--black);
+    color: var(--white);
+}
+
+.cart-qty-value {
+    min-width: 18px;
+
+    text-align: center;
+
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.cart-row .wishlist-row-actions {
+    margin-top: 0;
+}
+
+.cart-panel-footer {
+    padding-top: 20px;
+    margin-top: 10px;
+
+    border-top: 1px solid var(--line);
+
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cart-panel-subtotal {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+
+    font-size: 11px;
+    letter-spacing: .5px;
+}
+
+.cart-panel-subtotal strong {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 600;
+}
+
+
+/* =========================================================
    ÜRÜN DETAYINDA FAVORİ BUTONU
 ========================================================= */
 
@@ -2956,6 +3199,43 @@ a {
     border-color: var(--like);
     background: var(--like-soft);
     color: var(--like);
+}
+
+.modal-add-cart {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    width: 100%;
+
+    margin-top: 12px;
+    padding: 15px;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    transition: .25s ease;
+}
+
+.modal-add-cart:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+}
+
+.modal-add-cart.active {
+    border-color: var(--gold);
+    background: rgba(182, 155, 98, .12);
+    color: var(--gold);
+}
+
+.modal-add-cart[disabled] {
+    opacity: .45;
+    cursor: not-allowed;
 }
 
 
@@ -3555,7 +3835,9 @@ a {
 
 .explore-match {
     position: absolute;
-    top: 12px;
+    /* Sag ustteki favori/sepet sembolleri icin yer acildi
+       (bkz. .explore-quick-actions), rozet onlarin altina indi. */
+    top: 54px;
     right: 12px;
 
     display: flex;
@@ -3619,7 +3901,7 @@ a {
 
 .explore-explore-tag {
     position: absolute;
-    top: 12px;
+    top: 54px;
     right: 12px;
 
     padding: 6px 9px;
@@ -4064,7 +4346,8 @@ a {
 
 .explore-match {
     position: absolute;
-    top: 12px;
+    /* Sag ustteki favori/sepet sembolleri icin yer acildi. */
+    top: 54px;
     right: 12px;
 
     display: flex;
@@ -4144,7 +4427,7 @@ a {
 
 .explore-explore-tag {
     position: absolute;
-    top: 12px;
+    top: 54px;
     right: 12px;
 
     padding: 7px 10px;
@@ -4566,6 +4849,43 @@ a {
    TEK EKRAN HIZLI SATIN ALMA
 ========================================================= */
 
+/* Temel katman kuraliydi eksikti: .quick-panel'in kendi
+   transform/opacity gecisi vardi ama onu saran bu katman
+   sabit/tam ekran degildi ve fade almiyordu. Sonuc: panel
+   bir modal gibi belirmek yerine sayfanin normal akisinda
+   bir yere anlik olarak "zipliyordu". Auth/wishlist
+   overlaylerindeki ayni sabit-katman + fade deseni burada da
+   uygulanarak akici bir acilis/kapanis saglaniyor. */
+
+.checkout-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+
+    background: rgba(17, 17, 17, 0.62);
+
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition:
+        opacity .3s ease,
+        visibility .3s ease;
+}
+
+.checkout-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
 .quick-panel {
     position: relative;
 
@@ -4723,6 +5043,87 @@ a {
     font-size: 8px;
     font-weight: 700;
     letter-spacing: 1.2px;
+}
+
+
+/* Sepetten odeme: coklu urun ozeti — #quick-product'in
+   tek-urun halinin yerine gecer (bkz. renderQuickCartSummary). */
+
+.quick-cart-summary {
+    max-height: 260px;
+    overflow-y: auto;
+
+    margin-bottom: 16px;
+}
+
+.quick-cart-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 10px 0;
+
+    border-bottom: 1px solid var(--line);
+}
+
+.quick-cart-row:first-child {
+    padding-top: 0;
+}
+
+.quick-cart-row img {
+    flex-shrink: 0;
+
+    width: 44px;
+    height: 56px;
+
+    object-fit: cover;
+
+    background: var(--soft);
+}
+
+.quick-cart-row-body {
+    flex: 1;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.quick-cart-row-body strong {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.4;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quick-cart-row-body span {
+    color: var(--gray);
+
+    font-size: 10px;
+}
+
+.quick-cart-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+
+    padding: 14px;
+    margin-bottom: 24px;
+
+    background: var(--cream);
+    border-left: 2px solid var(--ai);
+
+    font-size: 11px;
+}
+
+.quick-cart-total strong {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 600;
 }
 
 
@@ -4988,13 +5389,14 @@ a {
 
 .card-actions {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto auto 1fr;
     gap: 7px;
 
     margin-top: 13px;
 }
 
-.card-heart {
+.card-heart,
+.card-cart-add {
     width: 40px;
 
     display: grid;
@@ -5019,6 +5421,26 @@ a {
     border-color: var(--like);
     background: var(--like-soft);
     color: var(--like);
+}
+
+.card-cart-add {
+    font-size: 13px;
+}
+
+.card-cart-add:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+}
+
+.card-cart-add.active {
+    border-color: var(--gold);
+    background: rgba(182, 155, 98, .12);
+    color: var(--gold);
+}
+
+.card-cart-add[disabled] {
+    opacity: .4;
+    cursor: not-allowed;
 }
 
 .card-quick-buy {
@@ -5289,5 +5711,372 @@ a {
 
     .toast-timer {
         display: none;
+    }
+}
+
+
+/* =========================================================
+   ÖZELLEŞTİR
+   ---------------------------------------------------------
+   Acilis butonu Kesfet basliginin sag tarafinda, .explore-meta
+   icinde duruyor (bkz. .customize-cta, id=customize-fab).
+   Icerik AI eslestirmesi backend/app/style_customize.py'de;
+   burada sadece 3 adimlik sihirbazin gorunumu var.
+========================================================= */
+
+.customize-cta {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    padding: 12px 18px;
+
+    background: transparent;
+    color: var(--black);
+
+    border: 1px solid var(--gold);
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.8px;
+
+    transition: .3s ease;
+}
+
+.customize-cta:hover {
+    background: var(--white);
+    border-color: var(--black);
+}
+
+.customize-cta i {
+    font-size: 12px;
+    color: var(--gold);
+}
+
+.customize-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5200;
+
+    background: rgba(17, 17, 17, .45);
+
+    display: flex;
+    justify-content: flex-end;
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition: opacity .35s ease, visibility .35s ease;
+}
+
+.customize-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.customize-panel {
+    display: flex;
+    flex-direction: column;
+
+    width: min(460px, 100%);
+    height: 100%;
+
+    padding: 40px 35px 30px;
+    overflow-y: auto;
+
+    background: var(--white);
+
+    transform: translateX(100%);
+    transition: transform .4s cubic-bezier(.77, 0, .18, 1);
+}
+
+.customize-overlay.open .customize-panel {
+    transform: translateX(0);
+}
+
+.customize-intro {
+    margin: 14px 0 6px;
+
+    color: var(--gray);
+
+    font-size: 11px;
+    line-height: 1.8;
+}
+
+.customize-steps-nav {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+
+    margin: 28px 0 8px;
+}
+
+.customize-step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+
+    background: var(--line);
+
+    transition: .25s ease;
+}
+
+.customize-step-dot.active {
+    width: 22px;
+    background: var(--black);
+}
+
+.customize-step-dot.done {
+    background: var(--gold);
+}
+
+.customize-step {
+    display: none;
+    flex-direction: column;
+    gap: 18px;
+
+    padding: 20px 0;
+}
+
+.customize-step.active {
+    display: flex;
+}
+
+.customize-step-hint {
+    margin-top: -8px;
+
+    color: var(--gray);
+
+    font-size: 10px;
+}
+
+.customize-gender-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.customize-choice-btn {
+    padding: 11px 16px;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .5px;
+
+    transition: .2s ease;
+}
+
+.customize-choice-btn:hover {
+    border-color: var(--black);
+}
+
+.customize-choice-btn.active {
+    background: var(--black);
+    border-color: var(--black);
+    color: var(--white);
+}
+
+.customize-color-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px 10px;
+}
+
+.customize-color-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+
+    background: none;
+    border: none;
+
+    padding: 0;
+}
+
+.customize-color-circle {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+
+    border: 2px solid var(--line);
+
+    transition: .2s ease;
+}
+
+.customize-color-swatch.active .customize-color-circle {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(182, 155, 98, .25);
+    transform: scale(1.06);
+}
+
+.customize-color-swatch span {
+    color: var(--gray);
+
+    font-size: 9px;
+    letter-spacing: .3px;
+}
+
+.customize-color-swatch.active span {
+    color: var(--black);
+    font-weight: 600;
+}
+
+/* Kart = buyuk kombin fotografi + fotografin uzerine bindirilmis
+   tarz adi (alt-gradient overlay, bkz. .customize-combo-label). */
+
+.customize-combo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+
+    max-height: 520px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.customize-combo-card {
+    position: relative;
+
+    border: 1px solid var(--line);
+    background: var(--cream);
+    padding: 0;
+    overflow: hidden;
+
+    cursor: pointer;
+
+    transition: border-color .2s ease, transform .2s ease;
+}
+
+.customize-combo-card:hover {
+    border-color: var(--gold);
+}
+
+.customize-combo-card.active {
+    border-color: var(--gold);
+    transform: translateY(-2px);
+}
+
+.customize-combo-image {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+}
+
+.customize-combo-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+
+    transition: transform .3s ease, filter .2s ease;
+}
+
+.customize-combo-card:hover .customize-combo-image img {
+    transform: scale(1.04);
+}
+
+.customize-combo-card.active .customize-combo-image img {
+    filter: brightness(.75);
+}
+
+.customize-combo-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(17, 17, 17, .55);
+    color: var(--white);
+    font-size: 10px;
+
+    opacity: 0;
+    transform: scale(.6);
+    transition: .2s ease;
+}
+
+.customize-combo-card.active .customize-combo-check {
+    opacity: 1;
+    transform: scale(1);
+    background: var(--gold);
+}
+
+.customize-combo-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    padding: 26px 12px 12px;
+
+    background: linear-gradient(
+        to top,
+        rgba(17, 17, 17, .82),
+        rgba(17, 17, 17, 0)
+    );
+
+    color: var(--white);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    text-align: left;
+}
+
+.customize-combo-card.active .customize-combo-label {
+    color: var(--gold);
+}
+
+.customize-nav {
+    display: flex;
+    gap: 12px;
+
+    margin-top: auto;
+    padding-top: 26px;
+}
+
+.customize-back-btn {
+    padding: 15px 20px;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+
+    transition: .2s ease;
+}
+
+.customize-back-btn:hover {
+    border-color: var(--black);
+}
+
+.customize-next-btn {
+    flex: 1;
+}
+
+@media (max-width: 520px) {
+
+    .customize-panel {
+        padding: 32px 22px 24px;
+    }
+
+    .customize-color-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .customize-combo-grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-height: 380px;
     }
 }

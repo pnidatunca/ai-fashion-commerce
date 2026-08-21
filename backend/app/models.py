@@ -269,6 +269,10 @@ class User(Base):
 
     age = Column(Integer)
 
+    # Opsiyonel: Hizli Al'da her seferinde adres girmemek
+    # icin kayit sirasinda veya Hesabim'dan eklenebilir.
+    address = Column(Text, nullable=True)
+
     password_hash = Column(
         String,
         nullable=False,
@@ -490,6 +494,84 @@ class WishlistItem(Base):
             "user_id",
             "product_id",
             name="uq_wishlist_user_product",
+        ),
+    )
+
+
+# =========================================================
+# CART
+# =========================================================
+
+class CartItem(Base):
+    """
+    Sepetteki urunler, miktarlariyla birlikte.
+
+    Wishlist'ten farki: wishlist "sonra almak icin biriktirme"
+    listesidir ve miktar tasimaz. Sepet "simdi almak istedigim
+    urunler ve kac adet" bilgisini tutar. Unique kisit ayni
+    urunun iki satir olarak eklenmesini engeller — tekrar
+    eklemede miktar artar (bkz. crud.add_to_cart).
+    """
+
+    __tablename__ = "cart_items"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    product_id = Column(
+        String,
+        ForeignKey(
+            "products.product_id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    quantity = Column(
+        Integer,
+        nullable=False,
+        server_default=text("1"),
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    product = relationship("Product")
+
+    __table_args__ = (
+
+        UniqueConstraint(
+            "user_id",
+            "product_id",
+            name="uq_cart_user_product",
+        ),
+
+        CheckConstraint(
+            "quantity > 0",
+            name="ck_cart_quantity_positive",
         ),
     )
 

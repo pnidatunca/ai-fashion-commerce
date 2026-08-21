@@ -85,6 +85,48 @@ class SemanticProductResponse(ProductResponse):
 
 
 # =========================================================
+# OZELLESTIR (EMBEDDING TABANLI STIL PROFILI)
+# =========================================================
+#
+# style_customize.py'nin bacend'i: yas/cinsiyet/renk/tarz
+# secimlerinden dogal dil promptu uretip Gemini embedding'e
+# gonderiyoruz. Statik bir if-else filtre DEGIL — bkz. o
+# modulun docstring'i.
+
+class StyleCustomizeRequest(BaseModel):
+    age: int | None = Field(default=None, ge=13, le=100)
+
+    gender: str | None = None
+
+    colors: list[str] = Field(default_factory=list, max_length=8)
+
+    styles: list[str] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode="after")
+    def _require_some_signal(self):
+
+        if not (self.age or self.gender or self.colors or self.styles):
+            raise ValueError(
+                "Profil oluşturmak için en az bir tercih seç."
+            )
+
+        return self
+
+
+class StyleCustomizeResponse(BaseModel):
+    """
+    prompt: kullaniciya SEFFAFLIK icin — hangi metnin embedding'e
+    gonderildigini gorebilir, "kara kutu" hissi vermez.
+    """
+
+    prompt: str
+
+    items: list[SemanticProductResponse]
+
+    count: int
+
+
+# =========================================================
 # USER REGISTER
 # =========================================================
 
@@ -95,6 +137,10 @@ class RegisterRequest(BaseModel):
     gender: str | None = None
     age: int | None = None
     password: str
+
+    # Opsiyonel: doldurulursa Hizli Al formunu onceden
+    # doldurmak icin kullanilir, kayit icin sart degildir.
+    address: str | None = Field(default=None, max_length=500)
 
 class LoginRequest(BaseModel):
     email: str
@@ -138,6 +184,7 @@ class UpdateProfileRequest(BaseModel):
     last_name: str = Field(min_length=1, max_length=100)
     gender: str | None = None
     age: int | None = Field(default=None, ge=13, le=100)
+    address: str | None = Field(default=None, max_length=500)
 
 
 class ChangeEmailRequest(BaseModel):
@@ -214,6 +261,7 @@ class AccountResponse(BaseModel):
     email: str
     gender: str | None = None
     age: int | None = None
+    address: str | None = None
 
 
 # =========================================================
@@ -249,6 +297,7 @@ InteractionSource = Literal[
     "wishlist",
     "featured",
     "quick_checkout",
+    "cart",
 ]
 
 
@@ -343,6 +392,68 @@ class WishlistIdsResponse(BaseModel):
     product_ids: list[str]
 
     count: int
+
+
+# =========================================================
+# CART
+# =========================================================
+
+class CartItemResponse(BaseModel):
+    product_id: str
+    quantity: int
+    updated_at: datetime
+
+    product: ProductResponse
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class CartSummaryResponse(BaseModel):
+    """
+    Sepet paneli ve header rozeti tek bu cevaptan besleniyor:
+    urun listesi + toplam adet + ara toplam, tek istekte.
+    """
+
+    items: list[CartItemResponse]
+
+    total_quantity: int
+    subtotal: float
+
+
+class AddToCartRequest(BaseModel):
+    quantity: int = Field(default=1, ge=1, le=99)
+
+
+class UpdateCartQuantityRequest(BaseModel):
+    """quantity 0 gelirse urun sepetten tamamen cikarilir."""
+
+    quantity: int = Field(ge=0, le=99)
+
+
+class CartCheckoutRequest(BaseModel):
+    """
+    Sepetteki TUM urunleri tek seferde 'satin alir'.
+
+    DIKKAT: kart bilgisi ALINMIYOR (bkz. QuickOrderRequest'in
+    ayni uyarisi) — bu da gercek bir odeme saglayicisi
+    olmadan calisan bir demo akistir.
+    """
+
+    source: InteractionSource | None = None
+
+
+class CartCheckoutResponse(BaseModel):
+    order_number: str
+
+    items: list[CartItemResponse]
+    total_quantity: int
+    subtotal: float
+
+    recorded: int
+
+    toast: ToastMessage | None = None
 
 
 # =========================================================

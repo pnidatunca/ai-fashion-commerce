@@ -61,7 +61,10 @@ const state = {
        Misafir kalp/begenmedim'e bastiysa niyeti burada
        tutuyoruz; girisin ardindan devam ediyor.
     */
-    pendingInteraction: null
+    pendingInteraction: null,
+
+    /* Sepetteki urunler: [{product_id, quantity, product}] */
+    cart: []
 };
 
 
@@ -119,6 +122,11 @@ const wishlistOverlay = $("wishlist-overlay");
 const closeWishlistButton = $("close-wishlist");
 const wishlistItems = $("wishlist-items");
 
+const cartButton = $("cart-btn");
+const cartOverlay = $("cart-overlay");
+const closeCartButton = $("close-cart");
+const cartItemsHolder = $("cart-items");
+
 const exploreGrid = $("explore-grid");
 const exploreCarousel = $("explore-carousel");
 const exploreRefreshButton = $("explore-refresh");
@@ -145,6 +153,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setupNavigation();
     setupSearch();
+    setupAiGlow();
     setupCategories();
     setupSort();
     setupModal();
@@ -154,6 +163,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setupExplore();
     setupWishlistPanel();
+    setupCartPanel();
+    setupCustomize();
     setupProductGridActions();
     setupViewTracking();
 
@@ -168,6 +179,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     /* Kalp durumlari kartlar cizilmeden once yuklenmeli */
     await loadWishlist();
+    await loadCart();
 
     /* Alt barin kucuk gorselleri icin tam liste */
     refreshWishlistItems();
@@ -562,6 +574,21 @@ function appendProducts(products, startIndex = 0) {
 
                     <button
                         type="button"
+                        class="card-cart-add${
+                            isInCart(product.product_id)
+                                ? " active"
+                                : ""
+                        }"
+                        data-grid-action="add-cart"
+                        data-product-id="${escapeHTML(product.product_id)}"
+                        aria-label="Sepete ekle"
+                        ${hasPrice(product) ? "" : "disabled"}
+                    >
+                        <i class="fa-solid fa-bag-shopping"></i>
+                    </button>
+
+                    <button
+                        type="button"
                         class="card-quick-buy"
                         data-grid-action="quick-buy"
                         data-product-id="${escapeHTML(product.product_id)}"
@@ -640,10 +667,60 @@ function setupProductGridActions() {
         }
 
 
+        if (button.dataset.gridAction === "add-cart") {
+
+            handleGridAddToCart(product, button);
+
+            return;
+        }
+
+
         /* Kalp */
 
         handleGridLike(product, button);
     });
+}
+
+
+async function handleGridAddToCart(product, button) {
+
+    if (!isUserLoggedIn()) {
+
+        openAuth("Sepete eklemek için giriş yap.");
+
+        return;
+    }
+
+
+    button.disabled = true;
+
+    try {
+
+        await addToCart(product.product_id, { source: "grid" });
+
+        button.classList.add("active");
+
+        showToast({
+            title: "Sepete eklendi",
+            message: `${productTitle(product)} sepetine eklendi.`,
+            tone: "success",
+        });
+
+
+    } catch (error) {
+
+        console.error("Sepete eklenemedi:", error);
+
+        showToast({
+            title: "Sepete eklenemedi",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+
+    } finally {
+
+        button.disabled = !hasPrice(product);
+    }
 }
 
 
@@ -866,6 +943,51 @@ function setSearchType(type) {
         loadProducts();
     }
 }
+
+/**
+ * AI arama bolumundeki isik, fare imlecini takip eder.
+ *
+ * Konum dogrudan style.left/top yerine --x/--y CSS
+ * degiskenleriyle veriliyor; boylece hizli mousemove
+ * olaylarinda her seferinde tam bir stil hesaplamasi yerine
+ * sadece transform guncellenir (ucuz, akici).
+ *
+ * Section'a girince yumusakca belirir, ayrilinca kaybolur —
+ * ekran her zaman parlamaz, sadece etkilesimle "canlanir".
+ */
+function setupAiGlow() {
+
+    const section = $("ai-search-anchor");
+    const glow = $("ai-glow");
+
+    if (!section || !glow) return;
+
+
+    section.addEventListener("mousemove", event => {
+
+        const rect = section.getBoundingClientRect();
+
+        section.style.setProperty(
+            "--x",
+            `${event.clientX - rect.left}px`
+        );
+
+        section.style.setProperty(
+            "--y",
+            `${event.clientY - rect.top}px`
+        );
+    });
+
+
+    section.addEventListener("mouseenter", () => {
+        section.classList.add("glow-active");
+    });
+
+    section.addEventListener("mouseleave", () => {
+        section.classList.remove("glow-active");
+    });
+}
+
 
 function setupSearch() {
 
@@ -1435,6 +1557,19 @@ function renderProductModal(
 
                 <button
                     type="button"
+                    class="modal-add-cart${
+                        isInCart(product.product_id) ? " active" : ""
+                    }"
+                    id="modal-add-cart"
+                    ${hasPrice(product) ? "" : "disabled"}
+                >
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    SEPETE EKLE
+                </button>
+
+
+                <button
+                    type="button"
                     class="modal-wishlist-btn"
                     id="modal-wishlist-btn"
                 >
@@ -1468,9 +1603,57 @@ function renderProductModal(
         );
 
 
+    $("modal-add-cart")
+        ?.addEventListener("click", event =>
+            handleModalAddToCart(product, event.currentTarget)
+        );
+
+
     setupModalWishlistButton(product);
 
     hydrateIcons(modalContent);
+}
+
+
+async function handleModalAddToCart(product, button) {
+
+    if (!isUserLoggedIn()) {
+
+        openAuth("Sepete eklemek için giriş yap.");
+
+        return;
+    }
+
+
+    button.disabled = true;
+
+    try {
+
+        await addToCart(product.product_id, { source: "detail" });
+
+        button.classList.add("active");
+
+        showToast({
+            title: "Sepete eklendi",
+            message: `${productTitle(product)} sepetine eklendi.`,
+            tone: "success",
+        });
+
+
+    } catch (error) {
+
+        console.error("Sepete eklenemedi:", error);
+
+        showToast({
+            title: "Sepete eklenemedi",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+
+    } finally {
+
+        button.disabled = !hasPrice(product);
+    }
 }
 
 
@@ -1990,11 +2173,13 @@ function fillAccountForms(user) {
     const lastNameInput = $("account-last-name");
     const genderInput = $("account-gender");
     const ageInput = $("account-age");
+    const addressInput = $("account-address");
 
     if (firstNameInput) firstNameInput.value = user.first_name || "";
     if (lastNameInput) lastNameInput.value = user.last_name || "";
     if (genderInput) genderInput.value = user.gender || "";
     if (ageInput) ageInput.value = user.age ?? "";
+    if (addressInput) addressInput.value = user.address || "";
 
     if (accountCurrentEmailInput) {
         accountCurrentEmailInput.value = user.email || "";
@@ -2015,10 +2200,12 @@ async function handleAccountProfileSubmit(event) {
     const lastNameInput = $("account-last-name");
     const genderInput = $("account-gender");
     const ageInput = $("account-age");
+    const addressInput = $("account-address");
 
     const firstName = firstNameInput?.value.trim() || "";
     const lastName = lastNameInput?.value.trim() || "";
     const gender = genderInput?.value || "";
+    const address = addressInput?.value.trim() || "";
 
     const ageRaw = ageInput?.value.trim() || "";
     const age = ageRaw ? Number(ageRaw) : null;
@@ -2063,6 +2250,7 @@ async function handleAccountProfileSubmit(event) {
                 last_name: lastName,
                 gender: gender || null,
                 age,
+                address: address || null,
             }),
         });
 
@@ -2433,6 +2621,7 @@ async function handleRegister(event) {
     const genderInput = $("register-gender");
     const ageInput = $("register-age");
     const passwordInput = $("register-password");
+    const addressInput = $("register-address");
 
 
     const firstName = firstNameInput?.value.trim() || "";
@@ -2441,6 +2630,7 @@ async function handleRegister(event) {
     const gender = genderInput?.value || "";
     const age = Number(ageInput?.value);
     const password = passwordInput?.value || "";
+    const address = addressInput?.value.trim() || "";
 
 
     let valid = true;
@@ -2528,7 +2718,8 @@ async function handleRegister(event) {
                     email,
                     gender,
                     age,
-                    password
+                    password,
+                    address: address || null
                 })
             }
         );
@@ -2651,6 +2842,12 @@ function logout() {
     state.wishlistItems = [];
 
     closeWishlistPanel();
+
+    state.cart = [];
+
+    renderCartBadge();
+
+    closeCartPanel();
 
     onSessionChanged();
 }
@@ -4022,6 +4219,453 @@ function setWishlistNote(text) {
 }
 
 
+/* =========================================================
+   SEPET
+   ---------------------------------------------------------
+   Favoriler'den farki: miktar tasir ve /cart uclarindan
+   besleniyor. Favoriler/Hizli Al'in yerini almaz, yaninda
+   calisir — kullanici tek urunu hemen almak icin Hizli Al'i,
+   birden cok urunu biriktirip tek seferde odemek icin
+   Sepet'i kullanir.
+========================================================= */
+
+function isInCart(productId) {
+
+    return state.cart.some(
+        item => item.product_id === String(productId)
+    );
+}
+
+
+async function loadCart() {
+
+    if (!isUserLoggedIn()) {
+
+        state.cart = [];
+
+        renderCartBadge();
+
+        return;
+    }
+
+
+    try {
+
+        const data = await apiFetch("/cart");
+
+        state.cart = Array.isArray(data.items) ? data.items : [];
+
+
+    } catch (error) {
+
+        console.error("Sepet yüklenemedi:", error);
+
+        state.cart = [];
+    }
+
+
+    renderCartBadge();
+}
+
+
+function renderCartBadge() {
+
+    const totalQuantity = state.cart.reduce(
+        (sum, item) => sum + Number(item.quantity || 0),
+        0
+    );
+
+
+    document
+        .querySelectorAll(".cart-number")
+        .forEach(element => {
+
+            element.textContent = totalQuantity;
+
+            element.classList.toggle(
+                "hidden",
+                totalQuantity === 0
+            );
+        });
+
+
+    cartButton
+        ?.classList.toggle("has-items", totalQuantity > 0);
+}
+
+
+/**
+ * Sepete ekler. Zaten sepetteyse backend miktari artirir
+ * (bkz. crud.add_to_cart) — burada yeniden GET atmak yerine
+ * cevaptaki guncel listeyi dogrudan kullaniyoruz.
+ */
+async function addToCart(
+    productId,
+    { quantity = 1 } = {}
+) {
+
+    const data = await apiFetch(
+        `/cart/${encodeURIComponent(productId)}`,
+        {
+            method: "POST",
+            body: JSON.stringify({ quantity }),
+        }
+    );
+
+    state.cart = Array.isArray(data.items) ? data.items : [];
+
+    renderCartBadge();
+
+    return data;
+}
+
+
+/**
+ * Miktari MUTLAK bir degere ayarlar. 0'a dusurmek urunu
+ * sepetten cikarir (bkz. crud.set_cart_quantity).
+ */
+async function updateCartItemQuantity(productId, quantity) {
+
+    const data = await apiFetch(
+        `/cart/${encodeURIComponent(productId)}`,
+        {
+            method: "PATCH",
+            body: JSON.stringify({ quantity }),
+        }
+    );
+
+    state.cart = Array.isArray(data.items) ? data.items : [];
+
+    renderCartBadge();
+
+    return data;
+}
+
+
+async function removeCartItem(productId) {
+
+    const data = await apiFetch(
+        `/cart/${encodeURIComponent(productId)}`,
+        { method: "DELETE" }
+    );
+
+    state.cart = Array.isArray(data.items) ? data.items : [];
+
+    renderCartBadge();
+
+    return data;
+}
+
+
+/* ---------------------------------------------------------
+   SEPET ÇEKMECESİ
+--------------------------------------------------------- */
+
+function setupCartPanel() {
+
+    cartButton?.addEventListener("click", () => {
+
+        if (!isUserLoggedIn()) {
+
+            openAuth("Sepetini görmek için giriş yap.");
+
+            return;
+        }
+
+        openCartPanel();
+    });
+
+
+    closeCartButton
+        ?.addEventListener("click", closeCartPanel);
+
+
+    cartOverlay?.addEventListener("click", event => {
+
+        if (event.target === cartOverlay) {
+            closeCartPanel();
+        }
+    });
+
+
+    $("cart-checkout-btn")?.addEventListener(
+        "click",
+        openCartCheckout
+    );
+
+
+    /* Satır içi eylemler — olay delegasyonu */
+
+    cartItemsHolder?.addEventListener("click", async event => {
+
+        const button =
+            event.target.closest("[data-cart-action]");
+
+        if (!button || button.disabled) return;
+
+
+        const action = button.dataset.cartAction;
+        const productId = button.dataset.productId;
+
+        const entry = state.cart.find(
+            item => item.product_id === productId
+        );
+
+        if (!entry) return;
+
+
+        if (action === "increase" || action === "decrease") {
+
+            const nextQuantity =
+                action === "increase"
+                    ? entry.quantity + 1
+                    : entry.quantity - 1;
+
+            button.disabled = true;
+
+            try {
+
+                await updateCartItemQuantity(
+                    productId,
+                    nextQuantity
+                );
+
+                await renderCartPanel();
+
+
+            } catch (error) {
+
+                console.error("Miktar güncellenemedi:", error);
+
+                showToast({
+                    title: "Güncellenemedi",
+                    message: error.message || "Tekrar dener misin?",
+                    tone: "error",
+                });
+
+                button.disabled = false;
+            }
+
+            return;
+        }
+
+
+        if (action === "remove") {
+
+            button.disabled = true;
+
+            try {
+
+                await removeCartItem(productId);
+
+                await renderCartPanel();
+
+
+            } catch (error) {
+
+                console.error("Sepetten çıkarılamadı:", error);
+
+                showToast({
+                    title: "Çıkarılamadı",
+                    message: error.message || "Tekrar dener misin?",
+                    tone: "error",
+                });
+
+                button.disabled = false;
+            }
+        }
+    });
+}
+
+
+async function openCartPanel() {
+
+    cartOverlay?.classList.add("open");
+
+    await renderCartPanel();
+}
+
+
+function closeCartPanel() {
+
+    cartOverlay?.classList.remove("open");
+}
+
+
+async function renderCartPanel() {
+
+    if (!cartItemsHolder) return;
+
+
+    const hasRows =
+        cartItemsHolder.querySelector(".cart-row") !== null;
+
+    if (!hasRows) {
+
+        cartItemsHolder.innerHTML = `
+            <div class="loader-container">
+                <div class="loader"></div>
+            </div>
+        `;
+    }
+
+
+    try {
+
+        await loadCart();
+
+
+    } catch (error) {
+
+        console.error("Sepet alınamadı:", error);
+
+        cartItemsHolder.innerHTML = `
+            <div class="wishlist-empty">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <p>Sepet alınamadı</p>
+                <span>Backend bağlantısını kontrol et.</span>
+            </div>
+        `;
+
+        $("cart-panel-footer")?.classList.add("hidden");
+
+        return;
+    }
+
+
+    if (!state.cart.length) {
+
+        cartItemsHolder.innerHTML = `
+            <div class="wishlist-empty">
+                <i class="fa-solid fa-bag-shopping"></i>
+                <p>Sepetin boş</p>
+                <span>
+                    Ürünleri sepete eklemek için ürün
+                    kartındaki çanta simgesine dokun.
+                </span>
+            </div>
+        `;
+
+        $("cart-panel-footer")?.classList.add("hidden");
+
+        return;
+    }
+
+
+    cartItemsHolder.innerHTML =
+        state.cart
+            .map(item => {
+
+                const product = item.product || {};
+                const id = escapeHTML(item.product_id);
+
+
+                return `
+                <div class="wishlist-row cart-row" data-product-id="${id}">
+
+                    <img
+                        src="${escapeHTML(safeImage(product.image_url))}"
+                        alt="${escapeHTML(productTitle(product))}"
+                        loading="lazy"
+                        data-cart-open="${id}"
+                    >
+
+                    <div class="wishlist-row-body">
+
+                        <strong>
+                            ${escapeHTML(productTitle(product))}
+                        </strong>
+
+                        <div class="wishlist-row-price">
+                            ${formatPrice(product.price)}
+                        </div>
+
+                        <div class="cart-qty-stepper">
+
+                            <button
+                                type="button"
+                                class="cart-qty-btn"
+                                data-cart-action="decrease"
+                                data-product-id="${id}"
+                                aria-label="Azalt"
+                            >−</button>
+
+                            <span class="cart-qty-value">
+                                ${Number(item.quantity)}
+                            </span>
+
+                            <button
+                                type="button"
+                                class="cart-qty-btn"
+                                data-cart-action="increase"
+                                data-product-id="${id}"
+                                aria-label="Artır"
+                            >+</button>
+
+                        </div>
+
+                        <div class="wishlist-row-actions">
+
+                            <button
+                                type="button"
+                                class="wishlist-remove"
+                                data-cart-action="remove"
+                                data-product-id="${id}"
+                            >
+                                ÇIKAR
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            `;
+            })
+            .join("");
+
+
+    const subtotal = state.cart.reduce(
+        (sum, item) =>
+            sum +
+            Number(item.product?.price || 0) *
+            Number(item.quantity || 0),
+        0
+    );
+
+    const footer = $("cart-panel-footer");
+
+    footer?.classList.remove("hidden");
+
+    const subtotalValue = $("cart-panel-subtotal-value");
+
+    if (subtotalValue) {
+        subtotalValue.textContent = formatPrice(subtotal);
+    }
+
+
+    /* Resme tıklayınca ürün detayı açılsın */
+
+    cartItemsHolder
+        .querySelectorAll("[data-cart-open]")
+        .forEach(img => {
+
+            img.addEventListener("click", () => {
+
+                const entry = state.cart.find(
+                    item =>
+                        item.product_id ===
+                        img.dataset.cartOpen
+                );
+
+                if (entry?.product) {
+                    openProduct(entry.product_id, entry.product);
+                }
+            });
+        });
+}
+
+
 /*
    Ayni urun hem Kesfet kartinda hem urun detayinda
    gorunuyor olabilir. Kalp durumunu her yerde eslestiriyoruz.
@@ -4037,19 +4681,29 @@ function syncWishlistButtons(productId, liked) {
 
             card.classList.toggle("liked", liked);
 
-            const button =
-                card.querySelector(".explore-action-like");
+            /*
+               Iki kalp butonu var: resmin sag ustundeki sembol
+               (.explore-quick-like) ve govdenin altindaki
+               metinli buton (.explore-action-like). Ayni urun
+               ikisinde de gorunebildigi icin querySelectorAll
+               ile hepsini guncelliyoruz; ikon-only olanin
+               metnini degistirmiyoruz.
+            */
 
-            if (button) {
+            card
+                .querySelectorAll(".explore-action-like")
+                .forEach(button => {
 
-                button.classList.toggle("active", liked);
+                    button.classList.toggle("active", liked);
 
-                button.innerHTML =
-                    icon("heart", { filled: liked }) +
-                    (liked ? " FAVORİDE" : " BEĞENDİM");
+                    button.innerHTML =
+                        button.classList.contains("explore-quick-like")
+                            ? icon("heart", { filled: liked })
+                            : icon("heart", { filled: liked }) +
+                                (liked ? " FAVORİDE" : " BEĞENDİM");
 
-                hydrateIcons(button);
-            }
+                    hydrateIcons(button);
+                });
         });
 
 
@@ -5051,6 +5705,608 @@ function maybeOpenArchetypeModal() {
 
 
 /* =========================================================
+   ÖZELLEŞTİR
+   ---------------------------------------------------------
+   Yas/cinsiyet/renk/tarz secimlerini /api/style-customize'a
+   gonderir. Eslesme backend'de EMBEDDING benzerligiyle
+   yapilir (bkz. style_customize.py) — burada renge/tarza
+   gore statik bir if-else dallanma YOK, sadece secimleri
+   toplayip API'ye ileten bir sihirbaz arayuzu var.
+========================================================= */
+
+const CUSTOMIZE_COLORS = [
+    { id: "siyah", label: "Siyah", hex: "#111111" },
+    { id: "beyaz", label: "Beyaz", hex: "#ffffff" },
+    { id: "gri", label: "Gri", hex: "#9ca3af" },
+    { id: "antrasit", label: "Antrasit", hex: "#3f3f46" },
+    { id: "bej", label: "Bej", hex: "#d8c3a5" },
+    { id: "krem", label: "Krem", hex: "#f0e6d2" },
+    { id: "lacivert", label: "Lacivert", hex: "#1e2a4a" },
+    { id: "mavi", label: "Mavi", hex: "#3b6fa0" },
+    { id: "turkuaz", label: "Turkuaz", hex: "#2e8b8b" },
+    { id: "kahverengi", label: "Kahve", hex: "#6b4226" },
+    { id: "taba", label: "Taba", hex: "#a97c50" },
+    { id: "bordo", label: "Bordo", hex: "#6b1f2a" },
+    { id: "kırmızı", label: "Kırmızı", hex: "#b23a3a" },
+    { id: "somon", label: "Somon", hex: "#e08e79" },
+    { id: "pembe", label: "Pembe", hex: "#d98ca0" },
+    { id: "gül kurusu", label: "Gül Kurusu", hex: "#b76e79" },
+    { id: "mor", label: "Mor", hex: "#6b4b8a" },
+    { id: "lila", label: "Lila", hex: "#b19cd9" },
+    { id: "yeşil", label: "Yeşil", hex: "#4b6b4b" },
+    { id: "zeytin yeşili", label: "Zeytin Yeşili", hex: "#6b6b3a" },
+    { id: "sarı", label: "Sarı", hex: "#d9b93b" },
+    { id: "hardal", label: "Hardal", hex: "#c9a227" },
+    { id: "turuncu", label: "Turuncu", hex: "#c9702e" },
+    { id: "petrol", label: "Petrol", hex: "#1f4e4e" },
+];
+
+/*
+   Renk paleti gibi SABIT bir liste — /api/archetypes'e bagli
+   degil. Her giris GERCEK bir kombin/outfit fotografi (duz
+   yatirilmis flatlay ya da giyilmis look), sadece bir "stil
+   adi" veya tek urun fotografi degil. Kullanici kombini
+   GORUNUMUNE gore seçer (bkz. renderCustomizeComboGrid — kart
+   uzerinde hicbir tarz ismi YAZMIYOR). Secilen kombinin
+   "label"i /api/style-customize'e dogal dil ipucu olarak
+   gidiyor, embedding tabanli eslestirmeyi yonlendiriyor.
+*/
+const CUSTOMIZE_COMBOS = [
+    {
+        id: "minimalist",
+        label: "Minimalist & Sade",
+        image_url:
+            "https://images.unsplash.com/photo-1479064555552-3ef4979f8908" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "vintage",
+        label: "Vintage & Retro",
+        image_url:
+            "https://images.unsplash.com/photo-1717201395289-03e4700ca8b6" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "streetwear",
+        label: "Streetwear & Urban",
+        image_url:
+            "https://images.unsplash.com/photo-1616761512547-ea151d8a56d5" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "office",
+        label: "Smart Casual & Ofis",
+        image_url:
+            "https://images.unsplash.com/photo-1507707113652-f8a32c05046d" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "old_money",
+        label: "Old Money & Şık",
+        image_url:
+            "https://images.unsplash.com/photo-1593032470861-4509830938cb" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "boho",
+        label: "Bohem & Doğal",
+        image_url:
+            "https://images.unsplash.com/photo-1516763449302-78450e5a507d" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "sporty",
+        label: "Spor & Aktif",
+        image_url:
+            "https://images.unsplash.com/photo-1548606703-580672e56c26" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "edgy",
+        label: "Karanlık & İddialı",
+        image_url:
+            "https://images.unsplash.com/photo-1717766293805-df3a47dd819d" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+];
+
+const CUSTOMIZE_MAX_COLORS = 6;
+const CUSTOMIZE_MAX_COMBOS = 4;
+const CUSTOMIZE_STEP_COUNT = 3;
+
+const customizeState = {
+    step: 1,
+    age: null,
+    gender: null,
+    colors: [],
+
+    /* Secili kombinlerin GORUNEN ETIKETLERI (id degil) —
+       /api/style-customize'in "styles" alanina dogrudan
+       gidiyor, prompt icinde metin olarak kullaniliyor. */
+    combos: [],
+
+    submitting: false,
+};
+
+
+function setupCustomize() {
+
+    const fab = $("customize-fab");
+    const overlay = $("customize-overlay");
+
+    if (!fab || !overlay) return;
+
+
+    fab.addEventListener("click", openCustomize);
+
+    $("customize-close")
+        ?.addEventListener("click", closeCustomize);
+
+    overlay.addEventListener("click", event => {
+
+        if (event.target === overlay) {
+            closeCustomize();
+        }
+    });
+
+
+    document
+        .querySelectorAll(".customize-gender-options [data-gender]")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                customizeState.gender =
+                    customizeState.gender === button.dataset.gender
+                        ? null
+                        : button.dataset.gender;
+
+                document
+                    .querySelectorAll("[data-gender]")
+                    .forEach(other => {
+
+                        other.classList.toggle(
+                            "active",
+                            other.dataset.gender ===
+                            customizeState.gender
+                        );
+                    });
+            });
+        });
+
+
+    $("customize-age")?.addEventListener("input", event => {
+
+        const value = Number(event.target.value);
+
+        customizeState.age =
+            Number.isFinite(value) && value > 0 ? value : null;
+    });
+
+
+    renderCustomizeColorGrid();
+    renderCustomizeComboGrid();
+
+
+    $("customize-back-btn")
+        ?.addEventListener("click", () => {
+
+            goToCustomizeStep(customizeState.step - 1);
+        });
+
+
+    $("customize-next-btn")
+        ?.addEventListener("click", () => {
+
+            if (customizeState.step < CUSTOMIZE_STEP_COUNT) {
+
+                goToCustomizeStep(customizeState.step + 1);
+
+            } else {
+
+                submitCustomizeProfile();
+            }
+        });
+}
+
+
+function renderCustomizeColorGrid() {
+
+    const grid = $("customize-color-grid");
+
+    if (!grid) return;
+
+
+    grid.innerHTML = CUSTOMIZE_COLORS
+        .map(color => `
+            <button
+                type="button"
+                class="customize-color-swatch"
+                data-color-id="${escapeHTML(color.id)}"
+            >
+                <span
+                    class="customize-color-circle"
+                    style="background:${escapeHTML(color.hex)};"
+                ></span>
+                <span>${escapeHTML(color.label)}</span>
+            </button>
+        `)
+        .join("");
+
+    grid
+        .querySelectorAll("[data-color-id]")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+                toggleCustomizeColor(button);
+            });
+        });
+}
+
+
+function toggleCustomizeColor(button) {
+
+    const id = button.dataset.colorId;
+
+    const isActive = customizeState.colors.includes(id);
+
+    if (isActive) {
+
+        customizeState.colors =
+            customizeState.colors.filter(item => item !== id);
+
+        button.classList.remove("active");
+
+        return;
+    }
+
+
+    if (customizeState.colors.length >= CUSTOMIZE_MAX_COLORS) {
+
+        showToast({
+            title: "En fazla " + CUSTOMIZE_MAX_COLORS + " renk",
+            message: "Önce bir rengin seçimini kaldır.",
+            tone: "neutral",
+        });
+
+        return;
+    }
+
+
+    customizeState.colors.push(id);
+
+    button.classList.add("active");
+}
+
+
+/**
+ * Adim 3'un kombin kartlarini CUSTOMIZE_COMBOS'tan cizer.
+ *
+ * Her kart buyuk bir kombin fotografi + fotografin uzerine
+ * bindirilmis (alt-gradient overlay) tarz adi. Kullanici hem
+ * gorunume hem de isme bakarak seçebiliyor; secilen etiket
+ * /api/style-customize'e "styles" olarak aynen gidiyor.
+ */
+function renderCustomizeComboGrid() {
+
+    const grid = $("customize-combo-grid");
+
+    if (!grid) return;
+
+    grid.innerHTML = CUSTOMIZE_COMBOS
+        .map(option => {
+
+            const active = customizeState.combos.includes(option.label);
+
+            return `
+                <button
+                    type="button"
+                    class="customize-combo-card${active ? " active" : ""}"
+                    data-combo-label="${escapeHTML(option.label)}"
+                    aria-label="${escapeHTML(option.label)} kombinini seç"
+                    aria-pressed="${active}"
+                >
+                    <div class="customize-combo-image">
+                        <img
+                            src="${escapeHTML(option.image_url)}"
+                            alt=""
+                            loading="lazy"
+                        >
+                        <span class="customize-combo-check">
+                            <i class="fa-solid fa-check"></i>
+                        </span>
+                        <span class="customize-combo-label">
+                            ${escapeHTML(option.label)}
+                        </span>
+                    </div>
+                </button>
+            `;
+        })
+        .join("");
+
+    grid
+        .querySelectorAll("[data-combo-label]")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+                toggleCustomizeCombo(button);
+            });
+        });
+}
+
+
+function toggleCustomizeCombo(button) {
+
+    const label = button.dataset.comboLabel;
+
+    const isActive = customizeState.combos.includes(label);
+
+    if (isActive) {
+
+        customizeState.combos =
+            customizeState.combos.filter(item => item !== label);
+
+        button.classList.remove("active");
+        button.setAttribute("aria-pressed", "false");
+
+        return;
+    }
+
+
+    if (customizeState.combos.length >= CUSTOMIZE_MAX_COMBOS) {
+
+        showToast({
+            title: "En fazla " + CUSTOMIZE_MAX_COMBOS + " kombin",
+            message: "Önce bir seçimini kaldır.",
+            tone: "neutral",
+        });
+
+        return;
+    }
+
+
+    customizeState.combos.push(label);
+
+    button.classList.add("active");
+    button.setAttribute("aria-pressed", "true");
+}
+
+
+function openCustomize() {
+
+    goToCustomizeStep(1);
+
+    setMessage($("customize-message"), "");
+
+    $("customize-overlay")?.classList.add("open");
+}
+
+
+function closeCustomize() {
+
+    $("customize-overlay")?.classList.remove("open");
+}
+
+
+function goToCustomizeStep(step) {
+
+    const clamped = Math.min(
+        Math.max(step, 1),
+        CUSTOMIZE_STEP_COUNT
+    );
+
+    customizeState.step = clamped;
+
+
+    document
+        .querySelectorAll(".customize-step")
+        .forEach(node => {
+
+            node.classList.toggle(
+                "active",
+                Number(node.dataset.step) === clamped
+            );
+        });
+
+    document
+        .querySelectorAll("[data-step-dot]")
+        .forEach(dot => {
+
+            const dotStep = Number(dot.dataset.stepDot);
+
+            dot.classList.toggle("active", dotStep === clamped);
+            dot.classList.toggle("done", dotStep < clamped);
+        });
+
+
+    $("customize-back-btn")
+        ?.classList.toggle("hidden", clamped === 1);
+
+    const nextButton = $("customize-next-btn");
+
+    if (nextButton) {
+
+        nextButton.textContent =
+            clamped === CUSTOMIZE_STEP_COUNT
+                ? "PROFİLİMİ OLUŞTUR"
+                : "DEVAM ET";
+    }
+}
+
+
+async function submitCustomizeProfile() {
+
+    if (customizeState.submitting) return;
+
+
+    const hasAnySignal =
+        customizeState.age ||
+        customizeState.gender ||
+        customizeState.colors.length ||
+        customizeState.combos.length;
+
+    if (!hasAnySignal) {
+
+        setMessage(
+            $("customize-message"),
+            "Devam etmek için en az bir seçim yap.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    customizeState.submitting = true;
+
+    setMessage($("customize-message"), "");
+
+    const submitButton = $("customize-next-btn");
+
+    setButtonLoading(submitButton, true);
+
+
+    try {
+
+        const response = await withAiAnalyzing(
+            "Stil profilin oluşturuluyor...",
+            () => apiFetch("/api/style-customize", {
+                method: "POST",
+                body: JSON.stringify({
+                    age: customizeState.age,
+                    gender: customizeState.gender,
+                    colors: customizeState.colors,
+                    styles: customizeState.combos,
+                }),
+            })
+        );
+
+        if (!response) {
+            throw new Error("Profil oluşturulamadı.");
+        }
+
+
+        closeCustomize();
+
+        await applyStyleCustomizationResults(response.items);
+
+        showToast({
+            title: "Profilin hazır",
+            message:
+                `${response.count} ürün, stil profiline göre ` +
+                "seçildi. Beğen/beğenme ile akışı incelt.",
+            tone: "success",
+        });
+
+
+    } catch (error) {
+
+        console.error("Özelleştirme başarısız:", error);
+
+        setMessage(
+            $("customize-message"),
+            error.message ||
+            "Profil oluşturulurken bir hata oluştu.",
+            "error"
+        );
+
+    } finally {
+
+        customizeState.submitting = false;
+
+        setButtonLoading(submitButton, false);
+    }
+}
+
+
+/**
+ * /api/style-customize'in dondurdugu urunleri, Kesfet
+ * kartlarinin bekledigi sekle cevirir.
+ *
+ * match_label burada style_engine.py'nin ETIKET KURALINI
+ * (bkz. build_match_display) taklit ediyor, ama skorun
+ * KAYNAGI farkli: orada kelime agirligi, burada embedding
+ * cosine benzerligi.
+ */
+function mapCustomizeItemToExploreItem(item, position) {
+
+    const similarity = Number(item.similarity_score || 0);
+    const percent = Math.round(similarity * 100);
+
+    return {
+        product: item,
+        match_score: percent,
+        match_label:
+            percent >= 55 ? `%${percent} Profil Eşleşmesi` : null,
+        reason_label: "Oluşturduğun stil profiline göre öneriliyor.",
+        matched_style: null,
+        is_exploration: false,
+        position,
+    };
+}
+
+
+/**
+ * AI ile eslesen urunleri Kesfet akisina yerlestirir.
+ *
+ * Mevcut sonsuz-kaydirma/cursor durumunu SIFIRLAR: bu yeni
+ * bir "oturum" — kullanici az once kendi profilini kurdu,
+ * eski akisin kalintilariyla karismamali. hasMore=true
+ * birakiliyor ki bu parti bitince normal AI akisi (feed.py)
+ * kaldigi yerden devam etsin.
+ */
+async function applyStyleCustomizationResults(items) {
+
+    if (!exploreGrid || !Array.isArray(items) || !items.length) {
+        return;
+    }
+
+
+    explore.dwellTimers.forEach(timer => clearTimeout(timer));
+    explore.dwellTimers.clear();
+
+    Array.from(exploreGrid.children).forEach(card => {
+
+        if (card.classList.contains("explore-card")) {
+            unobserveCard(card);
+        }
+    });
+
+    exploreGrid
+        .querySelectorAll(".explore-card, .explore-error")
+        .forEach(node => node.remove());
+
+    exploreGrid.scrollLeft = 0;
+
+    updateExploreEdgeFades();
+
+
+    explore.rendered = [];
+    explore.buffer = [];
+    explore.cursor = null;
+    explore.hasMore = true;
+    explore.exhausted = false;
+
+    hideExploreExhausted();
+
+
+    const mapped = items.map(
+        (item, index) => mapCustomizeItemToExploreItem(item, index)
+    );
+
+    appendExploreCards(mapped);
+
+    updateExploreCount();
+    renderAiStatus();
+    renderExploreMore();
+
+
+    $("explore")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+
+/* =========================================================
    KEŞFET / EXPLORE FEED
 ========================================================= */
 
@@ -5185,8 +6441,67 @@ function setupExplore() {
         if (button.dataset.exploreAction === "dislike") {
 
             handleExploreDislike(card);
+
+            return;
+        }
+
+
+        if (button.dataset.exploreAction === "add-cart") {
+
+            handleExploreAddToCart(
+                card.dataset.productId,
+                button
+            );
         }
     });
+}
+
+
+async function handleExploreAddToCart(productId, button) {
+
+    if (!isUserLoggedIn()) {
+
+        openAuth("Sepete eklemek için giriş yap.");
+
+        return;
+    }
+
+
+    const entry = findExploreItem(productId);
+    const product = entry?.product;
+
+    if (!product) return;
+
+
+    button.disabled = true;
+
+    try {
+
+        await addToCart(productId, { source: "explore" });
+
+        button.classList.add("active");
+
+        showToast({
+            title: "Sepete eklendi",
+            message: `${productTitle(product)} sepetine eklendi.`,
+            tone: "success",
+        });
+
+
+    } catch (error) {
+
+        console.error("Sepete eklenemedi:", error);
+
+        showToast({
+            title: "Sepete eklenemedi",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+
+    } finally {
+
+        button.disabled = !hasPrice(product);
+    }
 }
 
 
@@ -5837,6 +7152,33 @@ function buildExploreCard(item, position) {
                     : ""
             }
 
+            <div class="explore-quick-actions">
+
+                <button
+                    type="button"
+                    class="explore-quick-btn explore-quick-like explore-action-like${
+                        liked ? " active" : ""
+                    }"
+                    data-explore-action="like"
+                    aria-label="Favorilere ekle"
+                >
+                    ${icon("heart", { filled: liked })}
+                </button>
+
+                <button
+                    type="button"
+                    class="explore-quick-btn explore-quick-cart${
+                        isInCart(product.product_id) ? " active" : ""
+                    }"
+                    data-explore-action="add-cart"
+                    aria-label="Sepete ekle"
+                    ${hasPrice(product) ? "" : "disabled"}
+                >
+                    <i class="fa-solid fa-bag-shopping"></i>
+                </button>
+
+            </div>
+
             ${cornerBadge}
 
             <span class="explore-liked-badge">
@@ -6412,6 +7754,7 @@ async function onSessionChanged() {
     renderExploreNotice();
 
     await loadWishlist();
+    await loadCart();
 
     /* Alt barin kucuk gorselleri icin tam liste */
     refreshWishlistItems();
@@ -6790,7 +8133,10 @@ function flushPendingDislikes() {
 ========================================================= */
 
 const quickState = {
-    /* Su an satin alinmakta olan urun */
+    /* "single": tek urun (Hizli Al) | "cart": sepetteki tumu */
+    mode: "single",
+
+    /* Su an satin alinmakta olan urun (mode: "single") */
     item: null,
 
     submitting: false,
@@ -6898,11 +8244,13 @@ function openQuickCheckout(input, context = {}) {
     }
 
 
+    quickState.mode = "single";
     quickState.item = { ...item, ...context };
 
     closeModal();
 
     closeWishlistPanel();
+    closeCartPanel();
 
 
     /* Formu sıfırla, onay ekranını gizle */
@@ -6927,6 +8275,119 @@ function openQuickCheckout(input, context = {}) {
 function closeQuickCheckout() {
 
     checkoutOverlay?.classList.remove("open");
+}
+
+
+/**
+ * Sepetteki TUM urunleri tek seferde odemeye acar.
+ *
+ * Ayni checkout-overlay/quick-panel'i (teslimat + kart formu)
+ * kullanir; farki #quick-product'ta tek urun yerine sepet
+ * ozetinin gosterilmesi ve gonderimde /cart/checkout'un
+ * cagrilmasidir (bkz. submitQuickOrder, quickState.mode).
+ */
+function openCartCheckout() {
+
+    if (!state.cart.length) return;
+
+
+    if (!isUserLoggedIn()) {
+
+        openAuth("Ödeme yapmak için giriş yap.");
+
+        return;
+    }
+
+
+    quickState.mode = "cart";
+    quickState.item = null;
+
+    closeCartPanel();
+    closeModal();
+    closeWishlistPanel();
+
+
+    clearFieldErrors(quickForm);
+
+    $("quick-body")?.classList.remove("hidden");
+    $("quick-success")?.classList.add("hidden");
+
+    renderQuickCartSummary();
+
+    prefillQuickForm();
+
+    checkoutOverlay?.classList.add("open");
+
+    hydrateIcons(checkoutOverlay);
+
+    setTimeout(() => $("quick-name")?.focus(), 250);
+}
+
+
+function renderQuickCartSummary() {
+
+    const holder = $("quick-product");
+
+    if (!holder) return;
+
+
+    const rows = state.cart
+        .map(item => {
+
+            const product = item.product || {};
+
+            return `
+                <div class="quick-cart-row">
+
+                    <img
+                        src="${escapeHTML(safeImage(product.image_url))}"
+                        alt="${escapeHTML(productTitle(product))}"
+                        loading="lazy"
+                    >
+
+                    <div class="quick-cart-row-body">
+
+                        <strong>
+                            ${escapeHTML(productTitle(product))}
+                        </strong>
+
+                        <span>
+                            ${Number(item.quantity)} adet ·
+                            ${formatPrice(product.price)}
+                        </span>
+
+                    </div>
+
+                </div>
+            `;
+        })
+        .join("");
+
+
+    const subtotal = state.cart.reduce(
+        (sum, item) =>
+            sum +
+            Number(item.product?.price || 0) *
+            Number(item.quantity || 0),
+        0
+    );
+
+    const totalQuantity = state.cart.reduce(
+        (sum, item) => sum + Number(item.quantity || 0),
+        0
+    );
+
+
+    holder.innerHTML = `
+        <div class="quick-cart-summary">
+            ${rows}
+        </div>
+
+        <div class="quick-cart-total">
+            <span>${totalQuantity} ürün · Ara Toplam</span>
+            <strong>${formatPrice(subtotal)}</strong>
+        </div>
+    `;
 }
 
 
@@ -7001,6 +8462,22 @@ function prefillQuickForm() {
         nameInput.value = [user.first_name, user.last_name]
             .filter(Boolean)
             .join(" ");
+    }
+
+
+    /*
+       Hesapta kayitli adres varsa Hizli Al'da tekrar
+       yazdirmiyoruz. Kullanici yine de bu siparise ozel
+       farkli bir adres girmek isterse alani duzenleyebilir;
+       degisiklik hesabina geri yazilmaz, sadece bu siparis
+       icindir.
+    */
+
+    const addressInput = $("quick-address");
+
+    if (addressInput && !addressInput.value && user.address) {
+
+        addressInput.value = user.address;
     }
 }
 
@@ -7083,7 +8560,16 @@ function validateQuickForm() {
 
 async function submitQuickOrder() {
 
-    if (quickState.submitting || !quickState.item) return;
+    if (quickState.submitting) return;
+
+    if (quickState.mode === "cart") {
+
+        if (!state.cart.length) return;
+
+    } else if (!quickState.item) {
+
+        return;
+    }
 
     if (!validateQuickForm()) return;
 
@@ -7095,50 +8581,15 @@ async function submitQuickOrder() {
     setButtonLoading(button, true);
 
 
-    const item = quickState.item;
-
-
     try {
 
-        /*
-           Kart bilgisi SUNUCUYA GONDERILMIYOR. Dogrulama
-           istemcide yapildi; bu uc yalnizca satin alma
-           niyetini kaydediyor (ML icin en guclu sinyal).
-        */
+        if (quickState.mode === "cart") {
 
-        const response = await apiFetch("/api/quick-order", {
-            method: "POST",
+            await submitCartOrder();
 
-            body: JSON.stringify({
-                product_id: item.product.product_id,
-                source: "quick_checkout",
-                position: Number.isFinite(item.position)
-                    ? item.position
-                    : null,
-                match_score: item.match_score ?? null,
-                matched_style: item.matched_style ?? null,
-            }),
-        });
+        } else {
 
-
-        /* Satın alınan ürün favorilerden düştü */
-
-        if (isWishlisted(item.product.product_id)) {
-
-            state.wishlist.delete(String(item.product.product_id));
-
-            renderWishlistBadge();
-
-            syncWishlistButtons(item.product.product_id, false);
-        }
-
-
-        showQuickSuccess(response);
-
-        renderAiStatus();
-
-        if (response?.toast) {
-            showToast(response.toast);
+            await submitSingleQuickOrder(quickState.item);
         }
 
 
@@ -7157,6 +8608,91 @@ async function submitQuickOrder() {
         quickState.submitting = false;
 
         setButtonLoading(button, false);
+    }
+}
+
+
+async function submitSingleQuickOrder(item) {
+
+    /*
+       Kart bilgisi SUNUCUYA GONDERILMIYOR. Dogrulama
+       istemcide yapildi; bu uc yalnizca satin alma
+       niyetini kaydediyor (ML icin en guclu sinyal).
+    */
+
+    const response = await apiFetch("/api/quick-order", {
+        method: "POST",
+
+        body: JSON.stringify({
+            product_id: item.product.product_id,
+            source: "quick_checkout",
+            position: Number.isFinite(item.position)
+                ? item.position
+                : null,
+            match_score: item.match_score ?? null,
+            matched_style: item.matched_style ?? null,
+        }),
+    });
+
+
+    /* Satın alınan ürün favorilerden düştü */
+
+    if (isWishlisted(item.product.product_id)) {
+
+        state.wishlist.delete(String(item.product.product_id));
+
+        renderWishlistBadge();
+
+        syncWishlistButtons(item.product.product_id, false);
+    }
+
+
+    showQuickSuccess(response);
+
+    renderAiStatus();
+
+    if (response?.toast) {
+        showToast(response.toast);
+    }
+}
+
+
+async function submitCartOrder() {
+
+    const response = await apiFetch("/cart/checkout", {
+        method: "POST",
+        body: JSON.stringify({ source: "cart" }),
+    });
+
+
+    /* Satın alınan ürünler favorilerden düştü (backend
+       zaten cikardi; burada sadece istemci durumunu ve
+       kalp ikonlarini senkronize ediyoruz) */
+
+    (response.items || []).forEach(item => {
+
+        if (isWishlisted(item.product_id)) {
+
+            state.wishlist.delete(String(item.product_id));
+
+            syncWishlistButtons(item.product_id, false);
+        }
+    });
+
+    renderWishlistBadge();
+
+
+    state.cart = [];
+
+    renderCartBadge();
+
+
+    showQuickSuccess(response);
+
+    renderAiStatus();
+
+    if (response?.toast) {
+        showToast(response.toast);
     }
 }
 

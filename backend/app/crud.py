@@ -9,6 +9,7 @@ from app.models import (
     INTERACTION_DISLIKE,
     INTERACTION_INITIAL_STYLE,
     INTERACTION_LIKE,
+    CartItem,
     Product,
     Review,
     User,
@@ -917,6 +918,149 @@ def is_in_wishlist(
             WishlistItem.product_id == product_id,
         )
     ) > 0
+
+
+# =========================================================
+# CART
+# =========================================================
+#
+# Wishlist'ten farki: sepette miktar var. Ayni urun tekrar
+# eklendiginde yeni satir acmak yerine miktari artiriyoruz
+# (ON CONFLICT DO UPDATE) — boylece unique kisit hep tek
+# satir garantiler ve "sepette kac cesit urun var" sorusu
+# basit bir COUNT kalir.
+
+def add_to_cart(
+    db: Session,
+    user_id,
+    product_id: str,
+    quantity: int = 1,
+):
+    """
+    Sepete ekler. Zaten sepetteyse miktari ARTIRIR
+    (mutlak deger olarak ayarlamaz — bkz. set_cart_quantity).
+    """
+
+    insert_statement = pg_insert(CartItem).values(
+        user_id=user_id,
+        product_id=product_id,
+        quantity=quantity,
+    )
+
+    statement = insert_statement.on_conflict_do_update(
+        constraint="uq_cart_user_product",
+        set_={
+            "quantity": CartItem.quantity + insert_statement.excluded.quantity,
+            "updated_at": func.now(),
+        },
+    )
+
+    db.execute(statement)
+    db.commit()
+
+    return True
+
+
+def set_cart_quantity(
+    db: Session,
+    user_id,
+    product_id: str,
+    quantity: int,
+):
+    """
+    Miktari MUTLAK bir degere ayarlar (artirmaz).
+
+    quantity <= 0 gelirse urunu sepetten tamamen cikarir —
+    boylece frontend "miktari sifirla" ile "kaldir" arasinda
+    ayri bir uc cagirmak zorunda kalmaz.
+    """
+
+    if quantity <= 0:
+        return remove_from_cart(db, user_id, product_id)
+
+    item = db.scalar(
+        select(CartItem).where(
+            CartItem.user_id == user_id,
+            CartItem.product_id == product_id,
+        )
+    )
+
+    if item is None:
+        return False
+
+    item.quantity = quantity
+    item.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    return True
+
+
+def remove_from_cart(
+    db: Session,
+    user_id,
+    product_id: str,
+):
+    """Sepetten tamamen cikarir. Kayit yoksa False doner."""
+
+    item = db.scalar(
+        select(CartItem).where(
+            CartItem.user_id == user_id,
+            CartItem.product_id == product_id,
+        )
+    )
+
+    if item is None:
+        return False
+
+    db.delete(item)
+    db.commit()
+
+    return True
+
+
+def get_cart(
+    db: Session,
+    user_id,
+):
+    """Sepet icerigi, urun detaylariyla birlikte (N+1 onlemek icin joinedload)."""
+
+    statement = (
+        select(CartItem)
+        .options(joinedload(CartItem.product))
+        .where(CartItem.user_id == user_id)
+        .order_by(CartItem.created_at.desc())
+    )
+
+    return list(
+        db.scalars(statement).unique().all()
+    )
+
+
+def get_cart_count(
+    db: Session,
+    user_id,
+):
+    """Toplam ADET (urun cesidi degil, miktarlarin toplami) — header rozeti icin."""
+
+    return db.scalar(
+        select(func.coalesce(func.sum(CartItem.quantity), 0))
+        .select_from(CartItem)
+        .where(CartItem.user_id == user_id)
+    ) or 0
+
+
+def clear_cart(
+    db: Session,
+    user_id,
+):
+    """Odeme sonrasi sepeti bosaltir."""
+
+    db.query(CartItem).filter(
+        CartItem.user_id == user_id
+    ).delete()
+
+    db.commit()
 
 
 # =========================================================

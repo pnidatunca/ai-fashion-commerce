@@ -17,13 +17,14 @@ from passlib.context import CryptContext
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app import crud, feed, schemas, style_engine
+from app import crud, feed, schemas, style_customize, style_engine
 from app.database import engine, get_db
 from app.models import (
     INTERACTION_DISLIKE,
     INTERACTION_LIKE,
     INTERACTION_QUICK_BUY,
     INTERACTION_UNLIKE,
+    CartItem,
     User,
 )
 
@@ -340,6 +341,7 @@ def register_user(
         email=user_data.email,
         gender=user_data.gender,
         age=user_data.age,
+        address=user_data.address,
         password_hash=hashed_password,
     )
 
@@ -357,6 +359,7 @@ def register_user(
             "email": new_user.email,
             "gender": new_user.gender,
             "age": new_user.age,
+            "address": new_user.address,
         },
     }
 
@@ -403,6 +406,7 @@ def login_user(
             "email": user.email,
             "gender": user.gender,
             "age": user.age,
+            "address": user.address,
         },
     }
 
@@ -500,6 +504,7 @@ def _account_response(user: User) -> schemas.AccountResponse:
         email=user.email,
         gender=user.gender,
         age=user.age,
+        address=user.address,
     )
 
 
@@ -535,6 +540,7 @@ def update_profile(
     user.last_name = payload.last_name
     user.gender = payload.gender
     user.age = payload.age
+    user.address = payload.address
 
     db.commit()
     db.refresh(user)
@@ -993,6 +999,265 @@ def remove_wishlist_item(
 
 
 # =========================================================
+# SEPET
+# =========================================================
+#
+# Wishlist'ten farki: sepet "simdi almak istedigim urunler ve
+# kac adet" bilgisini tutar, tek seferde COKLU urun odemesi
+# icindir. Hizli Al (quick-order) tek urunluk anlik satin
+# almayi karsilar; ikisi birlikte var olabilir.
+
+def _cart_summary(items: list[CartItem]):
+    """Toplam adet ve ara toplami tek yerden hesaplar —
+    dort ayri endpoint'te aynen tekrarlanmasin diye."""
+
+    total_quantity = sum(item.quantity for item in items)
+
+    subtotal = sum(
+        float(item.product.price or 0) * item.quantity
+        for item in items
+    )
+
+    return total_quantity, subtotal
+
+
+@app.get(
+    "/cart",
+    response_model=schemas.CartSummaryResponse,
+)
+def view_cart(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Sepet paneli ve header rozeti bu tek uctan beslenir."""
+
+    items = crud.get_cart(db=db, user_id=user.id)
+
+    total_quantity, subtotal = _cart_summary(items)
+
+    return schemas.CartSummaryResponse(
+        items=items,
+        total_quantity=total_quantity,
+        subtotal=subtotal,
+    )
+
+
+# DIKKAT: /cart/checkout, /cart/{product_id} ile cakismamasi
+# icin ondan ONCE tanimlanmali (wishlist/ids ile ayni sebep).
+
+@app.post(
+    "/cart/checkout",
+    response_model=schemas.CartCheckoutResponse,
+    status_code=201,
+)
+def checkout_cart(
+    payload: schemas.CartCheckoutRequest = schemas.CartCheckoutRequest(),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Sepetteki TUM urunleri tek seferde 'satin alir'.
+
+    Hizli Al'daki (quick_order) ayni mantik: gercek bir odeme
+    saglayicisi yok, kart bilgisi alinmiyor. Her urun icin
+    QUICK_BUY etkilesimi kaydedilir (ML acisindan ayni
+    agirlikta bir satin alma sinyali) ve urun favorilerde
+    kalmiyor.
+
+    ONEMLI: response nesnesi sepet BOSALTILMADAN ONCE
+    olusturuluyor. SQLAlchemy session'i her commit'te nesneleri
+    expire ediyor; clear_cart'in kendi commit'i sonrasi bu
+    nesnelere tekrar erisilirse ObjectDeletedError alinir.
+    """
+
+    items = crud.get_cart(db=db, user_id=user.id)
+
+    if not items:
+        raise HTTPException(
+            status_code=422,
+            detail="Sepetin boş.",
+        )
+
+    for item in items:
+        if item.product.price is None or item.product.price <= 0:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{item.product.title} için fiyat bilgisi "
+                    "yok, ödeme yapılamıyor."
+                ),
+            )
+
+    recorded_total = 0
+
+    for item in items:
+
+        recorded = crud.record_interactions(
+            db=db,
+            user_id=user.id,
+            items=[
+                schemas.InteractionCreate(
+                    product_id=item.product_id,
+                    interaction_type=INTERACTION_QUICK_BUY,
+                    source=payload.source or "cart",
+                )
+            ],
+        )
+
+        recorded_total += len(recorded)
+
+        crud.remove_from_wishlist(
+            db=db,
+            user_id=user.id,
+            product_id=item.product_id,
+        )
+
+    total_quantity, subtotal = _cart_summary(items)
+
+    order_number = _build_order_number()
+
+    response = schemas.CartCheckoutResponse(
+        order_number=order_number,
+        items=items,
+        total_quantity=total_quantity,
+        subtotal=subtotal,
+        recorded=recorded_total,
+        toast=schemas.ToastMessage(
+            title="Siparişin alındı",
+            message=(
+                f"{order_number} · {total_quantity} ürün · "
+                "Benzer parçalar akışında öne çıkarılacak."
+            ),
+            tone="success",
+        ),
+    )
+
+    # Sepeti bosalt ve zevk profilini tazele — nesneler
+    # yukarida zaten Pydantic modeline kopyalandigi icin bu
+    # commit'lerin onlari expire etmesi bir sorun degil.
+    crud.clear_cart(db=db, user_id=user.id)
+    crud.refresh_taste_profile(db, user.id)
+
+    return response
+
+
+@app.post(
+    "/cart/{product_id}",
+    response_model=schemas.CartSummaryResponse,
+    status_code=201,
+)
+def add_cart_item(
+    product_id: str,
+    payload: schemas.AddToCartRequest = schemas.AddToCartRequest(),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Sepete ekler. Zaten sepetteyse miktar ARTAR (ustune
+    eklenir), mutlak degere ayarlamak icin PATCH kullanilir.
+    """
+
+    product = crud.get_product(db=db, product_id=product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Ürün bulunamadı.",
+        )
+
+    if product.price is None or product.price <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Bu ürünün fiyat bilgisi yok, sepete eklenemez.",
+        )
+
+    crud.add_to_cart(
+        db=db,
+        user_id=user.id,
+        product_id=product_id,
+        quantity=payload.quantity,
+    )
+
+    items = crud.get_cart(db=db, user_id=user.id)
+
+    total_quantity, subtotal = _cart_summary(items)
+
+    return schemas.CartSummaryResponse(
+        items=items,
+        total_quantity=total_quantity,
+        subtotal=subtotal,
+    )
+
+
+@app.patch(
+    "/cart/{product_id}",
+    response_model=schemas.CartSummaryResponse,
+)
+def update_cart_item(
+    product_id: str,
+    payload: schemas.UpdateCartQuantityRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Miktari MUTLAK bir degere ayarlar. 0 gonderilirse urun sepetten cikar."""
+
+    updated = crud.set_cart_quantity(
+        db=db,
+        user_id=user.id,
+        product_id=product_id,
+        quantity=payload.quantity,
+    )
+
+    if not updated:
+        raise HTTPException(
+            status_code=404,
+            detail="Bu ürün sepetinde değil.",
+        )
+
+    items = crud.get_cart(db=db, user_id=user.id)
+
+    total_quantity, subtotal = _cart_summary(items)
+
+    return schemas.CartSummaryResponse(
+        items=items,
+        total_quantity=total_quantity,
+        subtotal=subtotal,
+    )
+
+
+@app.delete(
+    "/cart/{product_id}",
+    response_model=schemas.CartSummaryResponse,
+)
+def remove_cart_item(
+    product_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    removed = crud.remove_from_cart(
+        db=db,
+        user_id=user.id,
+        product_id=product_id,
+    )
+
+    if not removed:
+        raise HTTPException(
+            status_code=404,
+            detail="Bu ürün sepetinde değil.",
+        )
+
+    items = crud.get_cart(db=db, user_id=user.id)
+
+    total_quantity, subtotal = _cart_summary(items)
+
+    return schemas.CartSummaryResponse(
+        items=items,
+        total_quantity=total_quantity,
+        subtotal=subtotal,
+    )
+
+
+# =========================================================
 # ML EGITIM VERISI
 # =========================================================
 
@@ -1152,6 +1417,77 @@ def list_archetypes(
         selected=selected,
         min_choices=style_engine.MIN_SELECTED_STYLES,
         max_choices=style_engine.MAX_SELECTED_STYLES,
+    )
+
+
+# ---------------------------------------------------------
+# OZELLESTIR  (embedding/LLM tabanli stil profili)
+# ---------------------------------------------------------
+#
+# style_engine.py'deki 8 arketiplik icerik-tabanli skorlamadan
+# FARKLI bir yol: burada statik bir if-else filtre yok, kullanici
+# secimleri dogal dil promptuna donusup Gemini embedding'e
+# gidiyor ve urun embeddingleriyle (pgvector) anlamsal olarak
+# karsilastiriliyor — bkz. style_customize.py docstring'i.
+#
+# Giris SART DEGIL: misafir de "Özelleştir" akisini deneyebilir,
+# tipki arketip secimi gibi.
+
+@api.post(
+    "/style-customize",
+    response_model=schemas.StyleCustomizeResponse,
+)
+def style_customize_endpoint(
+    payload: schemas.StyleCustomizeRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Yas/cinsiyet/renk/tarz secimlerinden bir stil profili
+    promptu kurar, Gemini ile embed eder ve en yakin urunleri
+    (cosine distance) doner.
+
+    Donen 'prompt' alani seffaflik icindir: kullanici hangi
+    metnin AI'a gonderildigini gorebilir.
+    """
+
+    prompt = style_customize.build_style_profile_prompt(
+        age=payload.age,
+        gender=payload.gender,
+        colors=payload.colors,
+        styles=payload.styles,
+    )
+
+    embedding = style_customize.embed_style_profile(prompt)
+
+    gender_filter = style_customize.resolve_gender_filter(
+        payload.gender
+    )
+
+    results = crud.semantic_search_products(
+        db=db,
+        query_embedding=embedding,
+        limit=24,
+        gender=gender_filter,
+    )
+
+    items = []
+
+    for result in results:
+
+        product_data = schemas.ProductResponse.model_validate(
+            result["product"]
+        ).model_dump()
+
+        product_data["similarity_score"] = result[
+            "similarity_score"
+        ]
+
+        items.append(product_data)
+
+    return schemas.StyleCustomizeResponse(
+        prompt=prompt,
+        items=items,
+        count=len(items),
     )
 
 

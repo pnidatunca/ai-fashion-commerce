@@ -216,6 +216,21 @@
             </button>
 
 
+            <!-- Sepet -->
+
+            <button
+                type="button"
+                class="icon-button"
+                id="cart-btn"
+                aria-label="Sepet"
+            >
+                <i class="fa-solid fa-bag-shopping"></i>
+
+                <span class="cart-number hidden">
+                    0
+                </span>
+            </button>
+
 
             <!-- Mobile menu -->
 
@@ -356,6 +371,14 @@
     class="ai-section"
     id="ai-search-anchor"
 >
+
+    <!-- Fare imleciyle hareket eden yumusak isik.
+         Konumu app.js'te mousemove ile guncelleniyor. -->
+    <span
+        class="ai-glow"
+        id="ai-glow"
+        aria-hidden="true"
+    ></span>
 
     <div class="ai-inner">
 
@@ -670,6 +693,21 @@
 
 
         <div class="explore-meta">
+
+            <!-- Acilis butonu artik "Ozellestir" AI arama
+                 bolumunde degil, burada — akisi dogrudan
+                 etkiledigi icin Kesfet'in kendi icinde daha
+                 anlamli (bkz. #customize-fab, setupCustomize()
+                 app.js icinde). -->
+
+            <button
+                type="button"
+                class="customize-cta"
+                id="customize-fab"
+            >
+                <i class="fa-solid fa-sliders"></i>
+                TARZINI KİŞİSELLEŞTİR
+            </button>
 
             <button
                 type="button"
@@ -1406,6 +1444,29 @@
                 </div>
 
 
+                <div class="field">
+
+                    <label for="register-address">
+                        ADRES (OPSİYONEL)
+                    </label>
+
+                    <textarea
+                        id="register-address"
+                        rows="2"
+                        placeholder="Mahalle, sokak, bina, daire · İlçe / İl"
+                        autocomplete="street-address"
+                    ></textarea>
+
+                    <span class="field-hint">
+                        Şimdi eklersen Hızlı Al'da tekrar
+                        adres girmene gerek kalmaz. İstersen
+                        boş bırakıp sonra Hesabım'dan
+                        ekleyebilirsin.
+                    </span>
+
+                </div>
+
+
                 <button
                     type="submit"
                     class="auth-main-btn"
@@ -1547,6 +1608,25 @@
                             max="100"
                         >
                     </div>
+
+                </div>
+
+                <div class="field">
+
+                    <label for="account-address">
+                        ADRES (OPSİYONEL)
+                    </label>
+
+                    <textarea
+                        id="account-address"
+                        rows="2"
+                        placeholder="Mahalle, sokak, bina, daire · İlçe / İl"
+                        autocomplete="street-address"
+                    ></textarea>
+
+                    <span class="field-hint">
+                        Hızlı Al'da otomatik doldurulur.
+                    </span>
 
                 </div>
 
@@ -1789,6 +1869,67 @@
             class="wishlist-footer-note"
             id="wishlist-footer-note"
         ></p>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SEPET
+     ---------------------------------------------------------
+     Favoriler'den farki: miktar tasir ve coklu urun tek
+     seferde odenir (bkz. openCartCheckout). Favoriler/Hizli
+     Al'in yerini almaz, yanlarinda calisir.
+========================================================= -->
+
+<div
+    class="wishlist-overlay"
+    id="cart-overlay"
+>
+
+    <div class="wishlist-panel">
+
+        <div class="cart-header">
+
+            <h2>
+                Sepet
+            </h2>
+
+            <button
+                type="button"
+                id="close-cart"
+                aria-label="Sepeti kapat"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+        </div>
+
+
+        <div
+            class="wishlist-items"
+            id="cart-items"
+        ></div>
+
+
+        <div
+            class="cart-panel-footer hidden"
+            id="cart-panel-footer"
+        >
+            <div class="cart-panel-subtotal">
+                <span>Ara Toplam</span>
+                <strong id="cart-panel-subtotal-value"></strong>
+            </div>
+
+            <button
+                type="button"
+                class="auth-main-btn"
+                id="cart-checkout-btn"
+            >
+                SEPETİ ÖDE
+            </button>
+        </div>
 
     </div>
 
@@ -2255,6 +2396,182 @@
         <span data-icon="zap"></span>
         <span class="wishlist-bar-buy-text">HIZLI AL</span>
     </button>
+
+</div>
+
+
+<!-- =========================================================
+     ÖZELLEŞTİR (CEKMECE)
+     ---------------------------------------------------------
+     Acilis butonu artik burada degil, AI Arama bolumunde
+     (bkz. #ai-search-anchor icindeki #customize-fab) — bu
+     ozellik "arama" deneyiminin bir parcasi, tum sitede
+     gezerken sabit durmamali.
+
+     Yas/cinsiyet/renk/tarz secimlerinden bir "stil profili"
+     promptu kurup Gemini embedding'e gonderiyoruz; eslesme
+     statik bir if-else degil, anlamsal benzerlik (bkz.
+     backend/app/style_customize.py). Kesfet akisiyla ayni
+     kart/begen-begenme sistemine besleniyor.
+========================================================= -->
+
+<div
+    class="customize-overlay"
+    id="customize-overlay"
+>
+
+    <div class="customize-panel">
+
+        <div class="cart-header">
+
+            <h2>Aradığın Tarzı Kişiselleştir</h2>
+
+            <button
+                type="button"
+                id="customize-close"
+                aria-label="Kapat"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+        </div>
+
+        <p class="customize-intro">
+            Birkaç soru, sana özel bir stil profili çıkarsın.
+            Seçimlerin yapay zekaya gönderilip katalogdaki
+            ürünlerle anlamsal olarak eşleştirilir — sabit bir
+            filtre değil.
+        </p>
+
+
+        <!-- İLERLEME -->
+
+        <div class="customize-steps-nav">
+            <span class="customize-step-dot active" data-step-dot="1"></span>
+            <span class="customize-step-dot" data-step-dot="2"></span>
+            <span class="customize-step-dot" data-step-dot="3"></span>
+        </div>
+
+
+        <!-- ADIM 1: YAŞ + CİNSİYET -->
+
+        <div class="customize-step active" data-step="1">
+
+            <span class="quick-section-label">
+                YAŞ VE CİNSİYET
+            </span>
+
+            <div class="field">
+                <label for="customize-age">YAŞ</label>
+                <input
+                    type="number"
+                    id="customize-age"
+                    min="13"
+                    max="100"
+                    placeholder="Örn. 27"
+                >
+            </div>
+
+            <div class="customize-gender-options">
+
+                <button
+                    type="button"
+                    class="customize-choice-btn"
+                    data-gender="kadın"
+                >
+                    Kadın
+                </button>
+
+                <button
+                    type="button"
+                    class="customize-choice-btn"
+                    data-gender="erkek"
+                >
+                    Erkek
+                </button>
+
+                <button
+                    type="button"
+                    class="customize-choice-btn"
+                    data-gender="belirtmek istemiyorum"
+                >
+                    Belirtmek istemiyorum
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- ADIM 2: RENK PALETİ -->
+
+        <div class="customize-step" data-step="2">
+
+            <span class="quick-section-label">
+                FAVORİ RENKLERİN
+            </span>
+
+            <p class="customize-step-hint">
+                En fazla 6 renk seçebilirsin.
+            </p>
+
+            <div
+                class="customize-color-grid"
+                id="customize-color-grid"
+            ></div>
+
+        </div>
+
+
+        <!-- ADIM 3: TARZ / KOMBİN SEÇİMİ -->
+
+        <div class="customize-step" data-step="3">
+
+            <span class="quick-section-label">
+                HANGİ KOMBİNLERİ SEVİYORSUN?
+            </span>
+
+            <p class="customize-step-hint">
+                Beğendiğin kombinleri seç, en fazla 4 tanesini
+                işaretleyebilirsin.
+            </p>
+
+            <div
+                class="customize-combo-grid"
+                id="customize-combo-grid"
+            ></div>
+
+        </div>
+
+
+        <!-- NAVİGASYON -->
+
+        <div class="customize-nav">
+
+            <button
+                type="button"
+                class="customize-back-btn hidden"
+                id="customize-back-btn"
+            >
+                GERİ
+            </button>
+
+            <button
+                type="button"
+                class="auth-main-btn customize-next-btn"
+                id="customize-next-btn"
+            >
+                DEVAM ET
+            </button>
+
+        </div>
+
+        <p
+            id="customize-message"
+            class="auth-message"
+        ></p>
+
+    </div>
 
 </div>
 
