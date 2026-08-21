@@ -7,4 +7,5 @@ google-genai
 SQLAlchemy
 fastapi
 uvicorn
-
+passlib[bcrypt]
+requests

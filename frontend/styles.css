@@ -149,26 +149,6 @@ a {
     background: var(--cream);
 }
 
-.cart-number {
-    position: absolute;
-    top: 0;
-    right: 0;
-
-    width: 17px;
-    height: 17px;
-
-    display: grid;
-    place-items: center;
-
-    border-radius: 50%;
-
-    background: var(--black);
-    color: white;
-
-    font-size: 8px;
-    font-weight: 600;
-}
-
 .mobile-menu-button {
     display: none;
 }
@@ -901,35 +881,12 @@ a {
 }
 
 /* =========================================================
-   PAGINATION
+   PAGINATION — KALDIRILDI
+   ---------------------------------------------------------
+   Sayfa numaralari ve ok isaretleri modern kesif akisina
+   uymadigi icin cikarildi. Yerine sonsuz akis geldi:
+   .feed-sentinel / .feed-more (dosya sonunda).
 ========================================================= */
-
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-
-    margin-top: 60px;
-}
-
-.page-btn {
-    width: 38px;
-    height: 38px;
-
-    border: 1px solid var(--line);
-    background: white;
-
-    font-size: 10px;
-
-    transition: .3s;
-}
-
-.page-btn:hover,
-.page-btn.active {
-    background: var(--black);
-    color: white;
-    border-color: var(--black);
-}
 
 /* =========================================================
    SEARCH OVERLAY
@@ -1012,182 +969,6 @@ a {
     font-size: 25px;
 
     background: transparent;
-}
-
-/* =========================================================
-   CART
-========================================================= */
-
-.cart-overlay {
-    position: fixed;
-    inset: 0;
-
-    z-index: 2500;
-
-    background: rgba(0,0,0,.4);
-
-    display: flex;
-    justify-content: flex-end;
-
-    opacity: 0;
-    visibility: hidden;
-
-    transition: .35s ease;
-}
-
-.cart-overlay.open {
-    opacity: 1;
-    visibility: visible;
-}
-
-.cart-panel {
-    width: min(460px, 100%);
-
-    height: 100%;
-
-    padding: 35px;
-
-    background: white;
-
-    overflow-y: auto;
-
-    transform: translateX(100%);
-    transition: transform .4s cubic-bezier(.77,0,.18,1);
-}
-
-.cart-overlay.open .cart-panel {
-    transform: translateX(0);
-}
-
-.cart-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    padding-bottom: 25px;
-
-    border-bottom: 1px solid var(--line);
-}
-
-.cart-header h2 {
-    font-family: var(--serif);
-
-    font-size: 35px;
-    font-weight: 400;
-}
-
-.cart-header button {
-    width: 35px;
-    height: 35px;
-
-    border: 0;
-    background: transparent;
-
-    font-size: 20px;
-}
-
-.cart-items {
-    padding: 10px 0;
-}
-
-.cart-row {
-    display: flex;
-    gap: 15px;
-
-    padding: 18px 0;
-
-    border-bottom: 1px solid var(--line);
-}
-
-.cart-row img {
-    flex-shrink: 0;
-
-    width: 75px;
-    height: 95px;
-
-    object-fit: cover;
-}
-
-.cart-row strong {
-    display: block;
-
-    font-size: 10px;
-    line-height: 1.5;
-
-    margin-bottom: 10px;
-}
-
-.cart-row div {
-    font-size: 10px;
-}
-
-.cart-empty {
-    text-align: center;
-
-    padding: 100px 20px;
-
-    color: var(--gray);
-}
-
-.cart-empty i {
-    font-size: 35px;
-
-    margin-bottom: 20px;
-}
-
-.cart-empty p {
-    color: var(--black);
-
-    font-family: var(--serif);
-    font-size: 25px;
-
-    margin-bottom: 8px;
-}
-
-.cart-empty span {
-    font-size: 10px;
-}
-
-.cart-footer {
-    margin-top: 30px;
-
-    padding-top: 25px;
-
-    border-top: 1px solid var(--black);
-}
-
-.cart-total {
-    display: flex;
-    justify-content: space-between;
-
-    margin-bottom: 20px;
-
-    font-size: 11px;
-}
-
-.cart-total strong {
-    font-size: 14px;
-}
-
-.checkout-btn {
-    width: 100%;
-
-    padding: 17px;
-
-    border: 0;
-
-    background: var(--black);
-    color: white;
-
-    font-size: 9px;
-    letter-spacing: 2px;
-    font-weight: 600;
-
-    transition: .3s;
-}
-
-.checkout-btn:hover {
-    background: var(--gold);
 }
 
 /* =========================================================
@@ -1563,5 +1344,3752 @@ a {
     .footer-links {
         flex-wrap: wrap;
         gap: 15px;
+    }
+}
+
+/* =========================================================
+   AUTH OVERLAY — AURA FASHION LOGIN / REGISTER
+========================================================= */
+
+.auth-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+
+    background: rgba(17, 17, 17, 0.62);
+
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition:
+        opacity .3s ease,
+        visibility .3s ease;
+}
+
+.auth-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+/* PANEL */
+
+.auth-panel {
+    position: relative;
+
+    width: min(430px, 100%);
+
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+
+    background: var(--white);
+
+    border: 1px solid var(--line);
+
+    padding: 52px 45px 45px;
+
+    box-shadow:
+        0 30px 80px rgba(0, 0, 0, .18);
+
+    transform: translateY(18px);
+    opacity: 0;
+
+    transition:
+        transform .35s cubic-bezier(.2,.7,.2,1),
+        opacity .3s ease;
+}
+
+/* Panelin ust kenarindaki ince altin cizgi */
+
+.auth-panel::before {
+    content: "";
+
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 2px;
+
+    background: var(--gold);
+}
+
+.auth-overlay.open .auth-panel {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+
+/* CLOSE */
+
+.auth-close {
+    position: absolute;
+
+    top: 18px;
+    right: 18px;
+
+    width: 34px;
+    height: 34px;
+
+    display: grid;
+    place-items: center;
+
+    border: 0;
+    background: transparent;
+
+    color: var(--black);
+
+    font-size: 17px;
+
+    transition: .25s ease;
+}
+
+.auth-close:hover {
+    background: var(--cream);
+}
+
+
+/* CONTENT */
+
+.auth-content {
+    text-align: center;
+}
+
+.auth-label {
+    display: block;
+
+    margin-bottom: 18px;
+
+    color: var(--gray);
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 3px;
+}
+
+.auth-content h2 {
+    margin: 0;
+
+    font-family: var(--serif);
+
+    color: var(--black);
+
+    font-size: 38px;
+    font-weight: 400;
+
+    line-height: 1.05;
+}
+
+.auth-content h2 em {
+    font-style: italic;
+    font-weight: 400;
+}
+
+.auth-content p {
+    max-width: 320px;
+
+    margin: 18px auto 32px;
+
+    color: var(--gray);
+
+    font-size: 11px;
+    line-height: 1.8;
+}
+
+
+/* BUTTONS */
+
+.auth-main-btn,
+.auth-secondary-btn {
+    width: 100%;
+
+    min-height: 52px;
+
+    border-radius: 0;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    transition:
+        background .3s ease,
+        color .3s ease,
+        border-color .3s ease;
+}
+
+.auth-main-btn {
+    border: 1px solid var(--black);
+
+    background: var(--black);
+    color: var(--white);
+}
+
+.auth-main-btn:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+}
+
+
+.auth-secondary-btn {
+    margin-top: 10px;
+
+    border: 1px solid var(--line);
+
+    background: var(--white);
+    color: var(--black);
+}
+
+.auth-secondary-btn:hover {
+    background: var(--cream);
+    border-color: var(--black);
+}
+
+
+/* =========================================================
+   FORM SYSTEM — login, register ve checkout ortak kullanir
+========================================================= */
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+
+    text-align: left;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    min-width: 0;
+}
+
+.field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.field label {
+    color: var(--gray);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 2px;
+}
+
+.field input,
+.field select,
+.field textarea {
+    width: 100%;
+
+    padding: 0 14px;
+
+    border: 1px solid var(--line);
+    border-radius: 0;
+
+    background: var(--white);
+    color: var(--black);
+
+    outline: none;
+
+    font-family: var(--sans);
+    font-size: 12px;
+
+    transition:
+        border-color .25s ease,
+        box-shadow .25s ease;
+}
+
+.field input,
+.field select {
+    height: 48px;
+}
+
+.field textarea {
+    padding: 14px;
+
+    line-height: 1.6;
+
+    resize: vertical;
+}
+
+.field select {
+    appearance: none;
+
+    padding-right: 34px;
+
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--black) 50%),
+        linear-gradient(135deg, var(--black) 50%, transparent 50%);
+
+    background-position:
+        calc(100% - 18px) 21px,
+        calc(100% - 13px) 21px;
+
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+    color: #b9b6b0;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+    border-color: var(--black);
+
+    box-shadow: 0 0 0 3px rgba(182, 155, 98, .14);
+}
+
+/* Hatali alan */
+
+.field.invalid input,
+.field.invalid select,
+.field.invalid textarea {
+    border-color: #b3261e;
+}
+
+.field-error {
+    color: #b3261e;
+
+    font-size: 9px;
+    letter-spacing: .4px;
+}
+
+.field-hint {
+    color: var(--light-gray);
+
+    font-size: 9px;
+    letter-spacing: .4px;
+}
+
+
+/* SIFRE GOSTER / GIZLE */
+
+.field-password {
+    position: relative;
+}
+
+.field-password input {
+    padding-right: 46px;
+}
+
+.reveal-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: 44px;
+    height: 48px;
+
+    display: grid;
+    place-items: center;
+
+    border: 0;
+    background: transparent;
+
+    color: var(--gray);
+
+    font-size: 13px;
+
+    transition: color .25s ease;
+}
+
+.reveal-btn:hover {
+    color: var(--black);
+}
+
+
+/* CHECKBOX */
+
+.checkbox-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+
+    cursor: pointer;
+}
+
+.checkbox-field input {
+    flex-shrink: 0;
+
+    width: 16px;
+    height: 16px;
+
+    margin-top: 1px;
+
+    accent-color: var(--black);
+}
+
+.checkbox-field span {
+    color: var(--gray);
+
+    font-size: 10px;
+    line-height: 1.7;
+}
+
+
+/* BUTON YUKLENIYOR DURUMU */
+
+.auth-main-btn[disabled],
+.auth-secondary-btn[disabled],
+.checkout-btn[disabled] {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.auth-main-btn.loading {
+    position: relative;
+    color: transparent;
+}
+
+.auth-main-btn.loading::after {
+    content: "";
+
+    position: absolute;
+    top: 50%;
+    left: 50%;
+
+    width: 15px;
+    height: 15px;
+
+    margin: -8px 0 0 -8px;
+
+    border: 2px solid rgba(255,255,255,.35);
+    border-top-color: var(--white);
+    border-radius: 50%;
+
+    animation: spin .7s linear infinite;
+}
+
+
+/* MESAJLAR */
+
+.auth-message {
+    min-height: 18px;
+
+    margin: 14px 0 0;
+
+    color: var(--gray);
+
+    font-size: 10px;
+    line-height: 1.6;
+    letter-spacing: .3px;
+
+    text-align: center;
+}
+
+.auth-message.error {
+    color: #b3261e;
+}
+
+.auth-message.success {
+    color: #1f6b3a;
+}
+
+
+/* LOGIN <-> REGISTER GECISI */
+
+.auth-switch {
+    margin-top: 22px;
+    padding-top: 20px;
+
+    border-top: 1px solid var(--line);
+
+    color: var(--gray);
+
+    font-size: 10px;
+
+    text-align: center;
+}
+
+.auth-switch button {
+    border: 0;
+    background: transparent;
+
+    padding: 0 0 1px;
+
+    color: var(--black);
+
+    font-size: 10px;
+    font-weight: 600;
+
+    border-bottom: 1px solid var(--black);
+}
+
+.auth-switch button:hover {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+}
+
+
+/* MOBILE */
+
+@media (max-width: 520px) {
+
+    .auth-overlay {
+        padding: 18px;
+    }
+
+    .auth-panel {
+        width: 100%;
+
+        padding: 45px 25px 30px;
+    }
+
+    .auth-content h2 {
+        font-size: 32px;
+    }
+
+    .auth-content p {
+        font-size: 10px;
+    }
+}
+
+
+/* =========================================================
+   REGISTER PANEL
+   Login ile ayni sistemi kullanir, sadece daha genis.
+========================================================= */
+
+#register-overlay .auth-panel {
+    width: min(520px, 100%);
+
+    padding: 48px 45px 40px;
+}
+
+#register-overlay .auth-content > p {
+    margin-bottom: 30px;
+}
+
+
+/* =========================================================
+   USER AREA / DROPDOWN
+========================================================= */
+
+.user-area {
+    position: relative;
+}
+
+.user-icon-btn {
+    position: relative;
+
+    width: 40px;
+    height: 40px;
+
+    display: grid;
+    place-items: center;
+
+    border: 0;
+    background: transparent;
+
+    font-size: 15px;
+
+    transition: background .25s ease;
+}
+
+.user-icon-btn:hover {
+    background: var(--cream);
+}
+
+/* Giris yapilmisken ikonun kosesinde altin nokta */
+
+.user-icon-btn.signed-in::after {
+    content: "";
+
+    position: absolute;
+    top: 7px;
+    right: 7px;
+
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+
+    background: var(--gold);
+}
+
+.user-dropdown {
+    position: absolute;
+    top: 52px;
+    right: 0;
+
+    width: 220px;
+
+    background: var(--white);
+    border: 1px solid var(--line);
+
+    box-shadow: 0 20px 50px rgba(0,0,0,.12);
+
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+
+    transition:
+        opacity .22s ease,
+        transform .22s ease,
+        visibility .22s ease;
+
+    z-index: 1100;
+}
+
+.user-dropdown.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.user-dropdown-head {
+    padding: 18px 18px 15px;
+
+    border-bottom: 1px solid var(--line);
+
+    background: var(--cream);
+}
+
+.user-dropdown-label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: var(--gray);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 2px;
+}
+
+.user-dropdown-head strong {
+    display: block;
+
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 500;
+
+    line-height: 1.2;
+}
+
+.user-dropdown-head small {
+    display: block;
+
+    margin-top: 4px;
+
+    color: var(--gray);
+
+    font-size: 9px;
+
+    overflow-wrap: anywhere;
+}
+
+.user-dropdown button {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    gap: 11px;
+
+    padding: 15px 18px;
+
+    border: 0;
+    background: var(--white);
+
+    color: var(--black);
+
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+
+    text-align: left;
+
+    transition: background .25s ease;
+}
+
+.user-dropdown button + button {
+    border-top: 1px solid var(--line);
+}
+
+.user-dropdown button i {
+    width: 13px;
+
+    color: var(--gray);
+
+    font-size: 11px;
+}
+
+.user-dropdown button:hover {
+    background: var(--cream);
+}
+
+#dropdown-logout-btn {
+    color: #b3261e;
+}
+
+#dropdown-logout-btn i {
+    color: #b3261e;
+}
+
+
+/* =========================================================
+   AKTIF NAV LINKI
+========================================================= */
+
+.main-nav a.active {
+    color: var(--black);
+}
+
+.main-nav a.active::after {
+    width: 100%;
+}
+
+
+
+/* =========================================================
+   CHECKOUT — ESKI UC ADIMLI AKIS KALDIRILDI
+   ---------------------------------------------------------
+   Sepet ve uc adimli odeme cikarildi. Yerine tek ekran
+   hizli satin alma geldi: .quick-panel (dosya sonunda).
+========================================================= */
+
+
+/* Kart sahibi alani: deger bozulmadan buyuk harf gorunumu */
+
+/*
+   Buyuk harf gorunumunu CSS'e birakmiyoruz: lang="tr"
+   altinda text-transform "i" harfini "I" yerine "I" (noktali)
+   yapar ve kart onizlemesiyle celisir.
+*/
+
+#card-holder {
+    letter-spacing: 1px;
+}
+
+#card-number,
+#card-expiry,
+#card-cvc {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+}
+
+.checkbox-field.invalid span {
+    color: #b3261e;
+}
+
+
+/* =========================================================
+   KEŞFET / EXPLORE FEED
+========================================================= */
+
+:root {
+    --like: #c0392b;
+    --like-soft: rgba(192, 57, 43, .09);
+}
+
+
+/* Header'daki favori sayaci */
+
+.wishlist-number {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: 17px;
+    height: 17px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+
+    background: var(--like);
+    color: var(--white);
+
+    font-size: 8px;
+    font-weight: 600;
+}
+
+#wishlist-btn.has-items i {
+    color: var(--like);
+}
+
+
+/* BÖLÜM */
+
+.explore-section {
+    padding: 100px 0;
+
+    background: var(--cream);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+}
+
+.explore-header,
+.explore-grid,
+.explore-notice,
+.explore-loader,
+.explore-exhausted {
+    width: min(var(--container), calc(100% - 64px));
+    margin-inline: auto;
+}
+
+.explore-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 30px;
+
+    margin-bottom: 40px;
+}
+
+.explore-header h2 {
+    font-family: var(--serif);
+
+    font-size: 42px;
+    font-weight: 500;
+}
+
+.explore-lead {
+    max-width: 440px;
+
+    margin-top: 14px;
+
+    color: var(--gray);
+
+    font-size: 12px;
+    line-height: 1.9;
+}
+
+.explore-meta {
+    flex-shrink: 0;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.explore-refresh {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    padding: 12px 18px;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.8px;
+
+    transition: .3s ease;
+}
+
+.explore-refresh:hover {
+    background: var(--black);
+    border-color: var(--black);
+    color: var(--white);
+}
+
+.explore-refresh.spinning i {
+    animation: spin .8s linear infinite;
+}
+
+.explore-count {
+    color: var(--light-gray);
+
+    font-size: 9px;
+    letter-spacing: 1px;
+}
+
+
+/* MİSAFİR UYARISI */
+
+.explore-notice {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+
+    margin-bottom: 30px;
+    padding: 16px 20px;
+
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--gold);
+}
+
+.explore-notice i {
+    color: var(--gold);
+    font-size: 15px;
+}
+
+.explore-notice span {
+    flex: 1;
+
+    color: var(--gray);
+
+    font-size: 11px;
+    line-height: 1.7;
+}
+
+.explore-notice button {
+    flex-shrink: 0;
+
+    padding: 11px 16px;
+
+    border: 1px solid var(--black);
+    background: var(--black);
+    color: var(--white);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    transition: .3s ease;
+}
+
+.explore-notice button:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+}
+
+
+/* IZGARA */
+
+.explore-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 22px;
+}
+
+
+/* KART */
+
+.explore-card {
+    display: flex;
+    flex-direction: column;
+
+    background: var(--white);
+    border: 1px solid var(--line);
+
+    animation: exploreIn .45s cubic-bezier(.2,.7,.2,1) both;
+
+    transition:
+        opacity .32s ease,
+        transform .32s cubic-bezier(.4,0,.6,1),
+        border-color .3s ease;
+}
+
+@keyframes exploreIn {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* "Begenmedim" sonrasi cikis */
+
+.explore-card.dismissing {
+    opacity: 0;
+    transform: scale(.94) translateY(10px);
+
+    pointer-events: none;
+}
+
+.explore-card.liked {
+    border-color: var(--like);
+}
+
+.explore-card-image {
+    position: relative;
+
+    aspect-ratio: 3 / 4;
+
+    overflow: hidden;
+
+    background: var(--soft);
+
+    cursor: pointer;
+}
+
+.explore-card-image img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    transition: transform .8s cubic-bezier(.2,.6,.2,1);
+}
+
+.explore-card:hover .explore-card-image img {
+    transform: scale(1.04);
+}
+
+.explore-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+
+    padding: 7px 9px;
+
+    background: var(--white);
+
+    font-size: 8px;
+    letter-spacing: 1px;
+    font-weight: 700;
+}
+
+.explore-liked-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+
+    display: none;
+    align-items: center;
+    gap: 6px;
+
+    padding: 7px 10px;
+
+    background: var(--like);
+    color: var(--white);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+}
+
+.explore-card.liked .explore-liked-badge {
+    display: flex;
+}
+
+
+/* KART DETAY */
+
+.explore-card-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+
+    padding: 16px 16px 0;
+}
+
+.explore-card-brand {
+    color: var(--light-gray);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    margin-bottom: 8px;
+}
+
+.explore-card-title {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.55;
+
+    min-height: 34px;
+
+    margin-bottom: 10px;
+}
+
+.explore-card-price {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    margin-bottom: 14px;
+}
+
+.explore-card-price .current-price {
+    font-size: 13px;
+}
+
+
+/* EYLEM SATIRI */
+
+.explore-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    border-top: 1px solid var(--line);
+}
+
+.explore-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    padding: 15px 8px;
+
+    border: 0;
+    background: transparent;
+
+    color: var(--gray);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+
+    transition: .25s ease;
+}
+
+.explore-action i {
+    font-size: 13px;
+}
+
+.explore-action + .explore-action {
+    border-left: 1px solid var(--line);
+}
+
+.explore-action-dislike:hover {
+    background: var(--black);
+    color: var(--white);
+}
+
+.explore-action-like:hover {
+    background: var(--like-soft);
+    color: var(--like);
+}
+
+.explore-action-like.active {
+    background: var(--like-soft);
+    color: var(--like);
+}
+
+.explore-action[disabled] {
+    opacity: .5;
+    cursor: default;
+}
+
+/* Kalp basildiginda kisa nabız */
+
+.explore-action-like.pulse i {
+    animation: heartPulse .45s cubic-bezier(.2,.9,.3,1.3);
+}
+
+@keyframes heartPulse {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.45); }
+    100% { transform: scale(1); }
+}
+
+
+/* YÜKLENİYOR / TÜKENDİ */
+
+.explore-loader {
+    padding: 50px 20px;
+
+    text-align: center;
+}
+
+.explore-loader p {
+    margin-top: 14px;
+
+    color: var(--gray);
+
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.explore-exhausted {
+    padding: 70px 20px;
+
+    text-align: center;
+}
+
+.explore-exhausted h3 {
+    font-family: var(--serif);
+
+    font-size: 30px;
+    font-weight: 400;
+
+    margin-bottom: 12px;
+}
+
+.explore-exhausted p {
+    max-width: 380px;
+
+    margin: 0 auto 26px;
+
+    color: var(--gray);
+
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+.explore-exhausted .view-detail-btn {
+    max-width: 240px;
+
+    margin: 0 auto;
+
+    background: var(--white);
+}
+
+
+/* =========================================================
+   FAVORİLER ÇEKMECESİ
+========================================================= */
+
+.wishlist-overlay {
+    position: fixed;
+    inset: 0;
+
+    z-index: 2600;
+
+    background: rgba(0,0,0,.4);
+
+    display: flex;
+    justify-content: flex-end;
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition: .35s ease;
+}
+
+.wishlist-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.wishlist-panel {
+    display: flex;
+    flex-direction: column;
+
+    width: min(460px, 100%);
+    height: 100%;
+
+    padding: 35px;
+
+    background: var(--white);
+
+    transform: translateX(100%);
+    transition: transform .4s cubic-bezier(.77,0,.18,1);
+}
+
+.wishlist-overlay.open .wishlist-panel {
+    transform: translateX(0);
+}
+
+.wishlist-items {
+    flex: 1;
+
+    overflow-y: auto;
+
+    padding: 10px 0;
+}
+
+.wishlist-row {
+    display: flex;
+    gap: 15px;
+
+    padding: 18px 0;
+
+    border-bottom: 1px solid var(--line);
+}
+
+.wishlist-row img {
+    flex-shrink: 0;
+
+    width: 75px;
+    height: 95px;
+
+    object-fit: cover;
+
+    background: var(--soft);
+
+    cursor: pointer;
+}
+
+.wishlist-row-body {
+    flex: 1;
+
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+}
+
+.wishlist-row-body strong {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.5;
+
+    margin-bottom: 7px;
+}
+
+.wishlist-row-price {
+    font-size: 11px;
+    font-weight: 600;
+
+    margin-bottom: 12px;
+}
+
+.wishlist-row-actions {
+    display: flex;
+    gap: 8px;
+
+    margin-top: auto;
+}
+
+.wishlist-row-actions button {
+    padding: 8px 11px;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+
+    transition: .25s ease;
+}
+
+.wishlist-add-cart:hover {
+    background: var(--black);
+    border-color: var(--black);
+    color: var(--white);
+}
+
+.wishlist-remove:hover {
+    background: var(--like-soft);
+    border-color: var(--like);
+    color: var(--like);
+}
+
+.wishlist-empty {
+    padding: 90px 20px;
+
+    text-align: center;
+
+    color: var(--gray);
+}
+
+.wishlist-empty i {
+    font-size: 34px;
+
+    margin-bottom: 20px;
+
+    color: var(--light-gray);
+}
+
+.wishlist-empty p {
+    color: var(--black);
+
+    font-family: var(--serif);
+    font-size: 24px;
+
+    margin-bottom: 8px;
+}
+
+.wishlist-empty span {
+    display: block;
+
+    max-width: 240px;
+    margin: auto;
+
+    font-size: 10px;
+    line-height: 1.8;
+}
+
+.wishlist-footer-note {
+    padding-top: 18px;
+
+    border-top: 1px solid var(--line);
+
+    color: var(--light-gray);
+
+    font-size: 9px;
+    letter-spacing: .5px;
+
+    text-align: center;
+}
+
+
+/* =========================================================
+   ÜRÜN DETAYINDA FAVORİ BUTONU
+========================================================= */
+
+.modal-wishlist-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    width: 100%;
+
+    margin-top: 12px;
+    padding: 15px;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    transition: .25s ease;
+}
+
+.modal-wishlist-btn i {
+    font-size: 13px;
+}
+
+.modal-wishlist-btn:hover {
+    border-color: var(--like);
+    color: var(--like);
+}
+
+.modal-wishlist-btn.active {
+    border-color: var(--like);
+    background: var(--like-soft);
+    color: var(--like);
+}
+
+
+/* =========================================================
+   KEŞFET RESPONSIVE
+========================================================= */
+
+@media (max-width: 1100px) {
+
+    .explore-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 800px) {
+
+    .explore-section {
+        padding: 70px 0;
+    }
+
+    .explore-header,
+    .explore-grid,
+    .explore-notice,
+    .explore-loader,
+    .explore-exhausted {
+        width: calc(100% - 40px);
+    }
+
+    .explore-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 22px;
+    }
+
+    .explore-meta {
+        align-items: flex-start;
+    }
+
+    .explore-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .explore-header h2 {
+        font-size: 34px;
+    }
+}
+
+@media (max-width: 520px) {
+
+    .explore-notice {
+        flex-wrap: wrap;
+    }
+
+    .explore-notice button {
+        width: 100%;
+    }
+
+    .explore-action {
+        padding: 14px 4px;
+
+        font-size: 7px;
+        letter-spacing: 1px;
+    }
+
+    .wishlist-panel {
+        padding: 25px 20px;
+    }
+}
+
+
+/* Keşfet akışı yüklenemediğinde */
+
+.explore-error {
+    grid-column: 1 / -1;
+
+    padding: 60px 20px;
+
+    color: var(--gray);
+
+    font-size: 12px;
+
+    text-align: center;
+}
+
+
+/* =========================================================
+   AI GORSEL DILI
+   ---------------------------------------------------------
+   Editorial sistemi bozmuyoruz: keskin koseler, ince
+   cizgiler, altin vurgu. AI varligini parlak renkle degil
+   HAREKETLE hissettiriyoruz — nabiz atan nokta, yumusak
+   tarama animasyonu.
+========================================================= */
+
+:root {
+    --ai: #b69b62;
+    --ai-soft: rgba(182, 155, 98, .12);
+    --ai-line: rgba(182, 155, 98, .35);
+}
+
+
+/* AI etiketi */
+
+.ai-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+
+    padding: 6px 10px;
+
+    border: 1px solid var(--ai-line);
+
+    color: var(--ai);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+
+    white-space: nowrap;
+}
+
+.ai-dot {
+    width: 5px;
+    height: 5px;
+
+    border-radius: 50%;
+
+    background: var(--ai);
+
+    animation: aiPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes aiPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: .35;
+        transform: scale(.7);
+    }
+}
+
+
+/* =========================================================
+   ARKETIP SECIMI
+========================================================= */
+
+.archetype-overlay {
+    position: fixed;
+    inset: 0;
+
+    z-index: 6000;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 30px;
+
+    background: rgba(17, 17, 17, .82);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition:
+        opacity .4s ease,
+        visibility .4s ease;
+}
+
+.archetype-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.archetype-panel {
+    position: relative;
+
+    width: min(1000px, 100%);
+    max-height: calc(100vh - 60px);
+
+    overflow-y: auto;
+
+    padding: 54px 50px 50px;
+
+    background: var(--white);
+    border: 1px solid var(--line);
+
+    box-shadow: 0 40px 100px rgba(0, 0, 0, .35);
+
+    transform: translateY(24px) scale(.98);
+    opacity: 0;
+
+    transition:
+        transform .45s cubic-bezier(.2, .8, .2, 1),
+        opacity .35s ease;
+}
+
+.archetype-overlay.open .archetype-panel {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+.archetype-panel::before {
+    content: "";
+
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 2px;
+
+    background: var(--ai);
+}
+
+.archetype-skip {
+    position: absolute;
+    top: 20px;
+    right: 22px;
+
+    border: 0;
+    background: transparent;
+
+    color: var(--light-gray);
+
+    font-size: 10px;
+    letter-spacing: .5px;
+
+    text-decoration: underline;
+    text-underline-offset: 3px;
+
+    transition: color .25s ease;
+}
+
+.archetype-skip:hover {
+    color: var(--black);
+}
+
+.archetype-head {
+    max-width: 620px;
+
+    margin-bottom: 38px;
+}
+
+.archetype-head h2 {
+    margin: 20px 0 14px;
+
+    font-family: var(--serif);
+
+    font-size: clamp(34px, 4.4vw, 52px);
+    font-weight: 400;
+    line-height: 1.05;
+}
+
+.archetype-head h2 em {
+    font-style: italic;
+    color: var(--gray);
+}
+
+.archetype-head p {
+    color: var(--gray);
+
+    font-size: 12px;
+    line-height: 1.9;
+}
+
+
+/* Kartlar */
+
+.archetype-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.archetype-card {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 0;
+
+    border: 1px solid var(--line);
+    background: var(--white);
+
+    text-align: left;
+
+    overflow: hidden;
+
+    transition:
+        border-color .3s ease,
+        transform .35s cubic-bezier(.2, .8, .2, 1),
+        box-shadow .35s ease;
+}
+
+.archetype-card:hover {
+    border-color: var(--black);
+    transform: translateY(-4px);
+
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .12);
+}
+
+.archetype-card:disabled {
+    cursor: default;
+}
+
+/* Secilen kart */
+
+.archetype-card.chosen {
+    border-color: var(--ai);
+    box-shadow: 0 0 0 2px var(--ai-soft);
+}
+
+.archetype-card-image {
+    position: relative;
+
+    aspect-ratio: 4 / 5;
+
+    overflow: hidden;
+
+    background: var(--soft);
+}
+
+.archetype-card-image img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    transition: transform .8s cubic-bezier(.2, .6, .2, 1);
+}
+
+.archetype-card:hover .archetype-card-image img {
+    transform: scale(1.05);
+}
+
+/* Uzerine gelince ustten asagi tarama isigi */
+
+.archetype-card-image::after {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    background:
+        linear-gradient(
+            180deg,
+            transparent 0%,
+            rgba(182, 155, 98, .28) 50%,
+            transparent 100%
+        );
+
+    transform: translateY(-100%);
+
+    transition: transform .9s ease;
+}
+
+.archetype-card:hover .archetype-card-image::after {
+    transform: translateY(100%);
+}
+
+.archetype-card-body {
+    padding: 20px 20px 22px;
+}
+
+.archetype-card-body strong {
+    display: block;
+
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+
+    margin-bottom: 6px;
+}
+
+.archetype-card-tagline {
+    display: block;
+
+    color: var(--ai);
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    margin-bottom: 12px;
+}
+
+.archetype-card-body p {
+    color: var(--gray);
+
+    font-size: 11px;
+    line-height: 1.8;
+}
+
+.archetype-card-pick {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-top: 18px;
+    padding-top: 14px;
+
+    border-top: 1px solid var(--line);
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+}
+
+.archetype-card-pick i {
+    transition: transform .3s ease;
+}
+
+.archetype-card:hover .archetype-card-pick i {
+    transform: translateX(5px);
+}
+
+
+/* =========================================================
+   AI ANALIZ EKRANI
+========================================================= */
+
+.ai-analyzing {
+    position: fixed;
+    inset: 0;
+
+    z-index: 6500;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--black);
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition:
+        opacity .35s ease,
+        visibility .35s ease;
+}
+
+.ai-analyzing.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.ai-analyzing-inner {
+    text-align: center;
+
+    padding: 30px;
+}
+
+/* Uc halka: es zamanli olmayan donus */
+
+.ai-orbit {
+    position: relative;
+
+    width: 76px;
+    height: 76px;
+
+    margin: 0 auto 34px;
+}
+
+.ai-orbit span {
+    position: absolute;
+    inset: 0;
+
+    border: 1px solid transparent;
+    border-radius: 50%;
+}
+
+.ai-orbit span:nth-child(1) {
+    border-top-color: var(--ai);
+    animation: aiSpin 1.1s linear infinite;
+}
+
+.ai-orbit span:nth-child(2) {
+    inset: 11px;
+    border-right-color: rgba(255, 255, 255, .55);
+    animation: aiSpin 1.5s linear infinite reverse;
+}
+
+.ai-orbit span:nth-child(3) {
+    inset: 22px;
+    border-bottom-color: var(--ai);
+    animation: aiSpin .8s linear infinite;
+}
+
+@keyframes aiSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ai-analyzing-text {
+    color: var(--white);
+
+    font-family: var(--serif);
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 400;
+
+    margin-bottom: 26px;
+}
+
+.ai-analyzing-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+
+    min-width: 220px;
+}
+
+.ai-analyzing-steps span {
+    color: #555;
+
+    font-size: 10px;
+    letter-spacing: 1.5px;
+
+    transition: color .3s ease;
+}
+
+.ai-analyzing-steps span::before {
+    content: "○ ";
+    color: #444;
+}
+
+.ai-analyzing-steps span.done {
+    color: var(--ai);
+}
+
+.ai-analyzing-steps span.done::before {
+    content: "● ";
+    color: var(--ai);
+}
+
+
+/* =========================================================
+   KESFET BASLIGINDAKI AI DURUMU
+========================================================= */
+
+.ai-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    margin-top: 18px;
+}
+
+.ai-status-text {
+    color: var(--gray);
+
+    font-size: 11px;
+}
+
+.ai-status-text strong {
+    color: var(--black);
+    font-weight: 600;
+}
+
+.ai-status-change {
+    border: 0;
+    background: transparent;
+
+    padding: 0 0 1px;
+
+    color: var(--gray);
+
+    font-size: 10px;
+
+    border-bottom: 1px solid var(--line);
+
+    transition: .25s ease;
+}
+
+.ai-status-change:hover {
+    color: var(--ai);
+    border-bottom-color: var(--ai);
+}
+
+
+/* =========================================================
+   KART UZERINDEKI AI ETIKETLERI
+========================================================= */
+
+.explore-match {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    padding: 7px 10px;
+
+    background: rgba(17, 17, 17, .88);
+    color: var(--white);
+
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1px;
+
+    /* Kart cizildiginde asagidan yukari belirir */
+    animation: matchIn .5s .12s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.explore-match .ai-dot {
+    background: var(--ai);
+}
+
+@keyframes matchIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Gerekce cipi — resmin altinda, govdenin ustunde */
+
+.explore-reason {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    margin-bottom: 10px;
+
+    padding: 5px 8px;
+
+    background: var(--ai-soft);
+    border-left: 2px solid var(--ai);
+
+    color: #8a7440;
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+}
+
+/* Kesif slotu isareti: durustluk gostergesi.
+   "Bu urunu AI onermedi, deneme amacli gosteriyoruz." */
+
+.explore-explore-tag {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    padding: 6px 9px;
+
+    background: rgba(255, 255, 255, .92);
+
+    color: var(--gray);
+
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+}
+
+
+/* =========================================================
+   TOAST BILDIRIMLERI
+========================================================= */
+
+.toast-stack {
+    position: fixed;
+    bottom: 26px;
+    left: 50%;
+
+    z-index: 7000;
+
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    width: min(420px, calc(100% - 32px));
+
+    transform: translateX(-50%);
+
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+
+    padding: 15px 17px;
+
+    background: var(--black);
+    color: var(--white);
+
+    border-left: 2px solid var(--ai);
+
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .3);
+
+    pointer-events: auto;
+
+    animation: toastIn .4s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.toast.leaving {
+    animation: toastOut .3s ease forwards;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes toastOut {
+    to {
+        opacity: 0;
+        transform: translateY(10px) scale(.98);
+    }
+}
+
+.toast-icon {
+    flex-shrink: 0;
+
+    width: 26px;
+    height: 26px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, .1);
+
+    font-size: 11px;
+}
+
+.toast-body {
+    flex: 1;
+
+    min-width: 0;
+}
+
+.toast-body strong {
+    display: block;
+
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .3px;
+
+    margin-bottom: 4px;
+}
+
+.toast-body span {
+    display: block;
+
+    color: #aaa;
+
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+.toast-close {
+    flex-shrink: 0;
+
+    border: 0;
+    background: transparent;
+
+    color: #666;
+
+    font-size: 12px;
+
+    transition: color .2s ease;
+}
+
+.toast-close:hover {
+    color: var(--white);
+}
+
+/* Tonlar */
+
+.toast.success {
+    border-left-color: #4b9a68;
+}
+
+.toast.success .toast-icon {
+    color: #6fce93;
+}
+
+.toast.neutral {
+    border-left-color: #7a7a7a;
+}
+
+.toast.info {
+    border-left-color: var(--ai);
+}
+
+.toast.error {
+    border-left-color: #d9534f;
+}
+
+
+/* =========================================================
+   AI RESPONSIVE
+========================================================= */
+
+@media (max-width: 900px) {
+
+    .archetype-panel {
+        padding: 46px 26px 32px;
+    }
+
+    .archetype-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .archetype-card {
+        flex-direction: row;
+    }
+
+    .archetype-card-image {
+        flex-shrink: 0;
+
+        width: 120px;
+        aspect-ratio: auto;
+    }
+
+    .archetype-card-body {
+        padding: 16px 18px;
+    }
+
+    .archetype-card-body strong {
+        font-size: 19px;
+    }
+
+    .archetype-card-pick {
+        margin-top: 12px;
+        padding-top: 10px;
+    }
+}
+
+@media (max-width: 520px) {
+
+    .archetype-overlay {
+        padding: 0;
+    }
+
+    .archetype-panel {
+        width: 100%;
+        min-height: 100vh;
+        max-height: 100vh;
+
+        border: 0;
+    }
+
+    .archetype-head h2 {
+        font-size: 30px;
+    }
+
+    .toast-stack {
+        bottom: 16px;
+    }
+
+    .explore-match {
+        font-size: 7px;
+        padding: 6px 8px;
+    }
+}
+
+
+/* Hareket azaltma tercihine saygi */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .ai-dot,
+    .ai-orbit span,
+    .explore-match,
+    .toast {
+        animation: none !important;
+    }
+
+    .archetype-card-image::after {
+        display: none;
+    }
+}
+
+
+/* =========================================================
+   COK SECIMLI TARZ SECIMI  (8 arketip)
+========================================================= */
+
+/* Panel daha genis: 8 kart iki satira sigsin */
+
+.archetype-panel {
+    width: min(1180px, 100%);
+}
+
+.archetype-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+/* Kart daha kompakt: 8 kart ekrana sigmali */
+
+.archetype-card-image {
+    aspect-ratio: 1 / 1;
+}
+
+.archetype-card-body {
+    padding: 14px 15px 16px;
+}
+
+.archetype-card-body strong {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    font-size: 16px;
+    line-height: 1.25;
+
+    margin-bottom: 4px;
+}
+
+.archetype-emoji {
+    font-size: 17px;
+    line-height: 1;
+}
+
+.archetype-card-tagline {
+    font-size: 8px;
+    letter-spacing: 1.5px;
+
+    margin-bottom: 8px;
+}
+
+.archetype-card-body p {
+    font-size: 10px;
+    line-height: 1.65;
+}
+
+
+/* Havuz sayisi — gercek veri, sus degil */
+
+.archetype-pool {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    margin-top: 12px;
+    padding-top: 10px;
+
+    border-top: 1px solid var(--line);
+
+    color: var(--light-gray);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+}
+
+.archetype-pool.thin {
+    color: #b08948;
+}
+
+
+/* Secim gostergesi: sag ustte sira numarasi */
+
+.archetype-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+
+    width: 26px;
+    height: 26px;
+
+    display: grid;
+    place-items: center;
+
+    border: 1px solid rgba(255, 255, 255, .75);
+    border-radius: 50%;
+
+    background: rgba(17, 17, 17, .35);
+
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+
+    color: var(--white);
+
+    font-size: 10px;
+    font-weight: 700;
+
+    opacity: 0;
+    transform: scale(.6);
+
+    transition:
+        opacity .25s ease,
+        transform .3s cubic-bezier(.2, .9, .3, 1.4),
+        background .25s ease;
+}
+
+.archetype-card.chosen .archetype-check {
+    opacity: 1;
+    transform: scale(1);
+
+    background: var(--ai);
+    border-color: var(--ai);
+}
+
+.archetype-card.chosen {
+    border-color: var(--ai);
+    box-shadow: 0 0 0 2px var(--ai-soft);
+}
+
+/* Ust sinira ulasildiginda secilmeyenler soluklasir */
+
+.archetype-grid.at-limit .archetype-card:not(.chosen) {
+    opacity: .45;
+}
+
+.archetype-grid.at-limit .archetype-card:not(.chosen):hover {
+    opacity: .7;
+    transform: none;
+    box-shadow: none;
+    border-color: var(--line);
+}
+
+
+/* Uyari ve alt satir */
+
+.archetype-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    margin-top: 22px;
+    padding: 13px 16px;
+
+    background: rgba(182, 155, 98, .1);
+    border-left: 2px solid var(--ai);
+
+    color: #8a7440;
+
+    font-size: 11px;
+    line-height: 1.7;
+}
+
+.archetype-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+
+    margin-top: 26px;
+    padding-top: 22px;
+
+    border-top: 1px solid var(--line);
+}
+
+.archetype-counter {
+    color: var(--gray);
+
+    font-size: 11px;
+}
+
+.archetype-counter strong {
+    color: var(--black);
+}
+
+.archetype-confirm {
+    width: auto;
+    min-width: 210px;
+
+    margin: 0;
+}
+
+
+/* =========================================================
+   GLASSMORPHIC AI BADGE
+   ---------------------------------------------------------
+   Cam efekti: yarı saydam zemin + blur + ince parlak kenar.
+   Neon his, kart gorselinin uzerinde okunabilir kalsin diye
+   koyu zeminle dengelendi.
+========================================================= */
+
+.explore-match {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    padding: 8px 11px;
+
+    /* Cam */
+    background: rgba(20, 18, 14, .55);
+
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+
+    border: 1px solid rgba(255, 255, 255, .22);
+
+    color: var(--white);
+
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+
+    /* Neon parlama */
+    box-shadow:
+        0 0 0 1px rgba(182, 155, 98, .35),
+        0 0 18px rgba(182, 155, 98, .3),
+        0 8px 24px rgba(0, 0, 0, .3);
+
+    overflow: hidden;
+
+    animation: matchIn .5s .12s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+/* Uzerinden gecen isik hüzmesi */
+
+.explore-match::after {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    background: linear-gradient(
+        105deg,
+        transparent 30%,
+        rgba(255, 255, 255, .35) 50%,
+        transparent 70%
+    );
+
+    transform: translateX(-120%);
+
+    animation: matchSheen 4.5s 1.2s ease-in-out infinite;
+}
+
+@keyframes matchSheen {
+    0%   { transform: translateX(-120%); }
+    35%  { transform: translateX(120%); }
+    100% { transform: translateX(120%); }
+}
+
+.explore-match .ai-dot {
+    background: var(--ai);
+
+    box-shadow: 0 0 8px var(--ai);
+}
+
+/* Yuksek uyum (>=90) daha guclu parlama */
+
+.explore-match.high {
+    box-shadow:
+        0 0 0 1px rgba(182, 155, 98, .6),
+        0 0 26px rgba(182, 155, 98, .45),
+        0 8px 24px rgba(0, 0, 0, .35);
+}
+
+
+/* Kesif etiketi de cam, ama sakin */
+
+.explore-explore-tag {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    padding: 7px 10px;
+
+    background: rgba(255, 255, 255, .68);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    border: 1px solid rgba(255, 255, 255, .8);
+
+    color: var(--gray);
+
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+}
+
+
+/* =========================================================
+   AI GEREKCE CUMLESI
+   ---------------------------------------------------------
+   Artik kisa bir cip degil, tam cumle. Iki satira kadar
+   yer ayrildi ki kartlar ayni yukseklikte kalsin.
+========================================================= */
+
+.explore-reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+
+    margin-bottom: 11px;
+    padding: 8px 10px;
+
+    background: var(--ai-soft);
+    border-left: 2px solid var(--ai);
+
+    color: #7d6838;
+
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1.6;
+    letter-spacing: .2px;
+
+    min-height: 42px;
+}
+
+.explore-reason i {
+    flex-shrink: 0;
+
+    margin-top: 1px;
+
+    color: var(--ai);
+    font-size: 9px;
+}
+
+/* Kesif kartinin gerekcesi notr renkte */
+
+.explore-card[data-exploration="1"] .explore-reason {
+    background: var(--cream);
+    border-left-color: var(--light-gray);
+
+    color: var(--gray);
+}
+
+
+/* =========================================================
+   KART ANIMASYONLARI
+   ---------------------------------------------------------
+   Framer Motion'un vanilla karsiligi:
+     - kademeli giris (stagger)  -> animation-delay
+     - layout gecisi             -> transition
+     - cikis (exit)              -> .dismissing
+========================================================= */
+
+.explore-card {
+    /* Giris animasyonu JS'ten gelen --stagger ile gecikir */
+    animation: exploreIn .5s cubic-bezier(.16, 1, .3, 1) both;
+    animation-delay: var(--stagger, 0ms);
+}
+
+@keyframes exploreIn {
+    from {
+        opacity: 0;
+        transform: translateY(22px) scale(.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/*
+   "Begenmedim" cikisi: kart hafifce donerek yukari sola
+   ucuyor. Yumusak ama fark edilir; kullanici kartin
+   silindigini anlamali.
+*/
+
+.explore-card.dismissing {
+    animation: exploreFlyOut .42s cubic-bezier(.4, 0, .7, .2) forwards;
+
+    pointer-events: none;
+}
+
+@keyframes exploreFlyOut {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0) scale(1);
+    }
+    35% {
+        opacity: .85;
+        transform: translate(-6px, -6px) rotate(-2deg) scale(.99);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-70px, -50px) rotate(-11deg) scale(.82);
+    }
+}
+
+/* Kalp basildiginda kart kenari parlar */
+
+.explore-card.just-liked {
+    animation: likedPulse .6s ease-out;
+}
+
+@keyframes likedPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(192, 57, 43, .5); }
+    100% { box-shadow: 0 0 0 14px rgba(192, 57, 43, 0); }
+}
+
+
+/* Kirik kalp: begenmedim ikonu */
+
+.explore-action-dislike i {
+    transition: transform .25s ease;
+}
+
+.explore-action-dislike:hover i {
+    transform: rotate(-12deg) scale(1.1);
+}
+
+
+/* =========================================================
+   SONSUZ AKIS
+========================================================= */
+
+.feed-sentinel {
+    width: 100%;
+    height: 1px;
+
+    /* Ekranin altina gelmeden once tetiklenmesi icin
+       yukari dogru genisletilmis gorunmez alan */
+    margin-top: -320px;
+    padding-top: 320px;
+
+    pointer-events: none;
+}
+
+.feed-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+
+    padding: 46px 20px 10px;
+}
+
+.feed-more-spinner {
+    display: none;
+}
+
+.feed-more.loading .feed-more-spinner {
+    display: block;
+}
+
+.feed-more.loading .feed-more-btn {
+    display: none;
+}
+
+.feed-more-btn {
+    padding: 15px 30px;
+
+    border: 1px solid var(--black);
+    background: transparent;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    transition: .3s ease;
+}
+
+.feed-more-btn:hover {
+    background: var(--black);
+    color: var(--white);
+}
+
+.feed-more-end {
+    color: var(--light-gray);
+
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+/* Yeni parti geldiginde ürün ızgarasına kademeli giriş */
+
+.products-grid .product-card {
+    animation: exploreIn .45s cubic-bezier(.16, 1, .3, 1) both;
+    animation-delay: var(--stagger, 0ms);
+}
+
+
+/* =========================================================
+   TOAST — SAG ALT
+========================================================= */
+
+.toast-stack {
+    left: auto;
+    right: 26px;
+    bottom: 26px;
+
+    transform: none;
+
+    width: min(390px, calc(100% - 32px));
+
+    align-items: flex-end;
+}
+
+.toast {
+    width: 100%;
+
+    animation: toastInRight .42s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@keyframes toastInRight {
+    from {
+        opacity: 0;
+        transform: translateX(40px) scale(.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.toast.leaving {
+    animation: toastOutRight .3s ease forwards;
+}
+
+@keyframes toastOutRight {
+    to {
+        opacity: 0;
+        transform: translateX(30px) scale(.97);
+    }
+}
+
+
+/* =========================================================
+   AI DURUM CIPI: cok tarz
+========================================================= */
+
+.ai-status-styles {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.ai-status-style {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    padding: 3px 7px;
+
+    background: var(--ai-soft);
+    border: 1px solid var(--ai-line);
+
+    color: #7d6838;
+
+    font-size: 9px;
+    font-weight: 600;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 1100px) {
+
+    .archetype-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+
+    .archetype-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* 8 kartta yatay liste gorunumu mobilde daha rahat */
+    .archetype-card {
+        flex-direction: row;
+    }
+
+    .archetype-card-image {
+        width: 96px;
+        aspect-ratio: auto;
+    }
+
+    .archetype-check {
+        top: 8px;
+        right: 8px;
+
+        width: 22px;
+        height: 22px;
+
+        font-size: 9px;
+    }
+
+    .archetype-footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    .archetype-confirm {
+        width: 100%;
+    }
+
+    .archetype-counter {
+        text-align: center;
+    }
+}
+
+@media (max-width: 520px) {
+
+    .archetype-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .toast-stack {
+        right: 12px;
+        bottom: 12px;
+
+        width: calc(100% - 24px);
+    }
+
+    .explore-reason {
+        font-size: 8px;
+        min-height: 38px;
+    }
+}
+
+
+/* Hareket azaltma tercihine saygi */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .explore-match::after,
+    .explore-card,
+    .products-grid .product-card,
+    .toast,
+    .explore-card.just-liked {
+        animation: none !important;
+    }
+
+    .explore-card.dismissing {
+        animation: none !important;
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+}
+
+
+/* =========================================================
+   LUCIDE IKONLARI
+   ---------------------------------------------------------
+   Lucide bir React kutuphanesi; vanilla tarafta SVG'leri
+   satir ici basiyoruz (JS icindeki LUCIDE sozlugu).
+   Cizgi kalinligi ve boyut buradan kontrol ediliyor.
+
+   Sitenin geri kalani Font Awesome kullanmaya devam ediyor;
+   yalnizca etkilesim ikonlari Lucide'a gecti cunku
+   istenen ThumbsDown ikonu Lucide'da.
+========================================================= */
+
+[data-icon] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    flex-shrink: 0;
+
+    line-height: 0;
+}
+
+[data-icon] svg {
+    width: 1em;
+    height: 1em;
+
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    fill: none;
+}
+
+/* Dolu kalp */
+
+[data-icon="heart-filled"] svg {
+    fill: currentColor;
+}
+
+
+/* =========================================================
+   TEK EKRAN HIZLI SATIN ALMA
+========================================================= */
+
+.quick-panel {
+    position: relative;
+
+    width: min(560px, 100%);
+    max-height: calc(100vh - 60px);
+
+    overflow-y: auto;
+
+    background: var(--white);
+    border: 1px solid var(--line);
+
+    box-shadow: 0 40px 100px rgba(0, 0, 0, .28);
+
+    transform: translateY(20px);
+    opacity: 0;
+
+    transition:
+        transform .38s cubic-bezier(.2, .7, .2, 1),
+        opacity .3s ease;
+}
+
+.checkout-overlay.open .quick-panel {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.quick-panel::before {
+    content: "";
+
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 2px;
+
+    background: var(--ai);
+}
+
+.checkout-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+
+    z-index: 2;
+
+    width: 34px;
+    height: 34px;
+
+    display: grid;
+    place-items: center;
+
+    border: 1px solid var(--line);
+    background: var(--white);
+
+    font-size: 15px;
+
+    transition: .25s ease;
+}
+
+.checkout-close:hover {
+    background: var(--black);
+    border-color: var(--black);
+    color: var(--white);
+}
+
+.quick-body {
+    padding: 38px 34px 34px;
+}
+
+.quick-head {
+    margin-bottom: 24px;
+}
+
+.quick-head h2 {
+    margin-top: 12px;
+
+    font-family: var(--serif);
+
+    font-size: 32px;
+    font-weight: 400;
+    line-height: 1.1;
+}
+
+.quick-head h2 em {
+    font-style: italic;
+    color: var(--gray);
+}
+
+
+/* Ürün özeti */
+
+.quick-product {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+
+    padding: 14px;
+
+    margin-bottom: 24px;
+
+    background: var(--cream);
+    border-left: 2px solid var(--ai);
+}
+
+.quick-product img {
+    flex-shrink: 0;
+
+    width: 62px;
+    height: 78px;
+
+    object-fit: cover;
+
+    background: var(--soft);
+}
+
+.quick-product-info {
+    flex: 1;
+
+    min-width: 0;
+}
+
+.quick-product-info strong {
+    display: block;
+
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.5;
+
+    margin-bottom: 6px;
+}
+
+.quick-product-price {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.quick-product-price .old-price {
+    font-size: 11px;
+}
+
+.quick-product-match {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    margin-top: 8px;
+
+    color: var(--ai);
+
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+}
+
+
+/* Bölümler */
+
+.quick-form {
+    gap: 16px;
+}
+
+.quick-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    padding-top: 16px;
+
+    border-top: 1px solid var(--line);
+}
+
+.quick-section-label {
+    color: var(--gray);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+}
+
+.quick-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    margin-top: 4px;
+
+    font-size: 10px;
+}
+
+.quick-submit [data-icon] {
+    font-size: 14px;
+}
+
+.checkout-secure {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+
+    color: var(--light-gray);
+
+    font-size: 9px;
+    letter-spacing: .4px;
+
+    text-align: center;
+}
+
+
+/* Onay */
+
+.quick-success {
+    padding: 54px 34px 40px;
+
+    text-align: center;
+}
+
+.success-mark {
+    width: 60px;
+    height: 60px;
+
+    margin: 0 auto 24px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+
+    background: var(--black);
+    color: var(--white);
+
+    font-size: 24px;
+
+    animation: successPop .45s cubic-bezier(.2, .9, .3, 1.3);
+}
+
+@keyframes successPop {
+    from { transform: scale(.5); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+}
+
+.quick-success h3 {
+    font-family: var(--serif);
+
+    font-size: 30px;
+    font-weight: 400;
+
+    margin-bottom: 14px;
+}
+
+.quick-success > p {
+    max-width: 360px;
+
+    margin: 0 auto 28px;
+
+    color: var(--gray);
+
+    font-size: 11px;
+    line-height: 1.9;
+}
+
+.quick-success > p strong {
+    color: var(--black);
+    letter-spacing: 1px;
+}
+
+.quick-success .auth-main-btn {
+    max-width: 280px;
+    margin: 0 auto;
+}
+
+
+/* =========================================================
+   WISHLIST ODAKLI ALT BAR
+========================================================= */
+
+.wishlist-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+
+    z-index: 2400;
+
+    display: flex;
+    align-items: stretch;
+
+    width: min(440px, calc(100% - 32px));
+
+    background: var(--black);
+    color: var(--white);
+
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
+
+    transform: translateX(-50%) translateY(0);
+
+    transition:
+        transform .4s cubic-bezier(.2, .8, .2, 1),
+        opacity .3s ease;
+}
+
+.wishlist-bar.hidden {
+    /* display:none yerine kaydirarak gizle: geri geldiginde
+       animasyon oynayabilsin */
+    display: flex !important;
+
+    opacity: 0;
+    pointer-events: none;
+
+    transform: translateX(-50%) translateY(130%);
+}
+
+.wishlist-bar-main {
+    flex: 1;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 12px 14px;
+
+    border: 0;
+    background: transparent;
+    color: inherit;
+
+    text-align: left;
+
+    min-width: 0;
+}
+
+.wishlist-bar-main:hover {
+    background: rgba(255, 255, 255, .06);
+}
+
+.wishlist-bar-thumbs {
+    display: flex;
+
+    flex-shrink: 0;
+}
+
+.wishlist-bar-thumbs img {
+    width: 34px;
+    height: 42px;
+
+    object-fit: cover;
+
+    border: 1px solid rgba(255, 255, 255, .25);
+
+    background: #222;
+}
+
+/* Üst üste binen küçük görseller */
+
+.wishlist-bar-thumbs img + img {
+    margin-left: -14px;
+}
+
+.wishlist-bar-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    min-width: 0;
+}
+
+.wishlist-bar-text strong {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .4px;
+}
+
+.wishlist-bar-text small {
+    color: #999;
+
+    font-size: 9px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wishlist-bar-buy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 12px 18px;
+
+    border: 0;
+    border-left: 1px solid rgba(255, 255, 255, .16);
+
+    background: var(--ai);
+    color: var(--white);
+
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+
+    transition: background .25s ease;
+}
+
+.wishlist-bar-buy:hover {
+    background: #c9ab6c;
+}
+
+.wishlist-bar-buy [data-icon] {
+    font-size: 13px;
+}
+
+
+/* =========================================================
+   KART AKSIYONLARI  (sepetsiz)
+========================================================= */
+
+/* Ürün ızgarasındaki kartta kalp + hızlı al */
+
+.card-actions {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 7px;
+
+    margin-top: 13px;
+}
+
+.card-heart {
+    width: 40px;
+
+    display: grid;
+    place-items: center;
+
+    border: 1px solid var(--line);
+    background: transparent;
+
+    color: var(--gray);
+
+    font-size: 15px;
+
+    transition: .25s ease;
+}
+
+.card-heart:hover {
+    border-color: var(--like);
+    color: var(--like);
+}
+
+.card-heart.active {
+    border-color: var(--like);
+    background: var(--like-soft);
+    color: var(--like);
+}
+
+.card-quick-buy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+
+    padding: 11px;
+
+    border: 1px solid var(--black);
+    background: transparent;
+    color: var(--black);
+
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1.8px;
+
+    transition: .25s ease;
+}
+
+.card-quick-buy:hover {
+    background: var(--black);
+    color: var(--white);
+}
+
+.card-quick-buy [data-icon] {
+    font-size: 12px;
+}
+
+.card-quick-buy[disabled] {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+
+/* Ürün detayındaki hızlı al */
+
+.modal-quick-buy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    width: 100%;
+
+    margin-top: 20px;
+    padding: 17px;
+
+    border: 0;
+    background: var(--black);
+    color: var(--white);
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+
+    transition: background .3s ease;
+}
+
+.modal-quick-buy:hover {
+    background: var(--ai);
+}
+
+.modal-quick-buy [data-icon] {
+    font-size: 14px;
+}
+
+.modal-quick-buy[disabled] {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+
+/* =========================================================
+   BEĞENMEDİM: SOLA KAYARAK ÇIKIŞ
+   ---------------------------------------------------------
+   Onceki surumde kart yukari sola ucuyordu. Istenen
+   davranis duz sola kayma (swipe-left).
+========================================================= */
+
+.explore-card.dismissing {
+    animation: swipeLeftOut .4s cubic-bezier(.4, 0, .6, .2) forwards;
+
+    pointer-events: none;
+}
+
+@keyframes swipeLeftOut {
+    0% {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+    30% {
+        opacity: .9;
+        transform: translateX(-18px) scale(.995);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(-110%) scale(.94);
+    }
+}
+
+/* Geri alindiginda soldan tekrar iceri kaysin */
+
+.explore-card.restoring {
+    animation: swipeLeftBack .45s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@keyframes swipeLeftBack {
+    from {
+        opacity: 0;
+        transform: translateX(-70%) scale(.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+/* Başparmak aşağı ikonu */
+
+.explore-action-dislike [data-icon] {
+    font-size: 14px;
+
+    transition: transform .25s ease;
+}
+
+.explore-action-dislike:hover [data-icon] {
+    transform: translateY(2px) rotate(-8deg);
+}
+
+.explore-action-like [data-icon] {
+    font-size: 14px;
+}
+
+
+/* =========================================================
+   GERİ AL TOAST'I
+========================================================= */
+
+.toast-undo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    flex-shrink: 0;
+
+    margin-left: 4px;
+    padding: 7px 11px;
+
+    border: 1px solid rgba(255, 255, 255, .3);
+    background: transparent;
+
+    color: var(--white);
+
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+
+    transition: .25s ease;
+}
+
+.toast-undo:hover {
+    background: var(--white);
+    color: var(--black);
+    border-color: var(--white);
+}
+
+.toast-undo [data-icon] {
+    font-size: 12px;
+}
+
+/* Geri alma penceresi: kalan sureyi gosteren ince cizgi */
+
+.toast-timer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+
+    height: 2px;
+
+    background: var(--ai);
+
+    animation: toastTimer linear forwards;
+}
+
+@keyframes toastTimer {
+    from { width: 100%; }
+    to   { width: 0%; }
+}
+
+.toast {
+    position: relative;
+    overflow: hidden;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 640px) {
+
+    .quick-body {
+        padding: 34px 20px 26px;
+    }
+
+    .quick-head h2 {
+        font-size: 26px;
+    }
+
+    .quick-success {
+        padding: 46px 20px 32px;
+    }
+
+    .field-row {
+        grid-template-columns: 1fr;
+    }
+
+    .wishlist-bar {
+        bottom: 12px;
+
+        width: calc(100% - 20px);
+    }
+
+    .wishlist-bar-buy-text {
+        display: none;
+    }
+
+    .wishlist-bar-buy {
+        padding: 12px 16px;
+    }
+
+    /* Alt bar toast'lari kapatmasin */
+    .toast-stack {
+        bottom: 84px;
+    }
+}
+
+@media (max-width: 520px) {
+
+    .checkout-overlay {
+        padding: 0;
+    }
+
+    .quick-panel {
+        width: 100%;
+        min-height: 100vh;
+        max-height: 100vh;
+
+        border: 0;
+    }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+
+    .explore-card.dismissing,
+    .explore-card.restoring,
+    .success-mark {
+        animation: none !important;
+    }
+
+    .explore-card.dismissing {
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+
+    .toast-timer {
+        display: none;
     }
 }

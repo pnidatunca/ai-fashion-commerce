@@ -1,0 +1,363 @@
+// =========================================================
+// AURA — PRISMA SEMASI
+// =========================================================
+//
+// Bu dosya calisan sistemin PORTUDUR, kaynagi degildir.
+// Uretimdeki sema: backend/app/models.py (SQLAlchemy).
+// Node/Prisma tarafina tasinacaksa dogrudan bu dosya
+// kullanilabilir; alan adlari ve kisitlar birebir aynidir.
+//
+// Kurulum:
+//   npx prisma init
+//   (bu dosyayi prisma/schema.prisma olarak koy)
+//   npx prisma migrate dev --name ai_layer
+//
+// Not: SQLAlchemy tarafinda CHECK kisiti kullaniyoruz;
+// Prisma'da enum daha temiz oldugu icin enum'a cevrildi.
+// Postgres'te enum, CHECK'ten daha kati: gecersiz deger
+// veritabanina hic giremez.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+// =========================================================
+// ENUM'LAR
+// =========================================================
+
+enum InteractionType {
+  VIEW           // urun kullaniciya gosterildi        w=+0.1
+  LIKE           // kalp — wishlist'e eklendi           w=+1.0
+  UNLIKE         // wishlist'ten cikarildi              w=-0.3
+  DISLIKE        // basparmak asagi — bir daha yok      w=-1.0
+  QUICK_BUY      // tek tikla satin alma               w=+2.0
+  INITIAL_STYLE  // tarz secimi (urune bagli degil)     w= 0.0
+}
+
+/// 8 arketip. Moda veri setlerindeki (DeepFashion,
+/// Fashion-MNIST etiketleri) yaygin stil kumelerinden
+/// derlendi.
+///
+/// DIKKAT: katalog kapsami cok dengesiz. Uretimdeki
+/// olcumde athleisure ~87 urun badge esigini geciyor,
+/// y2k ~0. Bu sayilari product_style_scores tablosundan
+/// okuyup kullaniciya SECIM ANINDA gostermek gerekiyor;
+/// aksi halde bos bir akisla karsilasir.
+enum StyleArchetype {
+  minimalist    // Minimalist & Basic
+  streetwear    // Streetwear & Urban
+  smart_casual  // Smart Casual & Office
+  old_money     // Old Money & Elegant
+  boho          // Boho & Vintage
+  athleisure    // Athleisure & Sporty
+  goth          // Goth & Dark Academia
+  y2k           // Y2K & Trendy
+}
+
+
+// =========================================================
+// KATALOG
+// =========================================================
+
+model Product {
+  productId   String  @id @map("product_id")   // Amazon ASIN
+
+  title       String
+  titleTr     String? @map("title_tr")
+
+  brand       String?
+  category    String?
+
+  description   String? @db.Text
+  descriptionTr String? @map("description_tr") @db.Text
+
+  features   String? @db.Text
+  featuresTr String? @map("features_tr") @db.Text
+
+  availability String?
+  productUrl   String? @map("product_url")
+
+  price           Float?
+  listPrice       Float? @map("list_price")
+  discountPercent Int?   @map("discount_percent")
+
+  rating      Float?
+  ratingCount Int?   @map("rating_count")
+
+  imageUrl String? @map("image_url")
+
+  // Semantic search icin birlesik metin
+  searchText String? @map("search_text") @db.Text
+
+  reviews      Review[]
+  interactions UserInteraction[]
+  wishlisted   WishlistItem[]
+  styleScores  ProductStyleScore[]
+
+  @@map("products")
+}
+
+
+model Review {
+  reviewId String @id @map("review_id")
+
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  rating       Float?
+  helpfulVotes Int?   @default(0) @map("helpful_votes")
+
+  verifiedPurchase Boolean? @default(false) @map("verified_purchase")
+
+  reviewTitle String? @map("review_title") @db.Text
+  reviewText  String? @map("review_text")  @db.Text
+
+  sourceCleanedReviewText String? @map("source_cleaned_review_text") @db.Text
+
+  sentimentScore Float? @map("sentiment_score")
+
+  @@index([productId])
+  @@map("reviews")
+}
+
+
+// =========================================================
+// KULLANICI
+// =========================================================
+
+model User {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firstName String @map("first_name")
+  lastName  String @map("last_name")
+
+  email String @unique
+
+  gender String?
+  age    Int?
+
+  // DIKKAT: bcrypt hash. Duz sifre asla saklanmaz.
+  passwordHash String @map("password_hash")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  interactions UserInteraction[]
+  wishlist     WishlistItem[]
+  preference   UserPreference?
+
+  @@map("users")
+}
+
+
+// =========================================================
+// ETKILESIM KAYDI  (ML EGITIM VERISI)
+// =========================================================
+
+/// Append-only olay kaydi.
+///
+/// Bu tablo GUNCELLENMEZ ve SILINMEZ. Recommendation /
+/// Collaborative Filtering modelinin egitim verisi budur;
+/// gecmisin bozulmamasi kritiktir.
+///
+/// Anlik durum ("bu urun su anda favorilerimde mi") buradan
+/// TURETILMEZ — onun icin WishlistItem var.
+model UserInteraction {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// INITIAL_STYLE olaylari bir urune bagli degildir.
+  /// Diger turlerde zorunlu — uygulama katmaninda kontrol
+  /// edilir (Prisma'da kosullu NOT NULL yok; Postgres
+  /// tarafina CHECK eklemek icin migration'a manuel
+  /// SQL yazilabilir).
+  productId String?  @map("product_id")
+  product   Product? @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  interactionType InteractionType @map("interaction_type")
+
+  /// Nerede olustu: explore | detail | grid | wishlist | featured
+  /// Modelde baglam ozelligi olarak kullanilir.
+  source String?
+
+  /// Feed'de kacinci karttı. Position bias duzeltmesi icin.
+  position Int?
+
+  /// Etkilesim aninda kullaniciya GOSTERILEN AI skoru.
+  ///
+  /// ML icin kritik: model "kullanici neyi begendi" degil
+  /// "X skoruyla gosterilen seyi begendi mi" sorusunu
+  /// ogrenmeli. Bu alan olmadan sistemin kendi onerisinin
+  /// etkisi (feedback loop) olculemez.
+  matchScore Float? @map("match_score")
+
+  /// Etkilesim anindaki BIRINCIL arketip.
+  styleArchetype StyleArchetype? @map("style_archetype")
+
+  /// Etkilesim anindaki BUTUN secili tarzlar (1-3).
+  ///
+  /// Json cunku Prisma'da enum dizisi native Postgres enum
+  /// array'i gerektiriyor ve migration'i zorlastiriyor.
+  selectedStyles Json? @map("selected_styles")
+
+  /// Olay anindaki ML agirligi.
+  ///
+  /// Neden satirda saklaniyor: agirlik esleme tablosu
+  /// zamanla degisir. Satirin uzerinde o an kullanilan
+  /// agirlik yazili olmazsa, alti ay sonra egitim verisini
+  /// yeniden cikarttiginda gecmis olaylara BUGUNUN
+  /// agirliklari uygulanir ve model farkli bir gecmis
+  /// ogrenir.
+  weight Float @default(0)
+
+  /// Alan adi olarak "timestamp" degil createdAt:
+  /// timestamp SQL'de tip adidir, karisiklik yaratir.
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Feed'in DISLIKE haric tutma sorgusu
+  @@index([userId, interactionType])
+
+  // Kronolojik egitim verisi cikarimi
+  @@index([userId, createdAt])
+
+  // Kullanici-urun cifti gecmisi
+  @@index([userId, productId])
+
+  @@index([productId])
+  @@index([createdAt])
+
+  @@map("user_interactions")
+}
+
+
+// =========================================================
+// WISHLIST  (ANLIK DURUM)
+// =========================================================
+
+model WishlistItem {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  /// Ayni urunun iki kez eklenmesini VERITABANI seviyesinde
+  /// engeller. Uygulama katmanindaki kontrol yarisa (race)
+  /// karsi yeterli degildir: iki sekmeden ayni anda kalp
+  /// basilabilir.
+  @@unique([userId, productId], map: "uq_wishlist_user_product")
+  @@index([userId])
+  @@index([productId])
+  @@map("wishlist_items")
+}
+
+
+// =========================================================
+// KULLANICI TERCIHLERI  (TURETILMIS PROFIL)
+// =========================================================
+
+/// Uzun vadeli zevk profili.
+///
+/// UserInteraction olay akisi; bu model o akistan
+/// turetilmis OZET. Her feed istegi icin butun gecmisi
+/// yeniden okumak yerine burasi okunur.
+model UserPreference {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @unique @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// BIRINCIL tarz: selectedStyles listesinin ilki.
+  styleArchetype StyleArchetype? @map("style_archetype")
+
+  /// Kullanicinin sectigi butun tarzlar, SIRALI.
+  ///
+  /// Postgres tarafinda uzunluk kisiti var:
+  ///   CHECK (jsonb_array_length(selected_styles) BETWEEN 1 AND 3)
+  /// Prisma bunu ifade edemiyor; migration'a elle eklenmeli.
+  selectedStyles Json? @map("selected_styles")
+
+  archetypeSelectedAt DateTime? @map("archetype_selected_at")
+
+  /// Arketibi kac kez degistirdi. Sik degistiren
+  /// kullanicida arketip sinyaline daha az guvenilir.
+  archetypeChangeCount Int @default(0) @map("archetype_change_count")
+
+  /// LIKE gecmisinden turetilen agirlikli ozetler.
+  /// Ornek: { "nike": 3.2, "levis": 1.0 }
+  /// Yeni begeniler daha agir (recency weighting).
+  topBrands     Json? @map("top_brands")
+  topCategories Json? @map("top_categories")
+  topColors     Json? @map("top_colors")
+
+  /// BEGENILMEYEN marka ve kategoriler.
+  ///
+  /// "Bu urun ve benzer kategorideki urunler negatif agirlik
+  /// kazanir" kurali icin. Urunun KENDISI kara listede
+  /// (kalici); ayni kategorideki diger urunler yalnizca
+  /// skor kaybediyor. Kategoriyi tamamen dislamak akisi
+  /// hizla bosaltirdi.
+  avoidBrands     Json? @map("avoid_brands")
+  avoidCategories Json? @map("avoid_categories")
+
+  /// Begenilen urunlerin medyan fiyati (USD)
+  medianPrice Float? @map("median_price")
+
+  likeCount    Int @default(0) @map("like_count")
+  dislikeCount Int @default(0) @map("dislike_count")
+
+  profileComputedAt DateTime? @map("profile_computed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("user_preferences")
+}
+
+
+// =========================================================
+// STIL SKORLARI  (MODEL CIKTISI)
+// =========================================================
+
+/// Arketip x urun temel skoru — ONCEDEN hesaplanir.
+///
+/// Modelin "egitilmis agirliklari" gibidir:
+/// scripts/09_compute_style_scores.py doldurur, feed
+/// sorgusu sadece JOIN + ORDER BY yapar.
+///
+/// Neden onceden: skor metin analizine dayaniyor. Her
+/// istekte 700 urunun metnini islemek hem yavas olurdu
+/// hem de SQL tarafinda ORDER BY yapilamayacagi icin
+/// sayfalama bozulurdu.
+model ProductStyleScore {
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  archetype StyleArchetype
+
+  /// 0-100
+  score Float
+
+  /// ["color:bej", "style:minimalist", "price:band"]
+  reasons Json?
+
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  @@id([productId, archetype])
+
+  /// Feed'in sicak yolu: WHERE archetype = ? ORDER BY score DESC
+  @@index([archetype, score])
+
+  @@map("product_style_scores")
+}
