@@ -4,6 +4,9 @@ Keşfet ve Wishlist'in temel veri mimarisi için
 [EXPLORE_AND_RECOMMENDATIONS.md](EXPLORE_AND_RECOMMENDATIONS.md).
 Bu belge onun üstündeki AI katmanını anlatır.
 
+Arama kutusundaki doğal dil işleme ayrı bir katman:
+[AI_SEARCH.md](AI_SEARCH.md).
+
 ---
 
 ## 1. Bu "AI" tam olarak nedir

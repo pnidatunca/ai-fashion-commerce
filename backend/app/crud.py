@@ -121,10 +121,22 @@ def get_products(
             )
 
         elif category == "jacket":
+
+            # "%Coats%" deseni "Suits & Sport Coats" ile de
+            # esliyordu: dis giyim filtresi takim elbise
+            # donduruyordu. Desen artik DAL ADINA bagli.
+            #
+            # Olculmus hali:
+            #   "%› Jackets & Coats%"  -> 33 urun
+            #   "%Outerwear%"           -> 7 urun
+            #   "%Coats%" (eski)        -> 44 urun (11'i takim)
+            #
+            # Ayni desenler search_service._CATEGORY_PATTERNS
+            # icinde de var; oradaki liste kaynaktir.
             statement = statement.where(
                 or_(
-                    Product.category.ilike("%Jackets%"),
-                    Product.category.ilike("%Coats%"),
+                    Product.category.ilike("%› Jackets & Coats%"),
+                    Product.category.ilike("%Outerwear%"),
                 )
             )
 
@@ -349,10 +361,22 @@ def semantic_search_products(
             )
 
         elif category == "jacket":
+
+            # "%Coats%" deseni "Suits & Sport Coats" ile de
+            # esliyordu: dis giyim filtresi takim elbise
+            # donduruyordu. Desen artik DAL ADINA bagli.
+            #
+            # Olculmus hali:
+            #   "%› Jackets & Coats%"  -> 33 urun
+            #   "%Outerwear%"           -> 7 urun
+            #   "%Coats%" (eski)        -> 44 urun (11'i takim)
+            #
+            # Ayni desenler search_service._CATEGORY_PATTERNS
+            # icinde de var; oradaki liste kaynaktir.
             statement = statement.where(
                 or_(
-                    Product.category.ilike("%Jackets%"),
-                    Product.category.ilike("%Coats%"),
+                    Product.category.ilike("%› Jackets & Coats%"),
+                    Product.category.ilike("%Outerwear%"),
                 )
             )
 

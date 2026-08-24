@@ -17,7 +17,15 @@ from passlib.context import CryptContext
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app import crud, feed, schemas, style_customize, style_engine
+from app import (
+    crud,
+    feed,
+    query_engine,
+    schemas,
+    search_service,
+    style_customize,
+    style_engine,
+)
 from app.database import engine, get_db
 from app.models import (
     INTERACTION_DISLIKE,
@@ -33,7 +41,7 @@ pwd_context = CryptContext(
     deprecated="auto",
 )
 
-from app.embeddings import generate_embedding
+from app.embeddings import embed_query, generate_embedding
 
 app = FastAPI(
     title="AI Fashion Commerce API",
@@ -1971,6 +1979,112 @@ def _build_order_number():
     suffix = secrets.randbits(20) % 10000
 
     return f"AURA-{stamp}-{suffix:04d}"
+
+
+# =========================================================
+# AKILLI ARAMA  (AI Search)
+# =========================================================
+
+@api.get(
+    "/search",
+    response_model=schemas.SearchResponse,
+)
+def ai_search(
+    q: str = Query(
+        ...,
+        min_length=1,
+        max_length=200,
+    ),
+    limit: int = Query(
+        default=24,
+        ge=1,
+        le=60,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
+    stage: int | None = Query(
+        default=None,
+        ge=0,
+        le=4,
+        description=(
+            "Gevsetme asamasi. Ilk sayfada bos birakilir; "
+            "sonraki sayfalarda meta.stage geri gonderilir "
+            "ki siralama tutarli kalsin."
+        ),
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Dogal dil aramasi.
+
+    Uc adim:
+
+        1. ANLA      query_engine.analyze()
+           Dolgu kelimeleri atar, cinsiyet/kategori/renk
+           tespit eder, sezon-desen-kumas niyetlerini
+           genisletir.
+
+        2. VEKTORLE  embed_query()
+           Zenginlestirilmis metni (ham sorguyu DEGIL)
+           embedding'e cevirir. Onbellekli ve hata
+           firlatmaz.
+
+        3. ARA       search_service.search()
+           Hibrit siralama + gerekirse filtre gevsetme.
+
+    Eski /products/semantic-search ucu OLDUGU GIBI kaliyor:
+    frontend gecisi ve mevcut testler ona bagli.
+    """
+
+    intent = query_engine.analyze(q)
+
+    # DIKKAT: embedding'e ham sorgu degil, zenginlestirilmis
+    # metin gidiyor. Butun anlamsal genisletmenin ise
+    # yaramasi buna bagli.
+    vector = embed_query(intent.embed_text)
+
+    items, meta = search_service.search(
+        db=db,
+        intent=intent,
+        query_embedding=vector,
+        limit=limit,
+        offset=offset,
+        stage=stage,
+    )
+
+    return schemas.SearchResponse(
+        query=schemas.SearchAnalysis(**intent.to_dict()),
+        items=[
+            schemas.SearchItem(
+                product=schemas.ProductResponse.model_validate(
+                    item["product"]
+                ),
+                similarity_score=item["similarity_score"],
+                search_score=item["search_score"],
+                reasons=item["reasons"],
+            )
+            for item in items
+        ],
+        meta=schemas.SearchMeta(**meta),
+    )
+
+
+@api.get("/search/analyze")
+def ai_search_analyze(
+    q: str = Query(..., min_length=1, max_length=200),
+):
+    """
+    Yalnizca sorgu cozumlemesi — veritabanina ve embedding
+    API'sine hic dokunmaz.
+
+    Sozluk kalibre ederken ve test yazarken gerekli:
+    "bu sorgudan ne anladin" sorusunu bedava sorabilmek
+    lazim. Aksi halde her deneme bir Gemini cagrisi.
+    """
+
+    return query_engine.analyze(q).to_dict()
 
 
 app.include_router(api)

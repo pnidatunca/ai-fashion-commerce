@@ -911,6 +911,76 @@
 
 
     <!-- =====================================================
+         AI ARAMA ANALIZI
+
+         Arama motorunun sorguyu nasil anladigini gosterir.
+         Sorguyu sessizce degistiren bir arama kullaniciyi
+         sasirtir: "renkli" yazip desenli urunler gelince
+         sebebinin gorunmesi gerekiyor.
+
+         Yalnizca anlamsal arama modunda ve sorgu varken
+         gorunur; app.js dolduruyor.
+    ====================================================== -->
+
+    <div
+        id="search-analysis"
+        class="search-analysis"
+        hidden
+    >
+
+        <div class="search-analysis-head">
+
+            <span class="ai-chip">
+                <span class="ai-dot"></span>
+                AI ARAMA ANALİZİ
+            </span>
+
+            <span
+                id="search-analysis-term"
+                class="search-analysis-term"
+            ></span>
+
+        </div>
+
+
+        <div
+            id="search-analysis-chips"
+            class="search-analysis-chips"
+        ></div>
+
+
+        <p
+            id="search-analysis-note"
+            class="search-analysis-note"
+        ></p>
+
+
+        <div
+            id="search-analysis-relaxed"
+            class="search-analysis-relaxed"
+            hidden
+        ></div>
+
+
+        <div
+            id="search-analysis-alts"
+            class="search-analysis-alts"
+            hidden
+        >
+            <span class="search-analysis-alts-label">
+                ŞUNLARI DA DENE
+            </span>
+
+            <div
+                id="search-analysis-alt-list"
+                class="search-analysis-alt-list"
+            ></div>
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
          FILTER BAR
     ====================================================== -->
 

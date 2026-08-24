@@ -6080,3 +6080,291 @@ a {
         max-height: 380px;
     }
 }
+
+
+/* =========================================================
+   AI ARAMA ANALIZI PANELI
+   ---------------------------------------------------------
+   Arama sonuclarinin ustunde durur: motorun sorguyu nasil
+   anladigini gosterir.
+
+   Gorsel dil kasitli olarak explore kartlarindaki AI
+   badge'iyle ayni: ince cam yuzey, altin vurgu. Kullanici
+   "bu AI'in soyledigi bir sey" hissini iki yerde de ayni
+   sekilde alsin.
+========================================================= */
+
+.search-analysis {
+    margin: 0 0 22px;
+    padding: 16px 18px;
+
+    border: 1px solid rgba(201, 168, 106, .22);
+    border-radius: 14px;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(201, 168, 106, .07),
+            rgba(20, 18, 14, .35)
+        );
+
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+
+    animation: searchAnalysisIn .38s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@keyframes searchAnalysisIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+
+.search-analysis-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    margin-bottom: 12px;
+}
+
+
+.search-analysis-term {
+    font-size: .82rem;
+    letter-spacing: .02em;
+    color: var(--text-soft, rgba(240, 236, 228, .72));
+}
+
+
+/* ---------------------------------------------------------
+   ETIKETLER
+   ---------------------------------------------------------
+   strict olanlar (cinsiyet, kategori, renk) DOLU cerceve:
+   bu sarti tasimayan urun hic gelmiyor.
+
+   strict olmayanlar (sezon, desen, kumas) kesikli cerceve:
+   yalnizca siralamayi etkiliyor.
+
+   Ayrimi gorsel olarak gostermek onemli — "kirmizi"
+   filtresinin sonucu daraltmasi ile "yazlik" niyetinin
+   sadece one almasi ayni sey degil.
+--------------------------------------------------------- */
+
+.search-analysis-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+
+.search-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    padding: 5px 11px;
+
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+
+    border: 1px dashed rgba(240, 236, 228, .28);
+    border-radius: 999px;
+
+    color: var(--text-soft, rgba(240, 236, 228, .78));
+
+    cursor: help;
+}
+
+
+.search-chip.strict {
+    border-style: solid;
+    border-color: rgba(201, 168, 106, .55);
+
+    background: rgba(201, 168, 106, .12);
+    color: var(--gold, #c9a86a);
+}
+
+
+.search-chip [data-icon] svg {
+    width: 11px;
+    height: 11px;
+}
+
+
+/* ---------------------------------------------------------
+   YONLENDIRME NOTU
+--------------------------------------------------------- */
+
+.search-analysis-note {
+    margin: 12px 0 0;
+
+    font-size: .8rem;
+    line-height: 1.55;
+    color: var(--text-soft, rgba(240, 236, 228, .66));
+}
+
+
+/* ---------------------------------------------------------
+   GEVSETILEN FILTRELER
+   ---------------------------------------------------------
+   Sessizce filtre dusurmek, kullanicinin "ben kirmizi
+   istemistim" demesine yol acar. Bu yuzden gorunur ve
+   uyari tonunda.
+--------------------------------------------------------- */
+
+.search-analysis-relaxed {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+
+    margin-top: 12px;
+    padding: 9px 12px;
+
+    font-size: .78rem;
+    line-height: 1.5;
+
+    border-left: 2px solid rgba(224, 168, 92, .7);
+    border-radius: 0 8px 8px 0;
+
+    background: rgba(224, 168, 92, .09);
+    color: rgba(240, 220, 190, .88);
+}
+
+
+.search-analysis-relaxed [data-icon] svg {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+
+/* ---------------------------------------------------------
+   ALTERNATIF SORGULAR
+--------------------------------------------------------- */
+
+.search-analysis-alts {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    margin-top: 14px;
+    padding-top: 13px;
+
+    border-top: 1px solid rgba(240, 236, 228, .1);
+}
+
+
+.search-analysis-alts-label {
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    color: rgba(240, 236, 228, .42);
+}
+
+
+.search-analysis-alt-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+
+.search-alt {
+    padding: 6px 13px;
+
+    font-family: inherit;
+    font-size: .74rem;
+    letter-spacing: .01em;
+
+    border: 1px solid rgba(240, 236, 228, .16);
+    border-radius: 999px;
+    background: transparent;
+
+    color: var(--text-soft, rgba(240, 236, 228, .8));
+
+    cursor: pointer;
+    transition: border-color .2s, color .2s, background .2s;
+}
+
+
+.search-alt:hover {
+    border-color: rgba(201, 168, 106, .6);
+    background: rgba(201, 168, 106, .12);
+    color: var(--gold, #c9a86a);
+}
+
+
+.search-alt:active {
+    transform: scale(.97);
+}
+
+
+/* ---------------------------------------------------------
+   KART UZERINDEKI ARAMA GEREKCESI
+--------------------------------------------------------- */
+
+.card-search-reason {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    margin: 2px 0 4px;
+
+    font-size: .6rem;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+
+    color: rgba(201, 168, 106, .82);
+}
+
+
+.card-search-reason [data-icon] svg {
+    width: 9px;
+    height: 9px;
+}
+
+
+/* ---------------------------------------------------------
+   RESPONSIVE
+--------------------------------------------------------- */
+
+@media (max-width: 640px) {
+
+    .search-analysis {
+        padding: 13px 14px;
+    }
+
+    .search-analysis-term {
+        font-size: .75rem;
+        width: 100%;
+    }
+
+    .search-chip {
+        font-size: .62rem;
+        padding: 4px 9px;
+    }
+
+    .search-analysis-alts {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+
+    .search-analysis {
+        animation: none;
+    }
+
+    .search-alt:active {
+        transform: none;
+    }
+}

@@ -36,8 +36,29 @@ const state = {
     searchType: "semantic",
 
     category: "",
-    color: "",
-    gender: "",
+
+    /*
+       ARAMA COZUMLEMESI BACKEND'DEN GELIYOR.
+
+       Onceden cinsiyet/kategori/renk burada, app.js icindeki
+       sozluklerle tahmin ediliyordu. Iki problemi vardi:
+
+       1. Embedding backend'de uretiliyor; buradaki
+          genisletme vektore hic giremiyordu.
+       2. Ayni sozluk iki yerde duruyordu.
+
+       Artik /api/search cozumlemeyi de donduruyor
+       (backend/app/query_engine.py). Burasi yalnizca
+       gosteriyor.
+    */
+    searchAnalysis: null,
+
+    /*
+       Gevsetme asamasi. Sonsuz akista sayfa 2 ayni asamada
+       kalmali; yoksa filtre degisip urunler tekrar eder.
+       feed.py'deki cursor dersinin aynisi.
+    */
+    searchStage: null,
 
     products: [],
     hasMore: true,
@@ -154,6 +175,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupNavigation();
     setupSearch();
     setupAiGlow();
+    setupSearchAlternatives();
     setupCategories();
     setupSort();
     setupModal();
@@ -296,13 +318,35 @@ async function loadProducts({ reset = false } = {}) {
 
             if (state.searchType === "semantic") {
 
-                data = await apiGet("/products/semantic-search", {
-                    ...params,
+                /*
+                   AKILLI ARAMA.
+
+                   Sorgu cozumlemesi, zenginlestirme ve
+                   filtre gevsetmesi backend'de yapiliyor;
+                   burada yalnizca `stage` geri gonderiliyor
+                   ki sayfa 2 ayni asamada devam etsin.
+                */
+                const response = await apiGet("/api/search", {
+                    limit: state.limit,
+                    offset: state.offset,
                     q: state.searchQuery,
-                    category: state.category,
-                    color: state.color,
-                    gender: state.gender,
+                    stage: state.searchStage ?? undefined,
                 });
+
+                state.searchAnalysis = response?.query || null;
+                state.searchStage = response?.meta?.stage ?? null;
+
+                renderSearchAnalysis(response?.meta || null);
+
+                /*
+                   Kartlar duz urun nesnesi bekliyor. Arama
+                   gerekcelerini urune baglayip kartta kucuk
+                   bir etiket olarak gosteriyoruz.
+                */
+                data = (response?.items || []).map(item => ({
+                    ...item.product,
+                    _searchReasons: item.reasons || [],
+                }));
 
             } else {
 
@@ -310,6 +354,8 @@ async function loadProducts({ reset = false } = {}) {
                     ...params,
                     q: state.searchQuery,
                 });
+
+                hideSearchAnalysis();
             }
 
         } else {
@@ -318,6 +364,8 @@ async function loadProducts({ reset = false } = {}) {
                 ...params,
                 category: state.category,
             });
+
+            hideSearchAnalysis();
         }
 
 
@@ -345,6 +393,7 @@ async function loadProducts({ reset = false } = {}) {
         appendProducts(data, startIndex);
 
         updateResultsHeader();
+        syncSortAvailability();
 
 
         if (!state.products.length) {
@@ -515,6 +564,28 @@ function appendProducts(products, startIndex = 0) {
                 <h4 class="product-title">
                     ${escapeHTML(title)}
                 </h4>
+
+                ${
+                    /*
+                       Bu urunun ARAMAYA neden uydugu.
+                       Yalnizca gercekten tetiklenmis
+                       gerekceler yaziliyor; uydurma gerekce
+                       yazmak yanlis yuzde yazmaktan kotudur.
+                    */
+                    Array.isArray(product._searchReasons) &&
+                    product._searchReasons.length
+                        ? `
+                            <span class="card-search-reason">
+                                ${icon("sparkles")}
+                                ${escapeHTML(
+                                    product._searchReasons
+                                        .slice(0, 2)
+                                        .join(" · ")
+                                )}
+                            </span>
+                        `
+                        : ""
+                }
 
                 ${
                     rating > 0
@@ -936,6 +1007,8 @@ function setSearchType(type) {
                 : "Ürün adı, marka veya kategori üzerinden anahtar kelimeyle ara.";
     }
 
+    syncSortAvailability();
+
     if (state.searchMode && state.searchQuery) {
 
         state.page = 1;
@@ -1121,8 +1194,10 @@ function runSearch(value) {
         state.searchMode = false;
         state.searchQuery = "";
         state.category = "";
-        state.color = "";
-        state.gender = "";
+        state.searchAnalysis = null;
+        state.searchStage = null;
+
+        hideSearchAnalysis();
 
         loadProducts({ reset: true });
 
@@ -1132,23 +1207,23 @@ function runSearch(value) {
     state.searchMode = true;
     state.searchQuery = query;
 
-    // Yeni bir arama başladığında
-    // eski kategori filtresini temizle.
-    state.category =
-    detectCategoryFromQuery(query);
+    /*
+       Kategori/renk/cinsiyet TAHMINI ARTIK BURADA YAPILMIYOR.
+       Backend cozumlemesi (/api/search -> query.gender,
+       query.category...) tek kaynak. Burada eski kategori
+       filtresini yalnizca temizliyoruz.
+    */
+    state.category = "";
 
-    state.color =
-    detectColorFromQuery(query);
-
-    state.gender =
-    detectGenderFromQuery(query);
+    /* Yeni sorgu, yeni gevsetme asamasi */
+    state.searchStage = null;
+    state.searchAnalysis = null;
 
     /*
-       Filtre cubugu semantic aramanin arka planda sectigi
-       kategoriyi degil, hep "TUMU"yu aktif gosterir — kategori
-       state'i (yukarida tespit edilen deger) sorguya yine de
-       gonderilir, sadece UI'da yaniltici bir sekme aktif
-       gorunmesin diye butonlar TUMU'ye alinir.
+       Filtre cubugu aramanin arka planda sectigi kategoriyi
+       degil hep "TUMU"yu aktif gosterir: yaniltici bir sekme
+       aktif gorunmesin. Tespit edilen kategori zaten arama
+       sonuclarinin ustundeki analiz panelinde yaziyor.
     */
 
     document
@@ -1295,6 +1370,39 @@ function setupSort() {
 
         loadProducts({ reset: true });
     });
+}
+
+
+/*
+   AI ARAMADA SIRALAMA CALISMIYOR — VE BUNU SOYLUYORUZ.
+
+   Anlamsal arama sonuclarini alaka duzeyine gore siralar
+   (vektor benzerligi + kelime bonuslari). Uzerine "fiyat
+   artan" uygulamak alaka sirasini yok eder: kullanici
+   "kadın yazlık elbise" arayip en ucuz corabi gorur.
+
+   Eski kodda `sort` parametresi semantic uca gonderiliyordu
+   ama uc onu hic okumuyordu — menu sessizce hicbir sey
+   yapmiyordu. Sessiz olu kontrol, calismayan bir ozellikten
+   daha kotu: kullanici sectigini sanip yanlis sonuca guvenir.
+
+   Cozum: AI aramada menu devre disi ve sebebi yaziyor.
+*/
+function syncSortAvailability() {
+
+    if (!sortSelect) return;
+
+    const aiSearch =
+        state.searchMode &&
+        state.searchQuery &&
+        state.searchType === "semantic";
+
+    sortSelect.disabled = Boolean(aiSearch);
+
+    sortSelect.title = aiSearch
+        ? "AI arama sonuçları alaka düzeyine göre sıralanır; "
+          + "sıralama seçeneği bu modda kullanılamaz."
+        : "";
 }
 
 
@@ -3312,145 +3420,264 @@ function escapeHTML(value) {
         .replaceAll("'", "&#039;");
 }
 
-function detectCategoryFromQuery(query) {
+/* =========================================================
+   AI ARAMA ANALIZI PANELI
+   ---------------------------------------------------------
+   Arama motorunun sorguyu nasil anladigini gosterir.
 
-    const text = query.toLowerCase();
+   Neden gosteriyoruz: sorguyu sessizce degistiren bir arama
+   kullaniciyi sasirtir. "renkli" yazip desenli urunler
+   gelince sebebinin gorunmesi lazim. Ayrica yanlis
+   anlasilma olursa kullanici bunu gorup sorguyu
+   duzeltebiliyor.
 
-    const categoryTerms = {
+   Butun metinler BACKEND'DEN geliyor (query_engine).
+   Frontend esik hesabi veya sozluk tutmuyor — ayni gerekce
+   explore kartlarindaki match_label icin de gecerliydi.
+========================================================= */
 
-        dress: [
-            "elbise",
-            "dress",
-            "gown"
-        ],
+const searchAnalysisPanel = $("search-analysis");
+const searchAnalysisTerm = $("search-analysis-term");
+const searchAnalysisChips = $("search-analysis-chips");
+const searchAnalysisNote = $("search-analysis-note");
+const searchAnalysisRelaxed = $("search-analysis-relaxed");
+const searchAnalysisAlts = $("search-analysis-alts");
+const searchAnalysisAltList = $("search-analysis-alt-list");
 
-        shirt: [
-            "gömlek",
-            "gomlek",
-            "shirt",
-            "tişört",
-            "tisort",
-            "t-shirt",
-            "tshirt",
-            "tee",
-            "polo",
-            "bluz",
-            "blouse",
-            "top"
-        ],
 
-        pants: [
-            "pantolon",
-            "pants",
-            "trousers",
-            "jean",
-            "jeans"
-        ],
+/* Etiket turune gore ikon. Hepsi Lucide. */
+const SEARCH_CHIP_ICONS = {
+    gender: "user",
+    category: "shirt",
+    color: "palette",
+    season: "sun",
+    pattern: "sparkles",
+    fabric: "layers",
+    fit: "ruler",
+    occasion: "calendar",
+};
 
-        jacket: [
-            "ceket",
-            "jacket",
-            "coat",
-            "mont",
-            "blazer"
-        ],
 
-        shoes: [
-            "ayakkabı",
-            "ayakkabi",
-            "shoe",
-            "shoes",
-            "sneaker",
-            "sneakers",
-            "bot",
-            "boots",
-            "sandal",
-            "sandals"
-        ]
-    };
+function hideSearchAnalysis() {
 
-    for (const [category, words] of Object.entries(categoryTerms)) {
+    if (!searchAnalysisPanel) return;
 
-        if (
-            words.some(word =>
-                text.includes(word)
-            )
-        ) {
-            return category;
+    searchAnalysisPanel.hidden = true;
+}
+
+
+function renderSearchAnalysis(meta) {
+
+    if (!searchAnalysisPanel) return;
+
+    const analysis = state.searchAnalysis;
+
+    if (!analysis) {
+        hideSearchAnalysis();
+        return;
+    }
+
+    searchAnalysisPanel.hidden = false;
+
+
+    /* ---- temizlenmis arama terimi ---- */
+
+    if (searchAnalysisTerm) {
+
+        const cleaned = analysis.cleaned || "";
+        const raw = analysis.raw || "";
+
+        /*
+           Sadelestirme olduysa ikisini birlikte gosteriyoruz.
+           "arıyorum" kelimesinin neden kaybolduğunu
+           kullanicinin gormesi lazim.
+        */
+        searchAnalysisTerm.textContent =
+            cleaned && fold(cleaned) !== fold(raw)
+                ? `"${raw}" → "${cleaned}"`
+                : `"${cleaned || raw}"`;
+    }
+
+
+    /* ---- etiketler ---- */
+
+    if (searchAnalysisChips) {
+
+        const chips = Array.isArray(analysis.chips)
+            ? analysis.chips
+            : [];
+
+        searchAnalysisChips.innerHTML = chips
+            .map(chip => `
+                <span
+                    class="search-chip${chip.strict ? " strict" : ""}"
+                    title="${
+                        chip.strict
+                            ? "Kesin filtre: bu şartı taşımayan ürün gelmiyor"
+                            : "Sıralama tercihi: bu şarta uyan ürünler öne alınıyor"
+                    }"
+                >
+                    ${icon(SEARCH_CHIP_ICONS[chip.kind] || "sparkles")}
+                    ${escapeHTML(chip.label)}
+                </span>
+            `)
+            .join("");
+
+        hydrateIcons(searchAnalysisChips);
+    }
+
+
+    /* ---- yonlendirme notu ---- */
+
+    if (searchAnalysisNote) {
+        searchAnalysisNote.textContent = analysis.note || "";
+    }
+
+
+    /* ---- gevsetilen filtreler ---- */
+
+    if (searchAnalysisRelaxed) {
+
+        const relaxed = meta?.relaxed || [];
+
+        /*
+           Filtre gevsetildiyse SOYLUYORUZ. Sessizce
+           dusurmek, kullanicinin "ben kirmizi istemistim"
+           demesine yol acar.
+        */
+        if (relaxed.length) {
+
+            searchAnalysisRelaxed.hidden = false;
+
+            searchAnalysisRelaxed.innerHTML = `
+                ${icon("info")}
+                <span>
+                    Birebir eşleşme yetersiz kaldı, bu yüzden
+                    ${escapeHTML(relaxed.join(", "))}.
+                </span>
+            `;
+
+            hydrateIcons(searchAnalysisRelaxed);
+
+        } else {
+            searchAnalysisRelaxed.hidden = true;
         }
     }
 
-    return "";
-}
 
-function detectColorFromQuery(query) {
+    /* ---- alternatif sorgular ---- */
 
-    const text = query.toLowerCase();
+    if (searchAnalysisAlts && searchAnalysisAltList) {
 
-    const colors = {
-        "beyaz": "white",
-        "siyah": "black",
-        "kırmızı": "red",
-        "mavi": "blue",
-        "lacivert": "navy",
-        "yeşil": "green",
-        "sarı": "yellow",
-        "pembe": "pink",
-        "mor": "purple",
-        "gri": "gray",
-        "kahverengi": "brown",
-        "bej": "beige",
+        const alternatives = Array.isArray(analysis.alternatives)
+            ? analysis.alternatives
+            : [];
 
-        "white": "white",
-        "black": "black",
-        "red": "red",
-        "blue": "blue",
-        "navy": "navy",
-        "green": "green",
-        "yellow": "yellow",
-        "pink": "pink",
-        "purple": "purple",
-        "gray": "gray",
-        "grey": "gray",
-        "brown": "brown",
-        "beige": "beige"
-    };
+        if (alternatives.length) {
 
-    for (const [word, color] of Object.entries(colors)) {
+            searchAnalysisAlts.hidden = false;
 
-        if (text.includes(word)) {
-            return color;
+            searchAnalysisAltList.innerHTML = alternatives
+                .map(alt => `
+                    <button
+                        type="button"
+                        class="search-alt"
+                        data-search-alt="${escapeHTML(alt)}"
+                    >
+                        ${escapeHTML(alt)}
+                    </button>
+                `)
+                .join("");
+
+        } else {
+            searchAnalysisAlts.hidden = true;
         }
     }
 
-    return "";
+
+    /* ---- anlamsal arama calismiyorsa uyar ---- */
+
+    if (meta && meta.semantic === false && searchAnalysisNote) {
+
+        /*
+           Embedding uretilemedi (API anahtari yok veya servis
+           hatasi). Arama kelime eslesmesiyle calisiyor.
+           Kullaniciya "AI" diye sunulan bir sey aslinda
+           calismiyorsa bunu soylemek gerekiyor.
+        */
+        searchAnalysisNote.textContent =
+            "Anlamsal arama şu an devre dışı; sonuçlar kelime "
+            + "eşleşmesine göre sıralandı.";
+    }
 }
 
-function detectGenderFromQuery(query) {
 
-    const text = query.toLowerCase();
+/* Turkce karakterleri ASCII'ye katlar — backend fold()
+   fonksiyonunun karsiligi. Yalnizca "sadelestirme oldu mu"
+   karsilastirmasi icin kullaniliyor. */
+function fold(text) {
 
-    if (
-        text.includes("kadın") ||
-        text.includes("kadin") ||
-        text.includes("women") ||
-        text.includes("woman") ||
-        text.includes("female")
-    ) {
-        return "women";
-    }
-
-    if (
-        text.includes("erkek") ||
-        text.includes("men") ||
-        text.includes("man") ||
-        text.includes("male")
-    ) {
-        return "men";
-    }
-
-    return "";
+    return String(text || "")
+        .replace(/[ıİ]/g, "i")
+        .replace(/[şŞ]/g, "s")
+        .replace(/[ğĞ]/g, "g")
+        .replace(/[üÜ]/g, "u")
+        .replace(/[öÖ]/g, "o")
+        .replace(/[çÇ]/g, "c")
+        .toLowerCase()
+        .trim();
 }
+
+
+function setupSearchAlternatives() {
+
+    /*
+       Olay delegasyonu: butonlar her aramada yeniden
+       cizildigi icin tek tek dinleyici baglamak sizinti
+       yaratirdi.
+    */
+    searchAnalysisAltList?.addEventListener("click", event => {
+
+        const button = event.target.closest("[data-search-alt]");
+
+        if (!button) return;
+
+        const alternative = button.dataset.searchAlt || "";
+
+        if (!alternative) return;
+
+        if (searchInput) searchInput.value = alternative;
+        if (globalSearchInput) globalSearchInput.value = alternative;
+
+        runSearch(alternative);
+    });
+}
+
+
+/* =========================================================
+   ARAMA SOZLUKLERI NEREDE?
+   ---------------------------------------------------------
+   detectCategoryFromQuery / detectColorFromQuery /
+   detectGenderFromQuery fonksiyonlari BURADAN KALDIRILDI.
+
+   Yerine backend/app/query_engine.py geldi. Sebepler:
+
+   1. Embedding backend'de uretiliyor. Sorgu zenginlestirmesi
+      (yazlik -> ince, keten, sifon...) embedding metnine
+      girmezse hicbir ise yaramiyor.
+
+   2. Ayni sozlugu iki yerde tutmak, gun gelip birinin
+      guncellenmemesi demek.
+
+   3. Buradaki `text.includes(word)` alt dize aramasi iki
+      gercek hata uretiyordu:
+        "topuklu ayakkabı" -> "top" eslesti -> kategori shirt
+        "manto arıyorum"   -> "man" eslesti -> cinsiyet men
+      Backend token tabanli esleme yapiyor.
+
+   Cozumleme sonucu /api/search cevabinda `query` alaninda
+   geliyor ve renderSearchAnalysis() ile gosteriliyor.
+========================================================= */
 
 
 /* =========================================================
@@ -7935,6 +8162,55 @@ const LUCIDE = {
     info:
         '<circle cx="12" cy="12" r="10"/>' +
         '<path d="M12 16v-4"/><path d="M12 8h.01"/>',
+
+    /* Arama analizi etiketleri */
+
+    user:
+        '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>' +
+        '<circle cx="12" cy="7" r="4"/>',
+
+    shirt:
+        '<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0' +
+        '-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2' +
+        ' 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34' +
+        '-2.23z"/>',
+
+    palette:
+        '<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746' +
+        ' 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652' +
+        '-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555' +
+        '-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>' +
+        '<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>' +
+        '<circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>' +
+        '<circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>' +
+        '<circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>',
+
+    sun:
+        '<circle cx="12" cy="12" r="4"/>' +
+        '<path d="M12 2v2"/><path d="M12 20v2"/>' +
+        '<path d="m4.93 4.93 1.41 1.41"/>' +
+        '<path d="m17.66 17.66 1.41 1.41"/>' +
+        '<path d="M2 12h2"/><path d="M20 12h2"/>' +
+        '<path d="m6.34 17.66-1.41 1.41"/>' +
+        '<path d="m19.07 4.93-1.41 1.41"/>',
+
+    layers:
+        '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0' +
+        ' 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/>' +
+        '<path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/>' +
+        '<path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+
+    ruler:
+        '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1' +
+        '-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1' +
+        ' 3.4 0Z"/>' +
+        '<path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/>' +
+        '<path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>',
+
+    calendar:
+        '<path d="M8 2v4"/><path d="M16 2v4"/>' +
+        '<rect width="18" height="18" x="3" y="4" rx="2"/>' +
+        '<path d="M3 10h18"/>',
 };
 
 
