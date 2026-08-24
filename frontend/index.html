@@ -94,6 +94,13 @@
                 ERKEK
             </a>
 
+            <a
+                href="#products-section"
+                data-category="kids"
+            >
+                ÇOCUK
+            </a>
+
             <a href="#collections">
                 KOLEKSİYON
             </a>
@@ -285,6 +292,13 @@
         data-category="men"
     >
         ERKEK
+    </a>
+
+    <a
+        href="#products-section"
+        data-category="kids"
+    >
+        ÇOCUK
     </a>
 
     <a href="#collections">
@@ -549,6 +563,13 @@
         data-category="men"
     >
         ERKEK
+    </button>
+
+    <button
+        type="button"
+        data-category="kids"
+    >
+        ÇOCUK
     </button>
 
     <button
@@ -1008,6 +1029,14 @@
         data-category="men"
     >
         ERKEK
+    </button>
+
+    <button
+        type="button"
+        class="filter-trigger"
+        data-category="kids"
+    >
+        ÇOCUK
     </button>
 
     <button
@@ -2601,15 +2630,39 @@
                 HANGİ KOMBİNLERİ SEVİYORSUN?
             </span>
 
-            <p class="customize-step-hint">
-                Beğendiğin kombinleri seç, en fazla 4 tanesini
-                işaretleyebilirsin.
-            </p>
+            <!-- Metni app.js dolduruyor: sayi
+                 CUSTOMIZE_MAX_COMBOS'tan geliyor ki
+                 limit degisince birlikte degissin. -->
+            <p
+                class="customize-step-hint"
+                id="customize-combo-hint"
+            ></p>
 
             <div
                 class="customize-combo-grid"
                 id="customize-combo-grid"
             ></div>
+
+            <!-- SECIM OZETI
+                 Izgara kaydirildiginda secili kartlar ekrandan
+                 cikiyor ve kullanici ne sectigini goremiyor.
+                 Bu serit izgaranin ALTINDA sabit duruyor ve
+                 secilen tarz adlarini yaziyor. app.js
+                 dolduruyor (renderCustomizeComboSelection). -->
+            <div
+                class="customize-combo-selection"
+                id="customize-combo-selection"
+                hidden
+            >
+                <span class="customize-combo-selection-label">
+                    SEÇTİKLERİN
+                </span>
+
+                <div
+                    class="customize-combo-selection-chips"
+                    id="customize-combo-selection-chips"
+                ></div>
+            </div>
 
         </div>
 
