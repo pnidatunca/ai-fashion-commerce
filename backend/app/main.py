@@ -1,4 +1,3 @@
-import logging
 import os
 import secrets
 import uuid
@@ -14,10 +13,8 @@ from fastapi import (
     Query,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from passlib.context import CryptContext
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app import (
@@ -39,8 +36,6 @@ from app.models import (
     User,
 )
 
-logger = logging.getLogger(__name__)
-
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
@@ -61,52 +56,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-
-# =========================================================
-# VERITABANI ERISILEMEDIGINDE
-# =========================================================
-
-@app.exception_handler(OperationalError)
-def database_unavailable(request, exc):
-    """
-    Veritabanina ulasilamadiginda 503 doner.
-
-    ONCEDEN NE OLUYORDU: uc her IP icin 10 saniye bekleyip
-    (Neon uc uc IP'ye cozuluyor, toplam 30 saniye) cirilciplak
-    bir "500 Internal Server Error" donduruyordu. Arayuz de
-    "Backend baglantisini kontrol et" yaziyordu — oysa backend
-    ayakta, ulasilamayan sey VERITABANI. Yanlis yeri
-    gostermek arizayi aramayi uzatiyor.
-
-    503 + net mesaj iki isi birden yapiyor:
-
-      - dogru katmani isaret ediyor
-      - arayuz 500 (kod hatasi) ile 503 (servis yok) ayrimini
-        yapabiliyor ve kullaniciya dogru seyi soyluyor
-
-    Neon ucretsiz katmanda kullanilmadiginda askiya aliniyor
-    ve ilk istekte uyanmasi birkac saniye suruyor; bu yuzden
-    "tekrar dene" onerisi gercekten ise yariyor.
-    """
-
-    logger.warning(
-        "Veritabanina ulasilamadi: %s %s",
-        request.method,
-        request.url.path,
-    )
-
-    return JSONResponse(
-        status_code=503,
-        content={
-            "detail": (
-                "Veritabanına şu an ulaşılamıyor. "
-                "Birkaç saniye sonra tekrar dene."
-            ),
-            "error": "database_unavailable",
-        },
-    )
+) 
 
 
 # =========================================================

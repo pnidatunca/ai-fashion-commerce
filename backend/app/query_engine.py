@@ -238,27 +238,7 @@ STOPPHRASES = (
 # 3 harfli anahtarlarin cekimli halleri elle yazildi
 # (on-ek eslesmesi yalnizca 4+ harfte aciliyor).
 
-# SIRA ONEMLI: _first_match sozlukteki ILK eslesmeyi alir.
-#
-# "kiz cocuk elbisesi" sorgusu HEM "kiz" (women) HEM "cocuk"
-# (kids) tasiyor. "kids" once gelmezse cinsiyet women olarak
-# tespit ediliyor, arama "› Women ›" ile filtreleniyor ve
-# BUTUN cocuk urunleri disariya dusuyor — sitede COCUK sekmesi
-# varken arama cocuk giysisi bulamiyor.
-#
-# Ayni durum "erkek cocuk" icin de gecerli ("erkek" -> men).
-#
-# "kiz" ve "erkek" yalnizca bir cocuk kelimesi de varken
-# devre disi kaliyor; tek basina kullanildiklarinda hala
-# yetiskin anlamini tasiyorlar ("kiz arkadasima elbise").
-
 GENDER_TERMS: dict[str, list[str]] = {
-    "kids": [
-        "cocuk", "cocuklar", "cocuklara", "cocugum",
-        "bebek", "bebekler", "bebege",
-        "kids", "kid", "children", "child", "baby", "babies",
-        "toddler", "oglan", "kizim", "oglum",
-    ],
     "women": [
         "kadin", "kadinlar", "bayan", "bayanlar",
         "women", "woman", "womens", "female", "ladies",
@@ -873,10 +853,6 @@ def _build_embed_text(intent: QueryIntent) -> str:
         parts.append("kadın women")
     elif intent.gender == "men":
         parts.append("erkek men")
-    elif intent.gender == "kids":
-        # Katalogda cocuk urunleri "Baby" ve "Boys" altinda,
-        # basliklarda "Bebek" / "Erkek Cocuk" geciyor.
-        parts.append("çocuk bebek kids baby")
 
     expansions = _ordered_expansions(intent)
 
@@ -963,8 +939,6 @@ def _build_alternatives(intent: QueryIntent) -> list[str]:
         base_parts.append("kadın")
     elif intent.gender == "men":
         base_parts.append("erkek")
-    elif intent.gender == "kids":
-        base_parts.append("çocuk")
 
     # KULLANICININ KENDI KELIMESI tercih ediliyor.
     #
@@ -1061,7 +1035,7 @@ def _build_alternatives(intent: QueryIntent) -> list[str]:
 # ACIKLAMA (kullaniciya gosterilen)
 # =========================================================
 
-_GENDER_LABEL = {"women": "Kadın", "men": "Erkek", "kids": "Çocuk"}
+_GENDER_LABEL = {"women": "Kadın", "men": "Erkek"}
 
 _CATEGORY_LABEL = {
     "dress": "Elbise",

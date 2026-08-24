@@ -424,53 +424,6 @@ akışı dış giyim ve ayakkabı göstermeli. Çocuk ürünleri de
 aynı sebeple dışarıda: yetişkin stil arketipine göre
 sıralanan bir akışta bebek tulumu göstermek yanlış öneri.
 
-### ÇOCUK sekmesi Keşfet'te YOK — bilinçli asimetri
-
-Sitenin üst menüsünde **ÇOCUK** kategorisi var (68 ürün:
-`Baby` 35 + `Boys` 33) ve `/products?category=kids` ile
-ürün ızgarasını besliyor. Ama Keşfet akışı çocuk ürünü
-**göstermiyor**.
-
-Çelişki gibi görünüyor, değil: bunlar iki farklı yüzey.
-
-| | Ürün ızgarası (ÇOCUK sekmesi) | Keşfet akışı |
-|---|---|---|
-| Sıralama | kategori + kullanıcının seçtiği sıralama | 8 yetişkin stil arketipi |
-| Amaç | "çocuğuma kıyafet arıyorum" | "benim tarzım ne" |
-| Çocuk ürünü | **var** | **yok** |
-
-Keşfet'in tamamı `product_style_scores` üzerine kurulu ve o
-skorlar Minimalist / Streetwear / Old Money gibi **yetişkin**
-arketiplere göre hesaplandı. Bir bebek zıbınını "Goth %86"
-diye göstermek tam olarak bölüm 3'te düzeltilen hataydı.
-
-Çocuk ürünleri için ayrı bir keşif akışı istenirse yapılacak
-şey formülü zorlamak değil, çocuk giyimine ait ayrı bir
-arketip kümesi (ör. okul / günlük / bebek uyku) tanımlayıp
-`product_style_scores`'u onunla doldurmak.
-
-**Arama tarafı da çocuğu tanıyor.** `query_engine`
-`GENDER_TERMS`'e `kids` segmenti eklendi ve sözlükte **ilk
-sırada** duruyor. Sebebi ölçülebilir bir hataydı:
-
-```
-"kız çocuk elbisesi"  ->  "kiz" eşleşiyor  -> cinsiyet: women
-                          -> "› Women ›" filtresi
-                          -> BÜTÜN çocuk ürünleri düşüyor
-```
-
-Aynısı "erkek çocuk mont" için de geçerliydi (`erkek` → men).
-`kids` önce bakıldığı için artık doğru; `kiz`/`erkek` tek
-başına kullanıldığında hâlâ yetişkin anlamını taşıyor
-("kız arkadaşıma elbise" → women, ölçüldü).
-
-Katalog sınırı: çocuk ürünleri ağırlıkla `Bodysuits`,
-`Sleepwear`, `Clothing Sets` dallarında. Yetişkin giysi
-tipleriyle kesişim çok ince — çocuk + elbise **1**, çocuk +
-alt giyim **2**, çocuk + ayakkabı **0**. Yani "çocuk
-ayakkabısı" araması boş dönerse formül değil katalog
-eksiktir.
-
 ---
 
 ## 8. API

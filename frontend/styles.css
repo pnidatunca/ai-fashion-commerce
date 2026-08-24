@@ -1188,51 +1188,6 @@ a {
     font-size: 11px;
 }
 
-/* ---------------------------------------------------------
-   YORUM ETIKETLERI
-   ---------------------------------------------------------
-   "Onayli alisveris" ve "ozgun dilde" etiketleri yan yana.
-   Ikisi de olmayabilir, o yuzden kapsayici bosken yer
-   kaplamamali.
---------------------------------------------------------- */
-
-.review-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-
-    margin-bottom: 6px;
-}
-
-.review-tags:empty {
-    display: none;
-}
-
-.review-verified {
-    font-size: 9px;
-    letter-spacing: .04em;
-    color: var(--gold);
-}
-
-/*
-   Cevirisi gelmemis yorum etiketi.
-
-   Kasitli olarak SOLGUN: bir uyari degil, bir dipnot.
-   Kullanicinin dikkatini yorumun kendisinden calmamali.
-*/
-.review-original-lang {
-    padding: 1px 6px;
-
-    font-size: 9px;
-    letter-spacing: .04em;
-
-    border: 1px solid rgba(0, 0, 0, .12);
-    border-radius: 999px;
-
-    color: var(--gray);
-    opacity: .75;
-}
-
 /* =========================================================
    FOOTER
 ========================================================= */
@@ -5823,27 +5778,7 @@ a {
     display: flex;
     flex-direction: column;
 
-    /*
-       460px -> 720px.
-
-       Sebep 3. adim: kombin kartlari 2 kolonda ve 460px
-       panelde (35px yan bosluklarla) kart ~121px genisligindeydi
-       — fotografta kombinin ne oldugu ayirt edilmiyordu.
-
-           460px panel, 3 kolon  ->  kart 121 x 162 px
-           720px panel, 2 kolon  ->  kart 312 x 390 px
-
-       Yani kart alani ~6 kat buyudu. Bu ekranin isi
-       FOTOGRAFA BAKARAK SECTIRMEK; fotograf okunmuyorsa
-       ekran islevini yapmiyor.
-
-       Yan panel oldugu icin 720px hala ekranin yarisi
-       civari; tam ekran modala gecmek gerekmiyor.
-
-       1. ve 2. adim bundan yalnizca kazanciyor: yas/cinsiyet
-       ve renk paleti daha rahat yerlesiyor.
-    */
-    width: min(720px, 100%);
+    width: min(460px, 100%);
     height: 100%;
 
     padding: 40px 35px 30px;
@@ -5993,123 +5928,42 @@ a {
 /* Kart = buyuk kombin fotografi + fotografin uzerine bindirilmis
    tarz adi (alt-gradient overlay, bkz. .customize-combo-label). */
 
-/*
-   KOMBIN SECIMI — LOOKBOOK IZGARASI
-   ---------------------------------------------------------
-   Onceki surumde 18 kart 3 kolona sikistirilmisti: kartlar
-   minik, etiket 9.5px, sonuc goruntusel olarak kalabalik ve
-   okunmaz. Kullanici kombini GORUNUMUNE gore secmesi
-   gerekirken fotografta ne oldugunu ayirt edemiyordu.
-
-   Simdi 2 kolon: fotograflar yaklasik iki kat buyuk, tarz
-   adi kart uzerinde buyuk harflerle okunuyor. 18 kart 9
-   satir demek ve kaydirma gerekiyor — bilincli takas,
-   cunku bu ekranin isi SECTIRMEK, hepsini bir bakista
-   gostermek degil.
-
-   Fotograf orani 4/5: 3/4'ten daha uzun, tam boy bir look
-   fotografinda kafa ve ayakkabinin ikisi de kadraja
-   giriyor. Kombin karti icin onemli — kirpilmis bir
-   fotografta alt parca gorunmuyor.
-*/
 .customize-combo-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
+    gap: 14px;
 
-    max-height: 600px;
+    max-height: 520px;
     overflow-y: auto;
-
-    /* Kaydirma cubugu kartlara yapismasin */
-    padding: 2px 8px 2px 2px;
-
-    scroll-behavior: smooth;
+    padding-right: 2px;
 }
-
-/* Ince, sessiz kaydirma cubugu */
-.customize-combo-grid::-webkit-scrollbar {
-    width: 5px;
-}
-
-.customize-combo-grid::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.customize-combo-grid::-webkit-scrollbar-thumb {
-    background: rgba(201, 168, 106, .4);
-    border-radius: 999px;
-}
-
-.customize-combo-grid::-webkit-scrollbar-thumb:hover {
-    background: rgba(201, 168, 106, .7);
-}
-
-
-/* ---------------------------------------------------------
-   KART
-   ---------------------------------------------------------
-   Varsayilan halde CERCEVE YOK. 18 karti tek tek cerceveye
-   almak izgarayi tablo gibi gosteriyordu; fotograflar
-   kendi kendine bir izgara olusturuyor. Cerceve yalnizca
-   secim ve hover'da beliriyor — o zaman da bir bilgi
-   tasiyor.
---------------------------------------------------------- */
 
 .customize-combo-card {
     position: relative;
 
-    padding: 0;
-    border: none;
-    border-radius: 10px;
-    overflow: hidden;
-
+    border: 1px solid var(--line);
     background: var(--cream);
+    padding: 0;
+    overflow: hidden;
 
     cursor: pointer;
 
-    /* Secim halkasi: border yerine outline benzeri box-shadow
-       — border kart boyutunu degistirip izgarayi oynatiyordu */
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, .07);
-
-    transition:
-        box-shadow .25s ease,
-        transform .25s cubic-bezier(.2, .8, .2, 1);
+    transition: border-color .2s ease, transform .2s ease;
 }
 
 .customize-combo-card:hover {
-    box-shadow:
-        0 0 0 1px rgba(201, 168, 106, .55),
-        0 8px 22px rgba(17, 17, 17, .14);
-
-    transform: translateY(-3px);
+    border-color: var(--gold);
 }
 
 .customize-combo-card.active {
-    box-shadow:
-        0 0 0 2px var(--gold),
-        0 10px 26px rgba(201, 168, 106, .28);
-
-    transform: translateY(-3px);
+    border-color: var(--gold);
+    transform: translateY(-2px);
 }
-
-.customize-combo-card:focus-visible {
-    outline: 2px solid var(--gold);
-    outline-offset: 2px;
-}
-
-
-/* ---------------------------------------------------------
-   FOTOGRAF
---------------------------------------------------------- */
 
 .customize-combo-image {
     position: relative;
     width: 100%;
-
-    /* 4/5: tam boy look fotografinda ust ve alt birlikte
-       kadraja giriyor (3/4'te ayakkabi kirpiliyordu) */
-    aspect-ratio: 4 / 5;
-
+    aspect-ratio: 3 / 4;
     overflow: hidden;
 }
 
@@ -6118,33 +5972,44 @@ a {
     height: 100%;
     object-fit: cover;
 
-    display: block;
-
-    transition:
-        transform .5s cubic-bezier(.2, .8, .2, 1),
-        filter .25s ease;
+    transition: transform .3s ease, filter .2s ease;
 }
 
 .customize-combo-card:hover .customize-combo-image img {
-    transform: scale(1.06);
+    transform: scale(1.04);
 }
 
 .customize-combo-card.active .customize-combo-image img {
-    filter: brightness(.82) saturate(1.05);
+    filter: brightness(.75);
 }
 
+.customize-combo-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
 
-/* ---------------------------------------------------------
-   TARZ ADI  (fotografin uzerinde)
-   ---------------------------------------------------------
-   Kullanicinin istedigi sey: fotografin uzerinde GOTH, Y2K
-   gibi tarz adi. Ad buyuk harf ve harf araligi acik —
-   moda lookbook'larinin dili.
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
 
-   Gradyan alt yariya kadar cikiyor: fotograflarin alt kismi
-   degisken tonda, tek renk seritte bazi fotograflarda yazi
-   kayboluyordu.
---------------------------------------------------------- */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(17, 17, 17, .55);
+    color: var(--white);
+    font-size: 10px;
+
+    opacity: 0;
+    transform: scale(.6);
+    transition: .2s ease;
+}
+
+.customize-combo-card.active .customize-combo-check {
+    opacity: 1;
+    transform: scale(1);
+    background: var(--gold);
+}
 
 .customize-combo-label {
     position: absolute;
@@ -6152,215 +6017,24 @@ a {
     right: 0;
     bottom: 0;
 
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-
-    padding: 40px 14px 13px;
+    padding: 26px 12px 12px;
 
     background: linear-gradient(
         to top,
-        rgba(12, 12, 12, .92) 0%,
-        rgba(12, 12, 12, .72) 38%,
-        rgba(12, 12, 12, 0) 100%
+        rgba(17, 17, 17, .82),
+        rgba(17, 17, 17, 0)
     );
 
-    text-align: left;
-    pointer-events: none;
-}
-
-.customize-combo-name {
-    /* Kart 312px oldu; 13px punto bu boyutta kayboluyordu */
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    line-height: 1.15;
-
-    /* Acik tonlu fotograflarda okunurluk */
-    text-shadow: 0 1px 8px rgba(0, 0, 0, .55);
-
     color: var(--white);
-
-    transition: color .2s ease;
-}
-
-.customize-combo-card.active .customize-combo-name {
-    color: var(--gold);
-}
-
-/* Aciklama: adin bir kademe altinda, sessiz */
-.customize-combo-desc {
     font-size: 10.5px;
-    font-weight: 400;
-    letter-spacing: .2px;
-    line-height: 1.35;
-
-    color: rgba(255, 255, 255, .74);
+    font-weight: 600;
+    letter-spacing: .4px;
+    text-align: left;
 }
 
-
-/* ---------------------------------------------------------
-   SECIM ISARETI
---------------------------------------------------------- */
-
-.customize-combo-check {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    background: rgba(12, 12, 12, .5);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-
-    color: var(--white);
-
-    opacity: 0;
-    transform: scale(.5);
-
-    transition: opacity .2s ease, transform .28s cubic-bezier(.2, .9, .3, 1.4);
-}
-
-.customize-combo-check [data-icon] svg {
-    width: 13px;
-    height: 13px;
-}
-
-.customize-combo-card.active .customize-combo-check {
-    opacity: 1;
-    transform: scale(1);
-
-    background: var(--gold);
-    color: #17150f;
-}
-
-
-/* ---------------------------------------------------------
-   RESPONSIVE
-   ---------------------------------------------------------
-   Dar ekranda 2 kolon kartlari fazla kucultuyor; tek kolona
-   dusup fotografi buyuk tutmak daha iyi okunuyor.
---------------------------------------------------------- */
-
-@media (max-width: 480px) {
-
-    .customize-combo-grid {
-        grid-template-columns: 1fr;
-        gap: 14px;
-        max-height: 420px;
-    }
-
-    .customize-combo-image {
-        aspect-ratio: 16 / 11;
-    }
-
-    .customize-combo-name {
-        font-size: 14px;
-    }
-}
-
-
-/* ---------------------------------------------------------
-   SECIM OZETI
-   ---------------------------------------------------------
-   Izgaranin altinda sabit duran serit: kullanici asagi
-   kaydirip secili kartlari ekrandan cikardiginda bile ne
-   sectigini goruyor.
-
-   Cipler tiklanabilir — secimi kaldirmak icin yukari
-   kaydirip karti bulmak gerekmiyor.
---------------------------------------------------------- */
-
-.customize-combo-selection {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-
-    margin-top: 14px;
-    padding-top: 13px;
-
-    border-top: 1px solid var(--line);
-}
-
-.customize-combo-selection-label {
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 1.4px;
-
-    color: var(--gray);
-}
-
-.customize-combo-selection-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.customize-selection-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-
-    padding: 5px 9px 5px 11px;
-
-    font-family: inherit;
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 1px;
-
-    border: 1px solid rgba(201, 168, 106, .6);
-    border-radius: 999px;
-
-    background: rgba(201, 168, 106, .12);
+.customize-combo-card.active .customize-combo-label {
     color: var(--gold);
-
-    cursor: pointer;
-    transition: background .2s ease, border-color .2s ease;
 }
-
-.customize-selection-chip:hover {
-    background: rgba(201, 168, 106, .26);
-    border-color: var(--gold);
-}
-
-.customize-selection-chip [data-icon] svg {
-    width: 9px;
-    height: 9px;
-    opacity: .7;
-}
-
-.customize-selection-chip:hover [data-icon] svg {
-    opacity: 1;
-}
-
-
-@media (prefers-reduced-motion: reduce) {
-
-    .customize-combo-card,
-    .customize-combo-image img,
-    .customize-combo-check,
-    .customize-selection-chip {
-        transition: none;
-    }
-
-    .customize-combo-card:hover,
-    .customize-combo-card.active {
-        transform: none;
-    }
-
-    .customize-combo-card:hover .customize-combo-image img {
-        transform: none;
-    }
-}
-
 
 .customize-nav {
     display: flex;

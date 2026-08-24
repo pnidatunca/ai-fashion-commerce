@@ -12,7 +12,6 @@ const CATEGORY_LABELS = {
     "": "Tüm Ürünler",
     women: "Kadın",
     men: "Erkek",
-    kids: "Çocuk",
     dress: "Elbise",
     shirt: "Gömlek",
     pants: "Pantolon",
@@ -251,40 +250,9 @@ async function apiGet(path, params = {}) {
     const response = await fetch(url);
 
     if (!response.ok) {
-
-        /*
-           503 = SERVIS YOK, 500 = KOD HATASI.
-
-           Ayrimi tasimak onemli: veritabanina ulasilamadiginda
-           kullaniciya "backend baglantisini kontrol et"
-           demek yanlis yeri gosteriyordu — backend ayakta,
-           ulasilamayan sey veritabani.
-
-           Backend 503 dondugunde gerekceyi de yaziyor
-           (bkz. main.py database_unavailable).
-        */
-        const error = new Error(
+        throw new Error(
             `${response.status} ${response.statusText}`
         );
-
-        error.status = response.status;
-
-        if (response.status === 503) {
-
-            error.unavailable = true;
-
-            try {
-                const body = await response.json();
-
-                if (body?.detail) {
-                    error.message = body.detail;
-                }
-            } catch {
-                /* Cevap JSON degilse varsayilan mesaj kalir */
-            }
-        }
-
-        throw error;
     }
 
     return response.json();
@@ -441,32 +409,14 @@ async function loadProducts({ reset = false } = {}) {
 
         console.error("Products API error:", error);
 
-        /*
-           Veritabani yoksa BUNU soyluyoruz.
-
-           Onceden her hatada "Backend baglantisini kontrol et"
-           yaziyordu. Backend ayakta ve veritabani askidayken
-           bu mesaj yanlis yeri gosteriyor; arizayi arayan kisi
-           saatlerce backend'e bakabilir.
-        */
-        const unavailable = error?.unavailable === true;
-
         if (resultsCount) {
-            resultsCount.textContent = unavailable
-                ? "Veritabanına ulaşılamıyor"
-                : "Ürünler yüklenemedi";
+            resultsCount.textContent = "Ürünler yüklenemedi";
         }
 
         if (!state.products.length) {
-
             showEmpty(
-                unavailable
-                    ? "Veritabanına ulaşılamıyor"
-                    : "Ürünler yüklenemedi",
-                unavailable
-                    ? (error.message ||
-                        "Birkaç saniye sonra tekrar dene.")
-                    : "Backend bağlantısını kontrol et."
+                "Ürünler yüklenemedi",
+                "Backend bağlantısını kontrol et."
             );
         }
 
@@ -1819,59 +1769,6 @@ async function handleModalAddToCart(product, button) {
    REVIEWS
 ========================================================= */
 
-/*
-   YORUM METNI: TURKCE VARSA TURKCE, YOKSA ORIJINAL
-   ---------------------------------------------------------
-   Yorumlar Amazon'dan Ingilizce geliyor ve
-   scripts/14_translate_reviews.py ile Turkce'ye cevriliyor.
-   Ceviri ayri kolonda (review_text_tr), orijinalin ustune
-   yazilmiyor.
-
-   Geri donus SART: 6289 yorumun cevirisi tek seferde
-   bitmiyor. Ceviri gelmemis bir yorumda bos kutu gostermek
-   yerine Ingilizce metni gosteriyoruz — eksik ceviri, eksik
-   yorumdan iyidir.
-
-   Ayni desen urun basliklarinda da var (productTitle).
-*/
-
-function reviewTitle(review) {
-
-    return (
-        review?.review_title_tr ||
-        review?.review_title ||
-        "Değerlendirme"
-    );
-}
-
-
-function reviewText(review) {
-
-    return (
-        review?.review_text_tr ||
-        review?.review_text ||
-        ""
-    );
-}
-
-
-/*
-   Yorum hala Ingilizce mi gosteriliyor?
-
-   Ceviri yoksa kullaniciya bunu SOYLUYORUZ. Turkce bir
-   sayfada aciklamasiz Ingilizce metin, sitenin bozuk
-   oldugu izlenimi veriyor; kucuk bir etiket bunu bir
-   bilgiye ceviriyor.
-*/
-function reviewIsUntranslated(review) {
-
-    return (
-        !review?.review_text_tr &&
-        Boolean(review?.review_text)
-    );
-}
-
-
 function renderReviews(reviews) {
 
     if (!Array.isArray(reviews) || !reviews.length) {
@@ -1892,7 +1789,10 @@ function renderReviews(reviews) {
                 <div class="review-header">
 
                     <strong>
-                        ${escapeHTML(reviewTitle(review))}
+                        ${escapeHTML(
+                            review.review_title ||
+                            "Değerlendirme"
+                        )}
                     </strong>
 
                     <span>
@@ -1908,43 +1808,24 @@ function renderReviews(reviews) {
                 </div>
 
 
-                <div class="review-tags">
-
-                    ${
-                        review.verified_purchase
-                            ? `
-                                <small class="review-verified">
-                                    ✓ Onaylı alışveriş
-                                </small>
-                            `
-                            : ""
-                    }
-
-                    ${
-                        /*
-                           Cevirisi henuz gelmemis yorum:
-                           Ingilizce gosterdigimizi soyluyoruz.
-                           Turkce bir sayfada aciklamasiz
-                           Ingilizce metin site bozuk gibi
-                           gorunuyor.
-                        */
-                        reviewIsUntranslated(review)
-                            ? `
-                                <small class="review-original-lang">
-                                    özgün dilde (İngilizce)
-                                </small>
-                            `
-                            : ""
-                    }
-
-                </div>
+                ${
+                    review.verified_purchase
+                        ? `
+                            <small>
+                                ✓ Verified Purchase
+                            </small>
+                        `
+                        : ""
+                }
 
 
                 ${
-                    reviewText(review)
+                    review.review_text
                         ? `
                             <p>
-                                ${escapeHTML(reviewText(review))}
+                                ${escapeHTML(
+                                    review.review_text
+                                )}
                             </p>
                         `
                         : ""
@@ -6088,193 +5969,76 @@ const CUSTOMIZE_COLORS = [
 ];
 
 /*
-   KOMBIN SECIMI  (Ozellestir sihirbazi, adim 3)
-   ---------------------------------------------------------
-   Her kart bir KOMBIN gosteriyor: ya tam boy giyilmis bir
-   look (ust + alt + ayakkabi) ya da birden fazla parcanin
-   birlikte yatirildigi bir flatlay. Tek parca fotograf YOK.
-
-   NEDEN BU ONEMLI — DUZELTILEN HATA
-   ---------------------------------
-   Onceki listede gorsellerin yalnizca YUKLENDIGI dogrulanmisti
-   (HTTP 200). Icerikleri dogrulanmamisti ve sonuc su oldu:
-
-       "Minimalist & Sade"      -> bir cift kahverengi deri bot
-       "Yesil & Dogal Tonlar"   -> yesil kazak giyen kadin
-       "Sapkali Sehir Stili"    -> sapka + ceket (sadece ust)
-
-   Kullanici kombin secmek isterken tek bir ayakkabi
-   fotografina bakiyordu. Artik her fotografin Unsplash alt
-   metni okundu ve listeye YALNIZCA en az iki giysi parcasi
-   iceren kareler alindi. Asagidaki yorumlar o alt metnin
-   karsiligi: fotografta hangi parcalarin gorundugu.
-
-   Etiketler de buna gore yazildi. Kuru bir stil adi
-   ("Minimalist") degil, KOMBINI ANLATAN ifade
-   ("Sade Katmanlar & Notr", "Bastan Asagi Denim"). Iki
-   sebepten:
-
-     1. Kullanici karta bakip etiketi okudugunda ikisi
-        ortusuyor — gordugu sey ile yazan sey ayni.
-     2. Etiket dogrudan embedding'e gidiyor
-        (backend/app/style_customize.py ->
-        build_style_profile_prompt). "Bastan Asagi Denim"
-        anlamsal olarak ise yariyor, "Stil 6" yaramaz.
-
-   18 gorselin tamami HEAD istegiyle dogrulandi (200 +
-   image/*). Hotlink oldugu icin kartta onerror geri donusu
-   de var (bkz. renderCustomizeComboGrid).
-
-
-   NEDEN STOK FOTOGRAF, KATALOG URUNU DEGIL
-   ----------------------------------------
-   "Kombin kartlarini gercek urunlerden kur" secenegi
-   olculdu: product_style_scores uzerinden 8 arketip x giysi
-   tipi kapsami sayildi.
-
-       streetwear    8 ust / 35 alt / 17 ayakkabi   -> tam kombin
-       athleisure   39 ust / 35 alt / 11 ayakkabi   -> tam kombin
-       boho         23 ust /  0 alt / 15 elbise     -> elbise agirlikli
-       minimalist   19 ust /  7 alt /  0 ayakkabi   -> eksik
-       old_money     3 ust /  5 alt                 -> cok ince
-       goth         10 ust /  0 alt                 -> KURULAMAZ
-       y2k           0                              -> KURULAMAZ
-
-   Gercek urunle kombin yalnizca 6 arketipte kurulabiliyor ve
-   old_money'de 3 ustle kombin uretmek ayni parcayi tekrar
-   tekrar gostermek demek. Amac TARZ CESITLILIGI oldugu icin
-   bu yol daha AZ cesitlilik veriyordu.
-
-   Ayrim su: bu adim ZEVK olcuyor, urun satmiyor. Satin alma
-   bir sonraki adimda, profile gore yenilenen akista oluyor —
-   orada gosterilen her sey gercek katalog urunu.
+   Renk paleti gibi SABIT bir liste — /api/archetypes'e bagli
+   degil. Her giris GERCEK bir kombin/outfit fotografi (duz
+   yatirilmis flatlay ya da giyilmis look), sadece bir "stil
+   adi" veya tek urun fotografi degil. Kullanici kombini
+   GORUNUMUNE gore seçer (bkz. renderCustomizeComboGrid — kart
+   uzerinde hicbir tarz ismi YAZMIYOR). Secilen kombinin
+   "label"i /api/style-customize'e dogal dil ipucu olarak
+   gidiyor, embedding tabanli eslestirmeyi yonlendiriyor.
 */
-const CUSTOMIZE_COMBO_IMAGE_SUFFIX =
-    "?auto=format&fit=crop&w=600&q=80";
-
-/*
-   [id, TARZ ADI, aciklama, unsplash kimligi]
-
-   TARZ ADI kartin uzerinde buyuk harflerle yaziyor (GOTH,
-   Y2K, BOHO...). ACIKLAMA kartta kucuk punto ile altinda
-   duruyor VE embedding'e giden metin bu.
-
-   Neden ikisi ayri: "GOTH" kart uzerinde net ve okunur ama
-   embedding icin zayif bir ipucu. "Baştan aşağı siyah ceket
-   ve pantolon" ise embedding'de gercekten calisiyor ama
-   kart uzerinde uzun ve karmasik durur.
-
-   Tarz adlari FOTOGRAFTA GORUNENE gore verildi, keyfi
-   degil — "GOTH" karti gercekten bastan asagi siyah bir
-   kombin gosteriyor. Fotografla etiketin ortusmesi bu
-   ekranin tek isi.
-*/
-const CUSTOMIZE_COMBO_SOURCE = [
-    /* ---------- sade / notr ---------- */
-    ["layered_neutral", "MİNİMAL", "Sade katmanlar, nötr tonlar",
-     "photo-1516762689617-e1cffcef479d"],
-    /* gri hirka + mavi kot + kahverengi topuklu */
-
-    ["monochrome_white", "MONOKROM", "Baştan aşağı beyaz",
-     "photo-1627130697816-4d71dbfe6a5b"],
-    /* beyaz uzun kollu gomlek + beyaz pantolon */
-
-    ["earth_tones", "TOPRAK", "Bej ve kum tonlarında kombin",
-     "photo-1759229874914-c1ffdb3ebd0c"],
-    /* bej kazak + bej pantolon */
-
-    ["tee_boots", "BASİC", "Beyaz tişört ve deri bot",
-     "photo-1467043237213-65f2da53396f"],
-    /* beyaz bisiklet yaka tisort + kahverengi deri bot */
-
-    /* ---------- kot / triko ---------- */
-    ["knit_denim", "TRİKO", "Örgü kazak ve kot",
-     "photo-1585439623131-6a91ce98e4c0"],
-    /* beyaz triko kazak + mavi kot */
-
-    ["double_denim", "DENİM", "Baştan aşağı kot kombin",
-     "photo-1762343944518-bb23beeaaa8b"],
-    /* denim ceket + kot pantolon */
-
-    ["denim_sneaker", "SNEAKER", "Kot pantolon ve spor ayakkabı",
-     "photo-1731936757642-09bccaf8b495"],
-    /* mavi kot + beyaz sneaker, flatlay */
-
-    /* ---------- sokak / urban ---------- */
-    ["all_black", "GOTH", "Baştan aşağı siyah, koyu ve iddialı",
-     "photo-1586231912972-d0970f9ce787"],
-    /* siyah fermuarli ceket + siyah pantolon + gozluk */
-
-    ["color_contrast", "RENKLİ", "Canlı renk kontrastlı kombin",
-     "photo-1684283377169-e3dcfec7790c"],
-    /* beyaz gomlek + yesil pantolon */
-
-    ["street_jacket", "STREETWEAR", "Renkli sokak ceketi kombini",
-     "photo-1628030328071-538b251a4455"],
-    /* kirmizi-beyaz ceket, merdivende tam boy */
-
-    ["utility", "UTILITY", "Kamuflaj ve kargo detaylı kombin",
-     "photo-1770979821039-a3391328dfcb"],
-    /* kamuflaj ceket + siyah pantolon */
-
-    ["pink_skirt", "Y2K", "Pembe ceket ve mini etek",
-     "photo-1776409670989-e1dd3e7c663e"],
-    /* pembe ceket + siyah etek */
-
-    /* ---------- klasik / ofis ---------- */
-    ["smart_loafer", "PREPPY", "Çizgili gömlek ve loafer",
-     "photo-1761896898277-5141377f2a12"],
-    /* cizgili gomlek + gozluk + loafer, flatlay */
-
-    ["classic_weekend", "OLD MONEY", "Klasik kazak, şapka, deri ayakkabı",
-     "photo-1632469188022-b5db09a70fbc"],
-    /* kazak + sapka + ayakkabi, flatlay */
-
-    /* ---------- elbise / bohem ---------- */
-    ["boho_dress", "BOHO", "Bohem elbise ve bot",
-     "photo-1658396169748-f90bac9a170e"],
-    /* beyaz elbise + siyah bot + sapka */
-
-    ["beach_dress", "RESORT", "Askılı plaj elbisesi",
-     "photo-1601468916450-f18d68082d7a"],
-    /* beyaz askili elbise, tam boy */
-
-    /* ---------- rahat / yazlik ---------- */
-    ["co_ord", "LOUNGE", "Rahat ikili takım",
-     "photo-1624353656309-8be1a6c457be"],
-    /* turuncu-beyaz ikili takim, tam boy */
-
-    ["summer_tank", "YAZLIK", "Atlet ve keten pantolon",
-     "photo-1614610708192-50f72a7e83f1"],
-    /* mavi atlet + kahverengi pantolon */
+const CUSTOMIZE_COMBOS = [
+    {
+        id: "minimalist",
+        label: "Minimalist & Sade",
+        image_url:
+            "https://images.unsplash.com/photo-1479064555552-3ef4979f8908" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "vintage",
+        label: "Vintage & Retro",
+        image_url:
+            "https://images.unsplash.com/photo-1717201395289-03e4700ca8b6" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "streetwear",
+        label: "Streetwear & Urban",
+        image_url:
+            "https://images.unsplash.com/photo-1616761512547-ea151d8a56d5" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "office",
+        label: "Smart Casual & Ofis",
+        image_url:
+            "https://images.unsplash.com/photo-1507707113652-f8a32c05046d" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "old_money",
+        label: "Old Money & Şık",
+        image_url:
+            "https://images.unsplash.com/photo-1593032470861-4509830938cb" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "boho",
+        label: "Bohem & Doğal",
+        image_url:
+            "https://images.unsplash.com/photo-1516763449302-78450e5a507d" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "sporty",
+        label: "Spor & Aktif",
+        image_url:
+            "https://images.unsplash.com/photo-1548606703-580672e56c26" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
+    {
+        id: "edgy",
+        label: "Karanlık & İddialı",
+        image_url:
+            "https://images.unsplash.com/photo-1717766293805-df3a47dd819d" +
+            "?auto=format&fit=crop&w=600&q=80",
+    },
 ];
 
-const CUSTOMIZE_COMBOS = CUSTOMIZE_COMBO_SOURCE.map(
-    ([id, name, label, photoId]) => ({
-        id,
-
-        /* kartta buyuk harflerle gorunen tarz adi */
-        name,
-
-        /* kartta kucuk punto + embedding'e giden metin */
-        label,
-
-        image_url:
-            "https://images.unsplash.com/" +
-            photoId +
-            CUSTOMIZE_COMBO_IMAGE_SUFFIX,
-    })
-);
-
-/*
-   18 kombin arasindan en fazla 5 secim.
-   ---------------------------------------------------------
-   8 secenekte 4 makuldu; 18 secenekte 4 fazla kisitlayici.
-   Ust sinir bilincli olarak duruyor: her seyi secmek
-   "hicbir tercihim yok" ile ayni sinyali veriyor ve
-   embedding profilini bulaniklastiriyor.
-*/
-const CUSTOMIZE_MAX_COMBOS = 5;
+const CUSTOMIZE_MAX_COLORS = 6;
+const CUSTOMIZE_MAX_COMBOS = 4;
 const CUSTOMIZE_STEP_COUNT = 3;
 
 const customizeState = {
@@ -6456,23 +6220,6 @@ function renderCustomizeComboGrid() {
 
     if (!grid) return;
 
-    /*
-       Ipucu metnini BURADAN yaziyoruz.
-
-       HTML'de "en fazla 4" sabit yaziliydi ve
-       CUSTOMIZE_MAX_COMBOS degistiginde birlikte
-       degismiyordu — kullaniciya yanlis sayi soyleyen bir
-       arayuz. Tek kaynak sabitin kendisi.
-    */
-    const hint = $("customize-combo-hint");
-
-    if (hint) {
-        hint.textContent =
-            "Beğendiğin kombinleri seç, en fazla " +
-            CUSTOMIZE_MAX_COMBOS +
-            " tanesini işaretleyebilirsin.";
-    }
-
     grid.innerHTML = CUSTOMIZE_COMBOS
         .map(option => {
 
@@ -6491,20 +6238,12 @@ function renderCustomizeComboGrid() {
                             src="${escapeHTML(option.image_url)}"
                             alt=""
                             loading="lazy"
-                            onerror="this.src='https://placehold.co/600x800?text=AURA'"
                         >
-
                         <span class="customize-combo-check">
-                            ${icon("check")}
+                            <i class="fa-solid fa-check"></i>
                         </span>
-
                         <span class="customize-combo-label">
-                            <strong class="customize-combo-name">
-                                ${escapeHTML(option.name)}
-                            </strong>
-                            <small class="customize-combo-desc">
-                                ${escapeHTML(option.label)}
-                            </small>
+                            ${escapeHTML(option.label)}
                         </span>
                     </div>
                 </button>
@@ -6518,97 +6257,6 @@ function renderCustomizeComboGrid() {
 
             button.addEventListener("click", () => {
                 toggleCustomizeCombo(button);
-            });
-        });
-
-    hydrateIcons(grid);
-
-    renderCustomizeComboSelection();
-}
-
-
-/**
- * SECIM OZETI — kullanici ne sectigini bilsin.
- *
- * 18 kart iki kolonda, izgara kayiyor. Kullanici asagi
- * indiginde secili kartlar ekrandan cikiyor ve "ben ne
- * secmistim" sorusunun cevabi kayboluyor. Karttaki altin
- * halka yalnizca kart gorunurken bilgi veriyor.
- *
- * Bu serit izgaranin altinda sabit: secilen TARZ ADLARINI
- * (GOTH, DENIM...) yaziyor. Cipe basmak secimi kaldiriyor —
- * yukari kaydirip karti bulmak gerekmiyor.
- */
-function renderCustomizeComboSelection() {
-
-    const wrap = $("customize-combo-selection");
-    const chips = $("customize-combo-selection-chips");
-
-    if (!wrap || !chips) return;
-
-    const selected = customizeState.combos;
-
-    if (!selected.length) {
-        wrap.hidden = true;
-        chips.innerHTML = "";
-        return;
-    }
-
-    wrap.hidden = false;
-
-    /*
-       customizeState.combos ACIKLAMA metinlerini tutuyor
-       (embedding'e giden hali). Kullaniciya kisa TARZ ADINI
-       gostermek istiyoruz, o yuzden geri esliyoruz.
-    */
-    chips.innerHTML = selected
-        .map(label => {
-
-            const combo = CUSTOMIZE_COMBOS.find(
-                option => option.label === label
-            );
-
-            const name = combo ? combo.name : label;
-
-            return `
-                <button
-                    type="button"
-                    class="customize-selection-chip"
-                    data-remove-combo="${escapeHTML(label)}"
-                    title="${escapeHTML(name)} seçimini kaldır"
-                >
-                    ${escapeHTML(name)}
-                    ${icon("x")}
-                </button>
-            `;
-        })
-        .join("");
-
-    hydrateIcons(chips);
-
-    chips
-        .querySelectorAll("[data-remove-combo]")
-        .forEach(button => {
-
-            button.addEventListener("click", () => {
-
-                const label = button.dataset.removeCombo;
-
-                customizeState.combos =
-                    customizeState.combos.filter(item => item !== label);
-
-                /* Izgaradaki karti da pasife al */
-                const card = $("customize-combo-grid")
-                    ?.querySelector(
-                        `[data-combo-label="${cssEscape(label)}"]`
-                    );
-
-                if (card) {
-                    card.classList.remove("active");
-                    card.setAttribute("aria-pressed", "false");
-                }
-
-                renderCustomizeComboSelection();
             });
         });
 }
@@ -6627,8 +6275,6 @@ function toggleCustomizeCombo(button) {
 
         button.classList.remove("active");
         button.setAttribute("aria-pressed", "false");
-
-        renderCustomizeComboSelection();
 
         return;
     }
@@ -6650,8 +6296,6 @@ function toggleCustomizeCombo(button) {
 
     button.classList.add("active");
     button.setAttribute("aria-pressed", "true");
-
-    renderCustomizeComboSelection();
 }
 
 
@@ -6883,77 +6527,9 @@ async function applyStyleCustomizationResults(items) {
     renderAiStatus();
     renderExploreMore();
 
-    /*
-       URUN IZGARASI DA PROFILE GORE YENILENIYOR.
-
-       Onceden yalnizca Kesfet seridi degisiyordu; asagidaki
-       urun listesi "Tum Urunler" olarak kaliyordu. Kullanici
-       az once bes kombin secip profilini kurmusken sitenin
-       yarisinin bunu yok saymasi tutarsiz gorunuyor —
-       "sitem onlara gore guncellensin" derken kastedilen sey
-       tam olarak bu.
-
-       Ayni urunleri kullaniyoruz: ikinci bir istek atmiyoruz,
-       /api/style-customize'in dondurdugu liste zaten
-       profile gore siralanmis durumda.
-    */
-    applyStyleProfileToProductGrid(items);
-
 
     $("explore")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-
-/**
- * Stil profilinden gelen urunleri urun izgarasina yazar.
- *
- * Arama moduna BENZER ama ayni degil: burada bir arama
- * terimi yok, bir profil var. state.searchMode'u acmiyoruz
- * ki kullanici bir kategoriye bastiginda ya da arama
- * yaptiginda normal akisa temiz bir sekilde donebilsin.
- *
- * hasMore = false: bu liste profilin tamami. Asagi kaydirinca
- * profille ilgisi olmayan urunlerin eklenmesi, profili
- * kurmus kullanici icin gerileme olurdu. "Tumu" sekmesine
- * basmak normal akisi geri getiriyor.
- */
-function applyStyleProfileToProductGrid(items) {
-
-    if (!productsGrid || !Array.isArray(items) || !items.length) {
-        return;
-    }
-
-    state.searchMode = false;
-    state.searchQuery = "";
-    state.category = "";
-
-    state.products = items.slice();
-    state.offset = items.length;
-    state.hasMore = false;
-
-    productsGrid.innerHTML = "";
-
-    hideEmpty();
-
-    appendProducts(state.products, 0);
-
-    /* Filtre cubugunda hicbir kategori aktif gorunmesin:
-       bu liste bir kategori degil, bir profil. */
-    document
-        .querySelectorAll("[data-category]")
-        .forEach(element => element.classList.remove("active"));
-
-    if (resultsTitle) {
-        resultsTitle.textContent = "Stil Profiline Göre";
-    }
-
-    if (resultsCount) {
-        resultsCount.textContent =
-            `${state.products.length} ürün profiline göre seçildi`;
-    }
-
-    renderProductsMore();
 }
 
 
@@ -7052,40 +6628,25 @@ function setupExplore() {
 
     exploreGrid.addEventListener("click", event => {
 
-        /*
-           EYLEM BUTONLARI ONCE KONTROL EDILIYOR.
+        const openTarget =
+            event.target.closest("[data-explore-open]");
 
-           Sira onemli: hizli eylem butonlari (.explore-quick-
-           actions icindeki kalp ve sepet) kartin RESIM
-           KUTUSUNUN ICINDE duruyor ve o kutu
-           data-explore-open tasiyor.
+        if (openTarget) {
 
-           Onceki sirada data-explore-open once bakiliyordu ve
-           `return` ediyordu; sonuc olarak hizli kalp ve hizli
-           sepet butonlari hic calismiyordu — basinca urun
-           detayi aciliyordu. Ic ice gecmis tiklama
-           alanlarinda DAIMA en ozel eylem kazanmali.
-        */
+            const productId = openTarget.dataset.exploreOpen;
+
+            const item = findExploreItem(productId);
+
+            openProduct(productId, item?.product);
+
+            return;
+        }
+
 
         const button =
             event.target.closest("[data-explore-action]");
 
-        if (!button) {
-
-            const openTarget =
-                event.target.closest("[data-explore-open]");
-
-            if (openTarget) {
-
-                const productId = openTarget.dataset.exploreOpen;
-
-                const item = findExploreItem(productId);
-
-                openProduct(productId, item?.product);
-            }
-
-            return;
-        }
+        if (!button) return;
 
 
         const card = button.closest(".explore-card");

@@ -27,12 +27,6 @@ class ReviewResponse(BaseModel):
     review_title: str | None = None
     review_text: str | None = None
 
-    # Turkce ceviriler. Orijinal alanlar da donuyor: arayuz
-    # ceviri yoksa Ingilizce'ye dusuyor, boylece ceviri
-    # tamamlanana kadar yorum bolumu bos gorunmuyor.
-    review_title_tr: str | None = None
-    review_text_tr: str | None = None
-
     sentiment_score: float | None = None
 
     model_config = ConfigDict(
@@ -387,31 +381,6 @@ InteractionSource = Literal[
 ]
 
 
-# Toast bildirimi — sepet, etkilesim ve hizli siparis
-# cevaplarinin UCUNDE de kullaniliyor, bu yuzden paylasilan
-# tiplerin yaninda duruyor.
-#
-# ONCEDEN dosyanin ilerisinde tanimliydi ve ilk kullanimi
-# (CartCheckoutResponse) ondan onceydi: backend NameError ile
-# hic ayaga kalkmiyordu. StyleArchetype icin de ayni sey
-# yasanmisti; Python sinif govdesindeki tip ifadelerini
-# tanim aninda cozdugu icin sira onemli.
-class ToastMessage(BaseModel):
-    """
-    Arayuzde gosterilecek bildirim.
-
-    Metni backend uretiyor: mesaj gercekten olan seyi
-    anlatmali. "Benzer urunler onceliklendirildi" yazip
-    hicbir sey yapmamak kullaniciyi aldatmak olur.
-    """
-
-    title: str
-    message: str
-
-    # success | info | neutral
-    tone: str = "info"
-
-
 class InteractionCreate(BaseModel):
     """
     Tek bir kullanici etkilesimi.
@@ -699,6 +668,22 @@ class AiExploreResponse(BaseModel):
     exhausted: bool
 
     remaining: int
+
+
+class ToastMessage(BaseModel):
+    """
+    Arayuzde gosterilecek bildirim.
+
+    Metni backend uretiyor: mesaj gercekten olan seyi
+    anlatmali. "Benzer urunler onceliklendirildi" yazip
+    hicbir sey yapmamak kullaniciyi aldatmak olur.
+    """
+
+    title: str
+    message: str
+
+    # success | info | neutral
+    tone: str = "info"
 
 
 class InteractRequest(BaseModel):

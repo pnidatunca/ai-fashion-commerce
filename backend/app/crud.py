@@ -148,34 +148,6 @@ def get_products(
                 )
             )
 
-        elif category == "kids":
-
-            # COCUK: bebek + erkek cocuk.
-            #
-            # Katalogda olculen dagilim (728 urun icinde):
-            #   Baby › Baby Girls    24
-            #   Baby › Baby Boys     11
-            #   Boys › Clothing      32
-            #   Boys (yaprak)         1
-            #   ---------------------------
-            #   toplam               68   (67'sinin fiyati+gorseli var)
-            #
-            # "Girls" (buyuk kiz cocuk) dali katalogda YOK —
-            # yalnizca "Baby Girls" var. Var olmayan bir deseni
-            # yazmiyoruz: skoru degistirmez ama bakim yapan
-            # kisiye olmayan bir kapsam varmis gibi gosterir.
-            #
-            # Men/Women filtreleriyle CAKISMA YOK: yollar
-            # "... › Baby › ..." ve "... › Boys › ..." seklinde,
-            # "› Men ›" veya "› Women ›" gecmiyor.
-            statement = statement.where(
-                or_(
-                    Product.category.ilike("%› Baby ›%"),
-                    Product.category.ilike("%› Boys ›%"),
-                    Product.category.ilike("%› Boys"),
-                )
-            )
-
     # SIRALAMA ARTIK SUNUCUDA.
     #
     # Onceden sadece ekrandaki 12 urun tarayicida
@@ -438,20 +410,6 @@ def semantic_search_products(
         elif gender == "women":
             statement = statement.where(
                 Product.category.ilike("%› Women ›%")
-            )
-
-        elif gender == "kids":
-
-            # COCUK sekmesiyle ayni desenler (bkz.
-            # get_products category == "kids"). Eski uc de
-            # cocugu tanimali; aksi halde ayni sorgu iki
-            # uctan farkli sonuc dondurur.
-            statement = statement.where(
-                or_(
-                    Product.category.ilike("%› Baby ›%"),
-                    Product.category.ilike("%› Boys ›%"),
-                    Product.category.ilike("%› Boys"),
-                )
             )
 
     # =====================================================

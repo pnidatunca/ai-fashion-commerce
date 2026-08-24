@@ -421,31 +421,19 @@ _CATEGORY_PATTERNS: dict[str, list[str]] = {
     ],
 }
 
-# Cocuk tek bir desenle ifade edilemiyor: katalogda hem
-# "Baby" hem "Boys" dali var (olculmus: 35 + 33 = 68 urun).
-# Bu yuzden deger LISTE.
-#
-# Ayni desenler crud.get_products icinde de var (COCUK
-# sekmesi oradan besleniyor); iki yerin AYNI urunleri
-# dondurmesi gerekiyor, yoksa sekmeden gelen sonuc ile
-# aramadan gelen sonuc celisir.
-
-_GENDER_PATTERNS: dict[str, list[str]] = {
-    "women": ["%› Women ›%"],
-    "men": ["%› Men ›%"],
-    "kids": ["%› Baby ›%", "%› Boys ›%", "%› Boys"],
+_GENDER_PATTERNS = {
+    "women": "%› Women ›%",
+    "men": "%› Men ›%",
 }
 
 
 def _apply_gender(statement, gender: str | None):
-    patterns = _GENDER_PATTERNS.get(gender or "")
+    pattern = _GENDER_PATTERNS.get(gender or "")
 
-    if not patterns:
+    if not pattern:
         return statement
 
-    return statement.where(
-        or_(*[Product.category.ilike(p) for p in patterns])
-    )
+    return statement.where(Product.category.ilike(pattern))
 
 
 def _apply_category(statement, category: str | None):

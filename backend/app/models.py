@@ -223,27 +223,6 @@ class Review(Base):
     # Review metni
     review_text = Column(Text)
 
-    # ---------------------------------------------------------
-    # TÜRKÇE ÇEVİRİLER
-    # ---------------------------------------------------------
-    # Yorumlar Amazon'dan geldiği için Ingilizce. Çeviri
-    # ORIJINALIN ÜSTÜNE YAZILMIYOR, ayrı kolonda duruyor:
-    #
-    #   1. Çeviri kalitesi denetlenebilir kalsın (orijinal
-    #      silinirse "bu çeviri doğru mu" sorusu
-    #      cevaplanamaz).
-    #   2. Çeviri boş veya başarısızsa arayüz orijinali
-    #      gösteriyor (frontend'de reviewTitle / reviewText).
-    #   3. sentiment_score orijinal Ingilizce metne göre
-    #      hesaplandı; metni değiştirmek o skoru geçersiz
-    #      kılardı.
-    #
-    # Aynı desen ürün başlıklarında da var (title / title_tr).
-    # Dolduran script: scripts/14_translate_reviews.py
-    review_title_tr = Column(Text)
-
-    review_text_tr = Column(Text)
-
     # Temizlenmiş orijinal review metni
     source_cleaned_review_text = Column(Text)
 
