@@ -1,5 +1,5 @@
 /* =========================================================
-   AURA FASHION — PREMIUM EDITORIAL DESIGN
+   WISHNN FASHION — PREMIUM EDITORIAL DESIGN
 ========================================================= */
 
 * {
@@ -85,10 +85,35 @@ a {
 }
 
 .brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.brand-mark {
+    height: 34px;
+    width: auto;
+}
+
+.brand-word {
     font-family: var(--serif);
-    font-size: 28px;
-    letter-spacing: 8px;
+    font-style: italic;
     font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 1.5px;
+
+    background: linear-gradient(
+        100deg,
+        #a8734c 0%,
+        #e3c9a0 32%,
+        #8f8f97 55%,
+        #d8b98a 78%,
+        #a8734c 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .main-nav {
@@ -1202,10 +1227,11 @@ a {
 }
 
 .footer-brand {
-    font-family: var(--serif);
+    font-family: var(--sans);
+    font-weight: 700;
 
-    font-size: 50px;
-    letter-spacing: 10px;
+    font-size: 40px;
+    letter-spacing: 6px;
 }
 
 .footer p {
@@ -1283,8 +1309,13 @@ a {
         grid-template-columns: 1fr auto;
     }
 
-    .brand {
-        font-size: 24px;
+    .brand-mark {
+        height: 26px;
+        width: auto;
+    }
+
+    .brand-word {
+        font-size: 11px;
     }
 
     .main-nav {
@@ -1437,7 +1468,7 @@ a {
 }
 
 /* =========================================================
-   AUTH OVERLAY — AURA FASHION LOGIN / REGISTER
+   AUTH OVERLAY — WISHNN FASHION LOGIN / REGISTER
 ========================================================= */
 
 .auth-overlay {
@@ -6366,5 +6397,63 @@ a {
 
     .search-alt:active {
         transform: none;
+    }
+}
+
+
+/* =========================================================
+   BAŞA DÖN BUTONU
+   ---------------------------------------------------------
+   toast-stack sag-alt kosede oldugu icin (bkz. .toast-stack)
+   cakismamak adina bu buton sol-altta duruyor.
+========================================================= */
+
+.scroll-top-btn {
+    position: fixed;
+    left: 26px;
+    bottom: 26px;
+    z-index: 4000;
+
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--black);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+
+    font-size: 15px;
+
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: opacity .25s ease, transform .25s ease, background .2s ease, color .2s ease;
+}
+
+.scroll-top-btn.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.scroll-top-btn:hover {
+    background: var(--gold);
+    color: var(--white);
+}
+
+@media (max-width: 640px) {
+
+    .scroll-top-btn {
+        left: 16px;
+        bottom: 16px;
+
+        width: 40px;
+        height: 40px;
+
+        font-size: 13px;
     }
 }
