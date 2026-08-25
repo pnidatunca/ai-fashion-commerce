@@ -1,5 +1,5 @@
 /* =========================================================
-   AURA FASHION
+   WISHNN FASHION
    FastAPI Backend Connected Version
 ========================================================= */
 
@@ -176,6 +176,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupSearch();
     setupAiGlow();
     setupSearchAlternatives();
+    setupScrollTop();
     setupCategories();
     setupSort();
     setupModal();
@@ -541,7 +542,7 @@ function appendProducts(products, startIndex = 0) {
                     src="${escapeHTML(safeImage(product.image_url))}"
                     alt="${escapeHTML(title)}"
                     loading="lazy"
-                    onerror="this.src='https://placehold.co/600x800?text=AURA'"
+                    onerror="this.src='https://placehold.co/600x800?text=WishNN'"
                 >
 
                 ${
@@ -916,7 +917,7 @@ async function loadFeaturedProducts() {
                         src="${safeImage(product.image_url)}"
                         alt="${escapeHTML(product.title)}"
                         loading="lazy"
-                        onerror="this.src='https://placehold.co/600x800?text=AURA'"
+                        onerror="this.src='https://placehold.co/600x800?text=WishNN'"
                     >
 
                     <span class="discount-tag">
@@ -1003,7 +1004,7 @@ function setSearchType(type) {
 
         searchModeDescription.textContent =
             type === "semantic"
-                ? "Ne aradığını doğal bir şekilde tarif et. AURA anlamına göre en uygun ürünleri bulsun."
+                ? "Ne aradığını doğal bir şekilde tarif et. WishNN anlamına göre en uygun ürünleri bulsun."
                 : "Ürün adı, marka veya kategori üzerinden anahtar kelimeyle ara.";
     }
 
@@ -3040,7 +3041,7 @@ function renderUserArea() {
     if (userDropdownName) {
 
         userDropdownName.textContent =
-            fullName || "AURA Üyesi";
+            fullName || "WishNN Üyesi";
     }
 
 
@@ -3217,6 +3218,41 @@ function setupNavigation() {
                 ?.classList.remove("open");
         }
     );
+}
+
+
+/* =========================================================
+   BAŞA DÖN
+========================================================= */
+
+function setupScrollTop() {
+
+    const button = $("scroll-top-btn");
+
+    if (!button) return;
+
+    const SHOW_AFTER_PX = 120;
+
+    const sync = () => {
+
+        button.classList.toggle(
+            "visible",
+            window.scrollY > SHOW_AFTER_PX
+        );
+    };
+
+    window.addEventListener("scroll", sync, { passive: true });
+
+    /* Sayfa kaydirilmis halde acilabilir (yenileme, #anchor) */
+    sync();
+
+    button.addEventListener("click", () => {
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    });
 }
 
 
@@ -3406,7 +3442,7 @@ function safeImage(value) {
     }
 
 
-    return "https://placehold.co/600x800?text=AURA";
+    return "https://placehold.co/600x800?text=WishNN";
 }
 
 
@@ -7370,7 +7406,7 @@ function buildExploreCard(item, position) {
                 src="${escapeHTML(safeImage(product.image_url))}"
                 alt="${escapeHTML(productTitle(product))}"
                 loading="lazy"
-                onerror="this.src='https://placehold.co/600x800?text=AURA'"
+                onerror="this.src='https://placehold.co/600x800?text=WishNN'"
             >
 
             ${

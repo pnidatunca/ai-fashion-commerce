@@ -32,3 +32,6 @@ data/*
 *.csv
 
 *.db
+
+# Sirket ici Hybris dokumanlari - asla push edilmeyecek
+hybris-documents-master/

@@ -1963,7 +1963,7 @@ def quick_order(
 
 def _build_order_number():
     """
-    AURA-20260820-4831
+    WISHNN-20260820-4831
 
     Sunucuda uretiliyor: istemcide uretilse iki sekme ayni
     numarayi verebilir ve destek tarafinda karisiklik olur.
@@ -1978,7 +1978,7 @@ def _build_order_number():
     # edilebilir olmamali).
     suffix = secrets.randbits(20) % 10000
 
-    return f"AURA-{stamp}-{suffix:04d}"
+    return f"WISHNN-{stamp}-{suffix:04d}"
 
 
 # =========================================================
