@@ -83,6 +83,17 @@ class ProductDetailResponse(ProductResponse):
 class SemanticProductResponse(ProductResponse):
     similarity_score: float
 
+    # Gorselden olculmus renk bilgisi. Renk secilmis bir
+    # istekte doluyor; yoksa None kaliyor (renk verisi
+    # cikarilmamis ya da istek renksiz).
+    #
+    # color_distance: secilen palete DeltaE uzakligi. Kucuk =
+    # daha iyi eslesme. Arayuz "neden bu urun?" sorusuna
+    # bununla cevap verebilir.
+    color_family: str | None = None
+    is_pastel: bool | None = None
+    color_distance: float | None = None
+
 
 # =========================================================
 # OZELLESTIR (EMBEDDING TABANLI STIL PROFILI)
@@ -125,6 +136,18 @@ class StyleCustomizeResponse(BaseModel):
 
     count: int
 
+    # "measured": renkler urun gorsellerinden olculen
+    # degerlerle eslestirildi. "semantic": renk verisi henuz
+    # cikarilmamis, eslestirme yalnizca embedding ile yapildi
+    # (katalogda urunlerin %70'i rengini metninde yazmadigi
+    # icin bu yol renkte zayif).
+    color_source: str = "semantic"
+
+    # Kac urun secilen palete gercekten yakin cikti.
+    # Kullaniciya "6 renk sectin, 18 urun uydu" demek
+    # sessizce alakasiz urun gostermekten iyidir.
+    color_matched: int = 0
+
 
 # =========================================================
 # AKILLI ARAMA  (/api/search)
@@ -162,6 +185,11 @@ class SearchAnalysis(BaseModel):
     fits: list[str] = []
     occasions: list[str] = []
 
+    # Cumleden okunan butce: {"min_try", "max_try", "kind",
+    # "approximate"}. Kullanicinin yazdigi sayinin dogru
+    # anlasildigini gormesi icin aciga cikariliyor.
+    price: dict | None = None
+
     # Embedding'e giden zenginlestirilmis metin. Aciga
     # cikariyoruz cunku "AI aramayi nasil degistirdi"
     # sorusunun en dogru cevabi bu.
@@ -198,6 +226,17 @@ class SearchMeta(BaseModel):
     # False ise embedding uretilemedi ve arama yalnizca
     # kelime eslesmesiyle calisti.
     semantic: bool = True
+
+    # "measured": renk gorselden olculmus degerlerle de
+    # eslestirildi. "text": yalnizca metin eslesmesi (renk
+    # verisi henuz cikarilmamis). None: renk aranmadi.
+    color_source: str | None = None
+
+    # Gercekten uygulanan butce siniri ve kullanilan kur.
+    # Sinir gevsetilmiyor; kullanici gordugu sayiya
+    # guvenebilmeli.
+    price_filter: dict | None = None
+    usd_try_rate: float | None = None
 
 
 class SearchResponse(BaseModel):
@@ -378,7 +417,46 @@ InteractionSource = Literal[
     "featured",
     "quick_checkout",
     "cart",
+
+    # AI sohbet asistaninin onerdigi kartlar.
+    #
+    # Neden mevcut bir deger yeniden kullanilmadi: source bir
+    # BAGLAM OZELLIGI (bkz. EXPLORE_AND_RECOMMENDATIONS.md).
+    # Sohbette verilen kalp, kullanicinin niyetini tarif
+    # ettikten SONRA geliyor — gridde gezerken verilen kalpten
+    # farkli bir sinyal. "grid" diye kaydetmek egitim verisini
+    # sessizce bozardi.
+    #
+    # Migration gerekmiyor: user_interactions.source
+    # VARCHAR(32) ve uzerinde CHECK kisiti yok.
+    "chat",
 ]
+
+
+# Toast bildirimi — sepet, etkilesim ve hizli siparis
+# cevaplarinin UCUNDE de kullaniliyor, bu yuzden paylasilan
+# tiplerin yaninda duruyor.
+#
+# ONCEDEN dosyanin ilerisinde tanimliydi ve ilk kullanimi
+# (CartCheckoutResponse, satir ~536) ondan onceydi: backend
+# NameError ile hic ayaga kalkmiyordu. StyleArchetype icin de
+# ayni sey yasanmisti; Python sinif govdesindeki tip
+# ifadelerini tanim aninda cozdugu icin SIRA onemli.
+class ToastMessage(BaseModel):
+    """
+    Arayuzde gosterilecek bildirim.
+
+    Metni backend uretiyor: mesaj gercekten olan seyi
+    anlatmali. "Benzer urunler onceliklendirildi" yazip
+    hicbir sey yapmamak kullaniciyi aldatmak olur.
+    """
+
+    title: str
+    message: str
+
+    # success | info | neutral
+    tone: str = "info"
+
 
 
 class InteractionCreate(BaseModel):
@@ -670,22 +748,6 @@ class AiExploreResponse(BaseModel):
     remaining: int
 
 
-class ToastMessage(BaseModel):
-    """
-    Arayuzde gosterilecek bildirim.
-
-    Metni backend uretiyor: mesaj gercekten olan seyi
-    anlatmali. "Benzer urunler onceliklendirildi" yazip
-    hicbir sey yapmamak kullaniciyi aldatmak olur.
-    """
-
-    title: str
-    message: str
-
-    # success | info | neutral
-    tone: str = "info"
-
-
 class InteractRequest(BaseModel):
     product_id: str = Field(min_length=1, max_length=64)
 
@@ -789,3 +851,158 @@ class QuickOrderResponse(BaseModel):
     wishlist_count: int = 0
 
     toast: ToastMessage | None = None
+
+
+# =========================================================
+# AI SOHBET ASISTANI
+# =========================================================
+#
+# Gecmis SUNUCUDA tutulmuyor: istemci her turda konusmanin
+# tamamini gonderiyor (bkz. backend/app/assistant.py). Bu
+# yuzden istek modeli tek bir mesaj degil, mesaj LISTESI.
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class ChatRequest(BaseModel):
+    # Ust sinir hem token maliyetini hem de kotu niyetli
+    # buyuk govdeleri kapatiyor. Asistan zaten son
+    # MAX_HISTORY_MESSAGES mesaji okuyor.
+    messages: list[ChatMessage] = Field(
+        min_length=1,
+        max_length=40,
+    )
+
+
+class ChatProduct(BaseModel):
+    """
+    Sohbet balonunun altindaki kartin ihtiyaci olan alanlar.
+
+    NEDEN ProductResponse DEGIL
+    Iki sebep:
+
+    1. DURUSTLUK. ProductResponse'un description/features/
+       search_text alanlari var; sohbet bunlari okumuyor ve
+       None gonderirse "bu urunun aciklamasi yok" demis olur.
+       Sozlesme tasidigi seyi tarif etmeli.
+
+    2. BOYUT. search_text urun basina kilobaytlar tutuyor ve
+       bir cevapta 8 kart donebiliyor. Karta hicbir faydasi
+       yok.
+
+    Karta basildiginda arayuz /products/{id} ile tam kaydi
+    zaten cekiyor (openProduct).
+
+    FIYAT IKI ALANDA:
+
+      price      USD — sitenin geri kalaniyla ayni sekil
+      price_try  TL  — SUNUCUNUN kullandigi kur ile
+
+    NEDEN IKINCISI EKLENDI
+    Arayuz TL fiyatini kendi kuruyla hesapliyordu
+    (formatPrice -> toTry). Kur alinamazsa sabit bir yedege
+    (47.88) dusuyor. O anda asistan "3000 TL altinda" diye
+    filtrelemisse, kartta 3100 TL yazabiliyordu: sistem
+    kendi soyledigi seyi yalanliyordu.
+
+    Sohbette gosterilen TL fiyati artik filtrenin
+    kullandigi AYNI sayidir.
+    """
+
+    product_id: str
+    title: str
+
+    title_tr: str | None = None
+    brand: str | None = None
+    category: str | None = None
+
+    price: float | None = None
+    price_try: float | None = None
+
+    rating: float | None = None
+    rating_count: int | None = None
+
+    image_url: str | None = None
+
+
+# =========================================================
+# SOHBET ACILIS ONERILERI  (/api/chat/starters)
+# =========================================================
+
+class ChatStarterItem(BaseModel):
+    """
+    Tiklanabilir bir oneri.
+
+    prompt: sohbete AYNEN gonderilecek cumle. Arayuz kendi
+        cumlesini kurmuyor — oneri metniyle gonderilen mesaj
+        ayni yerden gelsin ki "tikladigim sey ile sordugu sey"
+        arasinda fark olmasin.
+
+    available: katalogda bu oneriyi karsilayan urun sayisi.
+        None ise sayilamadi (arayuz sayi yazmaz).
+    """
+
+    id: str
+    kind: str
+    label: str
+    note: str = ""
+    prompt: str
+
+    # Renk onerilerinde paletteki hex; digerlerinde None.
+    swatch: str | None = None
+
+    available: int | None = None
+
+
+class ChatTrend(BaseModel):
+    year: int
+    season: str
+    title: str
+    note: str = ""
+
+    # "editorial": liste elle derlendi, veriden cikarilmadi.
+    # Arayuz bunu kullaniciya "WishNN seckisi" olarak
+    # gosteriyor; olmayan bir yetke (Pantone vb.) ima
+    # etmemek icin acikca tasiniyor.
+    source: str = "editorial"
+
+    colors: list[ChatStarterItem] = []
+    styles: list[ChatStarterItem] = []
+    fabrics: list[ChatStarterItem] = []
+
+
+class ChatDestinationOption(BaseModel):
+    id: str
+    label: str
+    prompt: str
+
+
+class ChatDestination(BaseModel):
+    hint: str
+    placeholder: str
+
+    # {place} kalibi. Kullanici serbest metin yazdiginda
+    # arayuz bu kalibi dolduruyor.
+    prompt_template: str
+
+    options: list[ChatDestinationOption] = []
+
+
+class ChatStartersResponse(BaseModel):
+    trend: ChatTrend
+    destination: ChatDestination
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
+    # Sohbette kart olarak gosterilecek urunler.
+    products: list[ChatProduct] = []
+
+    # Modelin bu turda hangi araclari cagirdigi. Arayuzde
+    # "katalogda arandi" rozetini gostermek ve hata
+    # ayiklamak icin.
+    tool_calls: list[str] = []

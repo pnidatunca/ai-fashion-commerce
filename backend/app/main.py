@@ -1,3 +1,5 @@
+import json
+import logging
 import os
 import secrets
 import uuid
@@ -13,11 +15,14 @@ from fastapi import (
     Query,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from passlib.context import CryptContext
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app import (
+    assistant,
+    color_match,
     crud,
     feed,
     query_engine,
@@ -25,6 +30,7 @@ from app import (
     search_service,
     style_customize,
     style_engine,
+    trends,
 )
 from app.database import engine, get_db
 from app.models import (
@@ -42,6 +48,8 @@ pwd_context = CryptContext(
 )
 
 from app.embeddings import embed_query, generate_embedding
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="AI Fashion Commerce API",
@@ -300,15 +308,22 @@ def product_reviews(
 
 @app.get("/exchange-rate")
 def get_exchange_rate():
+    """
+    Kur artik assistant.get_usd_try_rate() uzerinden geliyor.
 
-    response = requests.get(
-        "https://open.er-api.com/v6/latest/USD"
-    )
+    Neden: sohbet asistani "3000 TL altinda" filtresini
+    sunucuda uyguluyor. Arayuz baska bir kurdan cevirirse
+    "3000 TL alti" cevabinda 3100 TL yazan bir kart cikar.
+    Tek kaynak olunca bu celiski imkansiz.
 
-    data = response.json()
+    Yan fayda: fonksiyon 6 saat onbellekli ve dis servis
+    dustugunde son bilinen degere duserek hata firlatmiyor.
+    Onceki surum her sayfa yuklemesinde dis API'ye gidiyor ve
+    servis dustugunde 500 veriyordu.
+    """
 
     return {
-        "rate": data["rates"]["TRY"]
+        "rate": assistant.get_usd_try_rate()
     }
 
 # =========================================================
@@ -1471,31 +1486,134 @@ def style_customize_endpoint(
         payload.gender
     )
 
+    # =====================================================
+    # RENK: ANLAMSAL DEGIL OLCULMUS
+    # =====================================================
+    #
+    # PROBLEM
+    # Secilen renkler yalnizca prompt metnine yaziliyordu
+    # ("En cok sevdigi renkler: bej, krem") ve eslestirme
+    # embedding'e birakiliyordu. Ama katalogdaki urunlerin
+    # yalnizca %30'u rengini metninde yaziyor; embedding
+    # olmayan bir bilgiyi eslestiremiyor. Sonuc: kullanici
+    # bej/krem seciyor, ekrana lacivert ve siyah urunler
+    # geliyordu. "Renk onerisi yanlis" sikayeti buradan
+    # geliyor.
+    #
+    # COZUM
+    # Renk, urun GORSELINDEN olculmus Lab degeriyle
+    # eslestiriliyor (scripts/15_extract_product_colors.py).
+    # Embedding hala tarz/kesim/kategori isini yapiyor; renk
+    # isini artik olcum yapiyor. Her biri kendi bildigi isi.
+    #
+    # Veri yoksa eski davranis aynen surer (asagida
+    # color_ready False kalir) — ozellik kirilmaz, sadece
+    # kapalidir.
+
+    targets = color_match.resolve_many(payload.colors)
+
+    color_ready = bool(targets) and color_match.is_ready(db)
+
+    # Renge gore yeniden siralayacaksak daha genis bir aday
+    # havuzu gerekiyor: ilk 24 anlamsal sonucun hepsi yanlis
+    # renkte olabilir.
+    fetch_limit = 96 if color_ready else 24
+
     results = crud.semantic_search_products(
         db=db,
         query_embedding=embedding,
-        limit=24,
+        limit=fetch_limit,
         gender=gender_filter,
     )
 
+    measured: dict = {}
+
+    if color_ready:
+        measured = color_match.fetch_colors(
+            db,
+            [result["product"].product_id for result in results],
+        )
+
     items = []
+
+    matched_count = 0
 
     for result in results:
 
+        product = result["product"]
+
         product_data = schemas.ProductResponse.model_validate(
-            result["product"]
+            product
         ).model_dump()
 
         product_data["similarity_score"] = result[
             "similarity_score"
         ]
 
-        items.append(product_data)
+        info = measured.get(str(product.product_id))
+
+        distance = None
+
+        if info and info["trusted"]:
+
+            distance = round(
+                color_match.nearest_distance(info["lab"], targets), 1
+            )
+
+            product_data["color_family"] = info["family"]
+            product_data["is_pastel"] = info["is_pastel"]
+            product_data["color_distance"] = distance
+
+        items.append((distance, product_data))
+
+    if color_ready:
+
+        # IKI KADEMELI SIRALAMA
+        #
+        # 1. Secilen palete yakin urunler (DeltaE esigi icinde)
+        # 2. Geri kalanlar — liste 24'e tamamlansin
+        #
+        # Neden filtre degil siralama: kullanicinin sectigi 6
+        # renk katalogda az bulunuyorsa ekrani bos birakmak
+        # yanlis olurdu. Once dogru renkler, sonra digerleri.
+        def rank(entry):
+
+            distance, data = entry
+
+            similarity = float(data.get("similarity_score") or 0.0)
+
+            in_palette = (
+                distance is not None
+                and distance <= color_match.DELTA_E_NEAR
+            )
+
+            if in_palette:
+                matched = 1 - (distance / color_match.DELTA_E_NEAR)
+            else:
+                matched = 0.0
+
+            return (
+                0 if in_palette else 1,
+                -(similarity + matched * 0.15),
+            )
+
+        items.sort(key=rank)
+
+        matched_count = sum(
+            1
+            for distance, _ in items
+            if distance is not None
+            and distance <= color_match.DELTA_E_NEAR
+        )
+
+    payload_items = [data for _, data in items][:24]
 
     return schemas.StyleCustomizeResponse(
         prompt=prompt,
-        items=items,
-        count=len(items),
+        items=payload_items,
+        count=len(payload_items),
+        color_source="measured" if color_ready else "semantic",
+        color_matched=min(matched_count, len(payload_items)),
     )
 
 
@@ -2085,6 +2203,288 @@ def ai_search_analyze(
     """
 
     return query_engine.analyze(q).to_dict()
+
+
+# =========================================================
+# AI SOHBET ASISTANI
+# =========================================================
+
+@api.get(
+    "/chat/starters",
+    response_model=schemas.ChatStartersResponse,
+)
+def ai_chat_starters(db: Session = Depends(get_db)):
+    """
+    Sohbet baslamadan once gosterilen oneriler: yillik trend
+    seckisi (renk / tarz / kumas) ve "nereye gidiyorsun".
+
+    NEDEN SUNUCUDAN GELIYOR
+    Iki sebep:
+
+    1. Trend ogeleri katalogda GERCEKTEN kac urunle
+       karsilandigi sayilarak filtreleniyor. "Bu sezon zeytin
+       yesili" deyip tiklayinca sifir sonuc gostermek, hic
+       oneri yapmamaktan kotu. Bu sayimi ancak sunucu yapabilir.
+
+    2. Renk hedefleri color_match paletinden geliyor — yani
+       Ozelleştir ekraninda ve aramada kullanilan AYNI
+       degerler. Arayuzde ikinci bir renk listesi tutulsa
+       zamanla ikisi ayrisirdi.
+
+    Giris gerekmiyor: misafir de goruyor.
+
+    Arayuz bu ucu cagirmadan da calisir — HTML icindeki dort
+    hazir cumle yerinde duruyor ve istek basarisiz olursa
+    kullanici onlari gorur.
+    """
+
+    return trends.starters(db)
+
+
+@api.post(
+    "/chat",
+    response_model=schemas.ChatResponse,
+)
+def ai_chat(
+    payload: schemas.ChatRequest,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Sohbet turu: kullanici mesaji -> (arac cagrilari) -> cevap.
+
+    /api/search'ten farki, modelin ARAMAYA KENDISI KARAR
+    vermesi. Kullanici "3000 TL altinda sade siyah bir sneaker"
+    yerine "spor ayakkabi lazim" derse asistan once butceyi
+    sorar, sonra arar. Tek atislik arama bunu yapamaz.
+
+    Uc yapar ama arama motorunu YENIDEN YAZMAZ: asistanin
+    search_catalog araci /api/search ile ayni uc adimi
+    (analyze -> embed -> search) cagiriyor.
+
+    Giris ZORUNLU DEGIL. Misafir de konusabilir; giris yapmissa
+    adi ve sectigi tarzlar sistem talimatina ekleniyor.
+    """
+
+    try:
+        result = assistant.run_chat(
+            db=db,
+            messages=payload.messages,
+            user=user,
+        )
+
+    except assistant.QuotaExceeded as error:
+
+        # Ariza DEGIL: Gemini ucretsiz katmani dakikada 5
+        # istek veriyor, her sohbet turu 2 harciyor. Kullanici
+        # ne oldugunu ve ne kadar bekleyecegini bilmeli;
+        # "asistana ulasilamadi" demek yanlis teshise yol acar.
+        wait = (
+            f" Yaklaşık {error.retry_after} saniye sonra "
+            "tekrar dene."
+            if error.retry_after
+            else " Biraz sonra tekrar dene."
+        )
+
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "AI asistan dakikalık istek sınırına takıldı."
+                + wait
+            ),
+            headers=(
+                {"Retry-After": str(error.retry_after)}
+                if error.retry_after
+                else None
+            ),
+        )
+
+    except TimeoutError as error:
+
+        # Kota degil, servis yavas. Olculdu: ayni onemsiz
+        # istek bazen 1 saniyede bazen 105 saniyede donuyor
+        # (ucretsiz katman kuyrugu). Zincirdeki modellerin
+        # hepsi sinira takildiysa buraya duseriz.
+        logger.warning("Sohbet zaman asimi: %s", error)
+
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                "AI asistan şu an çok yavaş yanıt veriyor. "
+                "Birkaç saniye sonra tekrar dener misin?"
+            ),
+        )
+
+    except RuntimeError as error:
+
+        # API anahtari yok — yapilandirma eksigi. Arama
+        # kelime eslesmesine dusebiliyordu ama sohbetin
+        # boyle bir yedegi yok: durust bir 503 dogru cevap.
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "AI asistan su anda kullanilamiyor. "
+                f"({error})"
+            ),
+        )
+
+    except Exception as error:
+
+        logger.exception("Sohbet hatasi")
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Asistana ulasilamadi. Lutfen birazdan "
+                "tekrar dene."
+            ),
+        )
+
+    return schemas.ChatResponse(
+        reply=result["reply"],
+        products=[
+            schemas.ChatProduct.model_validate(product)
+            for product in result["products"]
+        ],
+        tool_calls=result["tool_calls"],
+    )
+
+
+@api.post("/chat/stream")
+def ai_chat_stream(
+    payload: schemas.ChatRequest,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """
+    /api/chat ile AYNI turu akis (SSE) halinde dondurur.
+
+    NEDEN
+    Olculen gecikmenin buyuk kismi ilk harfe kadar geciyor:
+    kullanici 5-9 saniye bos ekrana bakiyor. Akista ilk kelime
+    ~1-2 saniyede dusuyor. Yapilan is ayni — ayni motor, ayni
+    araclar, ayni sistem talimati — yalnizca teslim bicimi
+    farkli.
+
+    OLAYLAR (her biri bir 'data:' satiri, JSON):
+        {"type": "tool", "name": "search_catalog"}
+        {"type": "text", "delta": "..."}
+        {"type": "done", "reply": ..., "products": [...],
+         "tool_calls": [...]}
+        {"type": "error", "detail": "...", "retry_after": 12}
+
+    HATALAR NEDEN GOVDEDE, NEDEN HTTP KODUYLA DEGIL
+    Akis basladigi anda 200 gonderilmis oluyor; sonrasinda
+    durum kodu degistirilemez. Bu yuzden kota/zaman asimi
+    bilgisi bir 'error' olayi olarak akiyor. Arayuz bu olayi
+    /api/chat'in 429/504 cevabiyla ayni sekilde gostermeli.
+
+    NOT: arayuz su an senkron /api/chat ucunu kullaniyor. Bu uc
+    akisa gecis icin hazir duruyor.
+    """
+
+    def encode(event: dict) -> str:
+        return (
+            "data: "
+            + json.dumps(event, ensure_ascii=False, default=str)
+            + "\n\n"
+        )
+
+    def events():
+
+        try:
+
+            for event in assistant.stream_chat(
+                db=db,
+                messages=payload.messages,
+                user=user,
+            ):
+
+                if event["type"] == "done":
+
+                    # Kart sekli senkron ucla BIREBIR ayni
+                    # kalsin: ayni sema, ayni alanlar.
+                    event = dict(event)
+
+                    event["products"] = [
+                        schemas.ChatProduct.model_validate(
+                            product
+                        ).model_dump()
+                        for product in event["products"]
+                    ]
+
+                yield encode(event)
+
+        except assistant.QuotaExceeded as error:
+
+            wait = (
+                f" Yaklaşık {error.retry_after} saniye sonra "
+                "tekrar dene."
+                if error.retry_after
+                else " Biraz sonra tekrar dene."
+            )
+
+            yield encode(
+                {
+                    "type": "error",
+                    "detail": (
+                        "AI asistan dakikalık istek sınırına "
+                        "takıldı." + wait
+                    ),
+                    "retry_after": error.retry_after,
+                }
+            )
+
+        except TimeoutError as error:
+
+            logger.warning("Sohbet akisi zaman asimi: %s", error)
+
+            yield encode(
+                {
+                    "type": "error",
+                    "detail": (
+                        "AI asistan şu an çok yavaş yanıt "
+                        "veriyor. Birkaç saniye sonra tekrar "
+                        "dener misin?"
+                    ),
+                }
+            )
+
+        except RuntimeError as error:
+
+            yield encode(
+                {
+                    "type": "error",
+                    "detail": (
+                        f"AI asistan su anda kullanilamiyor. ({error})"
+                    ),
+                }
+            )
+
+        except Exception:
+
+            logger.exception("Sohbet akisi hatasi")
+
+            yield encode(
+                {
+                    "type": "error",
+                    "detail": (
+                        "Asistana ulaşılamadı. Lütfen birazdan "
+                        "tekrar dene."
+                    ),
+                }
+            )
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            # Ters vekil sunucu (nginx) akisi tamponlayip
+            # akisin butun anlamini yok edebiliyor.
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 app.include_router(api)

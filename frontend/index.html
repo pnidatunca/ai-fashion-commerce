@@ -72,18 +72,45 @@
 
     <div class="header-inner">
 
-        <a
-            href="#new"
-            class="brand"
-        >
-            <img
-                src="assets/wishnn-icon-26.png"
-                srcset="assets/wishnn-icon-26.png 1x, assets/wishnn-icon-52.png 2x"
-                alt=""
-                class="brand-mark"
+        <div class="header-left">
+
+            <a
+                href="#new"
+                class="brand"
             >
-            <span class="brand-word">WishNN</span>
-        </a>
+                <img
+                    src="assets/wishnn-icon-26.png"
+                    srcset="assets/wishnn-icon-26.png 1x, assets/wishnn-icon-52.png 2x"
+                    alt=""
+                    class="brand-mark"
+                >
+                <span class="brand-word">WishNN</span>
+            </a>
+
+
+            <!-- AI STIL ASISTANI
+                 Klasik aramadan (sag ustteki buyutec) BILINCLI
+                 olarak ayri bir yerde duruyor: ikisi ayni sey
+                 degil. Buyutec anahtar kelime arar, bu sembol
+                 konusulan bir asistan acar. -->
+            <button
+                type="button"
+                class="ai-chat-trigger"
+                id="open-ai-chat-btn"
+                aria-label="AI Stil Asistanı ile konuş"
+                title="AI Stil Asistanı"
+            >
+                <span
+                    class="ai-chat-trigger-mark"
+                    aria-hidden="true"
+                >✦</span>
+
+                <span class="ai-chat-trigger-text">
+                    AI ASİSTAN
+                </span>
+            </button>
+
+        </div>
 
 
         <nav class="main-nav">
@@ -311,9 +338,21 @@
         KEŞFET
     </a>
 
-    <a href="#ai-search-anchor">
-        ÜRÜN ARA
-    </a>
+    <!-- "ÜRÜN ARA" kaldirildi: klasik arama artik bir sayfa
+         bolumu degil, header'daki 🔍 dugmesi. O dugme mobilde
+         de gorunur durumda (gizleyen bir kural yok), yani
+         buradan link vermeye gerek kalmadi. -->
+
+
+    <!-- Mobilde header'daki ✦ sembolunun metin etiketi
+         gizleniyor; asistan buradan da acilabilsin. -->
+    <button
+        type="button"
+        class="mobile-ai-chat"
+        id="mobile-ai-chat-btn"
+    >
+        ✦ AI ASİSTAN
+    </button>
 
 </div>
 
@@ -376,145 +415,22 @@
 
 
 <!-- =========================================================
-     SEARCH SECTION
+     ARAMA BOLUMU KALDIRILDI
+
+     Sayfa ici arama kutusu (#ai-search-anchor) silindi.
+     Gerekce: arama artik header'da iki AYRI dugme.
+
+       sol ust  ✦  AI Stil Asistani  -> sohbet paneli
+       sag ust  🔍  Klasik arama      -> #search-overlay
+
+     Sayfanin ortasinda ucuncu bir arama kutusu tutmak
+     ayni isi ucuncu kez sunmak oluyordu. Sonuclar yine
+     #products-section izgarasinda cikiyor.
+
+     app.js'teki searchInput / searchButton referanslari
+     artik null; hepsi `?.` veya `if (searchInput)` ile
+     korumali oldugu icin bir sey bozulmuyor.
 ========================================================= -->
-
-<section
-    class="ai-section"
-    id="ai-search-anchor"
->
-
-    <!-- Fare imleciyle hareket eden yumusak isik.
-         Konumu app.js'te mousemove ile guncelleniyor. -->
-    <span
-        class="ai-glow"
-        id="ai-glow"
-        aria-hidden="true"
-    ></span>
-
-    <div class="ai-inner">
-
-        <div class="ai-label">
-
-            <span class="ai-icon">
-                ✦
-            </span>
-
-            WISHNN SMART SEARCH
-
-        </div>
-
-
-        <h2>
-            Ne aradığını
-            <em>anlat.</em>
-        </h2>
-
-
-        <p id="search-mode-description">
-            Ne aradığını doğal bir şekilde tarif et.
-            WishNN anlamına göre en uygun ürünleri bulsun.
-        </p>
-
-
-        <div class="ai-search">
-
-            <div class="ai-search-input">
-
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-
-
-                <input
-                    type="text"
-                    id="ai-search-input"
-                    placeholder="Örn. Yaz için hafif ve rahat erkek gömleği..."
-                    autocomplete="off"
-                >
-
-            </div>
-
-
-            <button
-                type="button"
-                id="ai-search-btn"
-            >
-                ARA
-
-                <i class="fa-solid fa-arrow-right"></i>
-            </button>
-
-        </div>
-
-        <div class="search-mode-switch">
-
-            <button
-                type="button"
-                id="semantic-search-mode"
-                class="search-mode-btn active"
-            >
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-                AI Arama
-            </button>
-
-            <button
-                type="button"
-                id="classic-search-mode"
-                class="search-mode-btn"
-            >
-                <i class="fa-solid fa-magnifying-glass"></i>
-                Klasik Arama
-            </button>
-
-        </div>
-
-
-        <div class="ai-suggestions">
-
-            <span>
-                Deneyebilirsin:
-            </span>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="polo"
-            >
-                Polo
-            </button>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="shirt"
-            >
-                Shirt
-            </button>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="jacket"
-            >
-                Jacket
-            </button>
-
-
-            <button
-                type="button"
-                class="chip"
-                data-query="shoes"
-            >
-                Shoes
-            </button>
-
-        </div>
-
-    </div>
-
-</section>
 
 
 <!-- =========================================================
@@ -1213,6 +1129,174 @@
     </div>
 
 </div>
+
+<!-- =========================================================
+     AI STIL ASISTANI — SOHBET PANELI
+
+     Klasik aramanin (yukaridaki #search-overlay) yerine
+     gecmiyor, ONUN YANINDA duruyor. Tetikleyicisi header'in
+     SOL ustundeki ✦ sembolu; panel de soldan aciliyor ki
+     sembolle gorsel bagi kopmasin. Sepet/favori panelleri
+     sagdan aciliyor — boylece iki farkli is iki farkli
+     yonden geliyor.
+========================================================= -->
+
+<div
+    class="ai-chat-overlay"
+    id="ai-chat-overlay"
+>
+
+    <aside
+        class="ai-chat-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI Stil Asistanı"
+    >
+
+        <header class="ai-chat-head">
+
+            <div class="ai-chat-head-title">
+
+                <span
+                    class="ai-chat-head-mark"
+                    aria-hidden="true"
+                >✦</span>
+
+                <div>
+                    <strong>AI Stil Asistanı</strong>
+
+                    <small id="ai-chat-status">
+                        Katalogdan gerçek ürünler önerir
+                    </small>
+                </div>
+
+            </div>
+
+
+            <div class="ai-chat-head-actions">
+
+                <button
+                    type="button"
+                    id="ai-chat-reset"
+                    aria-label="Sohbeti temizle"
+                    title="Sohbeti temizle"
+                >
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
+
+                <button
+                    type="button"
+                    id="ai-chat-close"
+                    aria-label="Asistanı kapat"
+                >
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- Mesajlar. aria-live="polite": ekran okuyucu yeni
+             gelen cevabi kullaniciyi kesmeden okur. -->
+        <div
+            class="ai-chat-log"
+            id="ai-chat-log"
+            aria-live="polite"
+        ></div>
+
+
+        <!-- Yillik trend seckisi + "nereye gidiyorsun".
+             Icerigi /api/chat/starters dolduruyor: trend
+             ogeleri katalogda gercekten kac urunle
+             karsilandigina gore suzuluyor ve renk hedefleri
+             aramanin kullandigi paletten geliyor.
+
+             Istek basarisiz olursa bu blok BOS kalir ve
+             asagidaki dort hazir cumle gorunmeye devam eder;
+             yani ozellik kapanir, ekran bozulmaz. -->
+        <div
+            class="ai-chat-suggest"
+            id="ai-chat-suggest"
+        ></div>
+
+
+        <!-- Baslangic onerileri. Bos sohbette "ne yazsam"
+             tereddutu en buyuk terk sebebi; ilk mesaji
+             yazmak yerine secilebiliyor. -->
+        <div
+            class="ai-chat-starters"
+            id="ai-chat-starters"
+        >
+
+            <button
+                type="button"
+                class="ai-chat-starter"
+                data-starter="Düğüne gidiyorum, 4000 TL bütçem var. Ne önerirsin?"
+            >
+                Düğüne gidiyorum
+            </button>
+
+            <button
+                type="button"
+                class="ai-chat-starter"
+                data-starter="Ofiste giyebileceğim, sade ve şık erkek gömlekleri göster."
+            >
+                Ofis için gömlek
+            </button>
+
+            <button
+                type="button"
+                class="ai-chat-starter"
+                data-starter="Yazlık, hafif kumaştan kadın elbiseleri arıyorum."
+            >
+                Yazlık elbise
+            </button>
+
+            <button
+                type="button"
+                class="ai-chat-starter"
+                data-starter="2000 TL altında günlük giyebileceğim siyah bir sneaker istiyorum."
+            >
+                Uygun sneaker
+            </button>
+
+        </div>
+
+
+        <form
+            class="ai-chat-composer"
+            id="ai-chat-form"
+        >
+
+            <textarea
+                id="ai-chat-input"
+                rows="1"
+                maxlength="2000"
+                placeholder="Ne aradığını anlat..."
+                autocomplete="off"
+            ></textarea>
+
+            <button
+                type="submit"
+                id="ai-chat-send"
+                aria-label="Gönder"
+            >
+                <i class="fa-solid fa-arrow-up"></i>
+            </button>
+
+        </form>
+
+
+        <p class="ai-chat-foot">
+            Öneriler yalnızca WishNN kataloğundaki ürünlerden
+            gelir. Yapay zeka yine de hata yapabilir.
+        </p>
+
+    </aside>
+
+</div>
+
 
 <!-- =========================================================
      AUTH OVERLAY - STEP 1
@@ -2303,8 +2387,8 @@
             Koleksiyon
         </a>
 
-        <a href="#ai-search-anchor">
-            Arama
+        <a href="#explore">
+            Keşfet
         </a>
 
         <a href="#offers">
@@ -2485,10 +2569,14 @@
 <!-- =========================================================
      ÖZELLEŞTİR (CEKMECE)
      ---------------------------------------------------------
-     Acilis butonu artik burada degil, AI Arama bolumunde
-     (bkz. #ai-search-anchor icindeki #customize-fab) — bu
-     ozellik "arama" deneyiminin bir parcasi, tum sitede
-     gezerken sabit durmamali.
+     Acilis butonu (#customize-fab) KESFET bolumunun icinde
+     (#explore). Bu yorum eskiden "AI Arama bolumunde" diyordu;
+     o bolum silindi ve buton zaten orada degildi — yanlis yeri
+     gosteren yorum duzeltildi.
+
+     Neden Kesfet'in icinde: ozelestirme akisin kendisini
+     degistiriyor, tum sitede sabit duran bir dugme olmasi
+     gerekmiyor.
 
      Yas/cinsiyet/renk/tarz secimlerinden bir "stil profili"
      promptu kurup Gemini embedding'e gonderiyoruz; eslesme

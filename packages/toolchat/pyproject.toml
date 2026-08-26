@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toolchat"
+version = "0.1.0"
+description = "Arac cagiran, dayanakli (grounded) LLM sohbet motoru: model zinciri, kota devri, kart secimi."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# TEK BAGIMLILIK.
+#
+# Bilincli: bu paket bir uygulama parcasi degil, kutuphane.
+# SQLAlchemy, FastAPI veya pydantic'e bagli olsa yalnizca ayni
+# yigini kullanan projelerde ise yarardi. Gecmis sozlukle de
+# verilebiliyor, araclar duz JSON Schema ile tanimlaniyor.
+dependencies = [
+    "google-genai>=1.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

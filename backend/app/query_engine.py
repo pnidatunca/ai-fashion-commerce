@@ -93,6 +93,8 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
+from app import price_intent
+
 
 # =========================================================
 # NORMALIZASYON
@@ -605,6 +607,16 @@ class QueryIntent:
 
     facets: dict[str, list[Facet]] = field(default_factory=dict)
 
+    # BUTCE — sert filtre, ama gevsetme merdivenine GIRMIYOR.
+    #
+    # Renk veya kategori sonuc bulunamazsa birakilabiliyor;
+    # fiyat birakilamaz. "3000 TL altinda" diyen birine 4200
+    # TL'lik urun gostermek, filtreyi gevsetmek degil yanlis
+    # bilgi vermektir. Sonuc yoksa dogru cevap "bu butcede yok".
+    price: price_intent.Budget = field(
+        default_factory=price_intent.Budget
+    )
+
     embed_text: str = ""
     boost_terms: list[str] = field(default_factory=list)
     alternatives: list[str] = field(default_factory=list)
@@ -618,6 +630,17 @@ class QueryIntent:
 
     def wants_pattern(self) -> bool:
         return "pattern" in self.facet_keys("pattern")
+
+    @property
+    def min_price_try(self) -> float | None:
+        return self.price.min_try
+
+    @property
+    def max_price_try(self) -> float | None:
+        return self.price.max_try
+
+    def has_price_filter(self) -> bool:
+        return self.price.has_bounds
 
     def to_dict(self) -> dict:
         """API cevabi icin duz sozluk."""
@@ -633,6 +656,7 @@ class QueryIntent:
             "fabrics": self.facet_keys("fabric"),
             "fits": self.facet_keys("fit"),
             "occasions": self.facet_keys("occasion"),
+            "price": self.price.as_dict() if self.price else None,
             "embed_text": self.embed_text,
             "boost_terms": self.boost_terms,
             "alternatives": self.alternatives,
@@ -728,12 +752,27 @@ def analyze(raw_query: str) -> QueryIntent:
 
     raw = str(raw_query or "").strip()
 
+    # BUTCE ONCE OKUNUR, SONRA METINDEN CIKARILIR.
+    #
+    # Neden cikariliyor: "3000 TL altinda siyah sneaker"
+    # cumlesindeki sayi ve para birimi embedding'e girerse
+    # vektor bulaniyor — model "3000" ile ilgili bir sey
+    # ariyor. Fiyat artik SAYI olarak tasindigi icin
+    # kelimelerin metinde kalmasina gerek yok.
+    #
+    # Butce bulunamazsa metne DOKUNULMUYOR: "42 numara"
+    # sorgusundaki sayi urun bilgisidir, gurultus degil.
+    budget = price_intent.parse(raw)
+
     cleaned = clean_query(raw)
+
+    if budget.has_bounds:
+        cleaned = price_intent.strip(cleaned, budget) or cleaned
 
     folded_text = fold(cleaned)
     tokens = set(tokenize(cleaned))
 
-    intent = QueryIntent(raw=raw, cleaned=cleaned)
+    intent = QueryIntent(raw=raw, cleaned=cleaned, price=budget)
 
     # ---- sert filtreler ----
 
@@ -1088,6 +1127,21 @@ def _build_chips(intent: QueryIntent) -> list[dict]:
             "label": _COLOR_LABEL.get(color, color),
             "strict": True,
         })
+
+    # BUTCE ETIKETI: kullanici sayiyi kendisi yazdi, sistemin
+    # onu dogru okudugunu GORMESI lazim. "3000 TL altinda"
+    # yazip 4000 TL'lik urun gorurse hatanin nerede oldugunu
+    # ancak bu etiketle anlayabilir.
+    if intent.price:
+
+        label = price_intent.describe(intent.price)
+
+        if label:
+            chips.append({
+                "kind": "price",
+                "label": label,
+                "strict": intent.price.has_bounds,
+            })
 
     for group in ("season", "pattern", "fabric", "fit", "occasion"):
         for facet in intent.facets.get(group, []):

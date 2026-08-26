@@ -72,6 +72,7 @@ import re
 from sqlalchemy import Float, case, func, literal, or_, select
 from sqlalchemy.orm import Session
 
+from . import color_match, currency
 from .models import Product
 from .query_engine import COLOR_TERMS, QueryIntent, fold
 
@@ -296,7 +297,17 @@ def _facet_bonus_expression(intent: QueryIntent):
     return terms_total
 
 
-def _color_bonus_expression(colors: list[str]):
+def _color_terms(colors: list[str]) -> list[str]:
+
+    terms: list[str] = []
+
+    for color in colors:
+        terms.extend(COLOR_TERMS.get(color, [color]))
+
+    return terms
+
+
+def _color_bonus_expression(colors: list[str], measured: bool = False):
     """
     Renk SERT FILTRE OLMADIGINDA verilen bonus.
 
@@ -304,25 +315,47 @@ def _color_bonus_expression(colors: list[str]):
     kaybolmamali; eslesen urunler yine one gelmeli. Aksi
     halde "kirmizi elbise" aramasi renk filtresi dusunce
     rastgele renklerle doluyor.
+
+    IKI KAYNAK, EN BUYUGU ALINIR:
+
+      metin  — aciklamasinda rengi yazan urun
+      olcum  — gorselinden rengi cikarilmis urun (DeltaE)
+
+    Toplamak yerine GREATEST: iki kaynak da eslesen urun
+    (hem "siyah" yaziyor hem olcum siyah) cifte bonus alip
+    listeyi ele gecirmesin. Ikisi ayni bilginin iki kaniti,
+    iki ayri erdem degil.
     """
 
     if not colors:
         return literal(0.0, Float)
 
-    terms: list[str] = []
+    parts = []
 
-    for color in colors:
-        terms.extend(COLOR_TERMS.get(color, [color]))
+    condition = _like_any(STRONG_FIELDS + WEAK_FIELDS, _color_terms(colors))
 
-    condition = _like_any(STRONG_FIELDS + WEAK_FIELDS, terms)
+    if condition is not None:
+        parts.append(
+            case(
+                (condition, literal(COLOR_SOFT_BONUS, Float)),
+                else_=literal(0.0, Float),
+            )
+        )
 
-    if condition is None:
+    if measured:
+
+        targets = color_match.resolve_many(colors)
+
+        if targets:
+            parts.append(color_match.bonus_expression(targets))
+
+    if not parts:
         return literal(0.0, Float)
 
-    return case(
-        (condition, literal(COLOR_SOFT_BONUS, Float)),
-        else_=literal(0.0, Float),
-    )
+    if len(parts) == 1:
+        return parts[0]
+
+    return func.greatest(*parts)
 
 
 def _exact_phrase_expression(intent: QueryIntent):
@@ -447,21 +480,119 @@ def _apply_category(statement, category: str | None):
     )
 
 
-def _apply_colors(statement, colors: list[str]):
+def text_match_condition(terms: list[str]):
+    """
+    Verilen terimlerden metin eslesme kosulu (baslik/kategori +
+    aciklama/ozellikler).
+
+    Dis modullere ACIK: trend onerileri katalogda kac urunle
+    karsilandigini sayarken aramanin kullandigi AYNI kosulu
+    kullanmak zorunda. Ayri bir sayim sorgusu yazilsa "8 urun
+    var" diyen etiket tiklandiginda 3 urun gosterebilirdi.
+    """
+
+    return _like_any(STRONG_FIELDS + WEAK_FIELDS, terms)
+
+
+def color_condition(colors: list[str], measured: bool = False):
+    """
+    Renk eslesme kosulu — metin VEYA olculmus renk.
+
+    _apply_colors bunu kullaniyor; disariya acik olmasinin
+    sebebi text_match_condition ile ayni: sayim ile arama ayni
+    kosulu paylasmali.
+    """
+
     if not colors:
-        return statement
+        return None
 
-    terms: list[str] = []
+    conditions = []
 
-    for color in colors:
-        terms.extend(COLOR_TERMS.get(color, [color]))
+    text_condition = text_match_condition(_color_terms(colors))
 
-    condition = _like_any(STRONG_FIELDS + WEAK_FIELDS, terms)
+    if text_condition is not None:
+        conditions.append(text_condition)
+
+    if measured:
+
+        targets = color_match.resolve_many(colors)
+
+        measured_condition = color_match.measured_condition(targets)
+
+        if measured_condition is not None:
+            conditions.append(measured_condition)
+
+    if not conditions:
+        return None
+
+    if len(conditions) == 1:
+        return conditions[0]
+
+    return or_(*conditions)
+
+
+def _apply_colors(statement, colors: list[str], measured: bool = False):
+    """
+    Renk sert filtresi.
+
+    IKI KANIT, "VEYA" ILE: metinde rengi yazan urunler VE
+    gorselinden o renk olculen urunler.
+
+    NEDEN BOYLE OLMAK ZORUNDA
+    Katalogda urunlerin yalnizca %30'u rengini metninde
+    yaziyor (olculdu: 217/728). Sadece metne bakan filtre,
+    gercekten siyah olan urunlerin %70'ini eliyordu; sonuc
+    sayisi dusuk kaldigi icin merdiven rengi tamamen
+    birakiyor ve ekrana rastgele renkler geliyordu. Yani
+    "renk filtresi" pratikte renk BOZUCU calisiyordu.
+    """
+
+    condition = color_condition(colors, measured=measured)
 
     if condition is None:
         return statement
 
     return statement.where(condition)
+
+
+def _apply_price(statement, intent: QueryIntent, rate: float | None):
+    """
+    Butce filtresi — SQL'de, gevsetilmeden.
+
+    NEDEN SQL'DE
+    Onceki surumde fiyat filtresi Python tarafindaydi: genis
+    cekilip (limit * 4) elde eleniyordu. Iki sonucu vardi:
+    (1) butceye uyan urun listenin ilk 48'inde degilse "bu
+    butcede urun yok" deniyordu — oysa vardi; (2) sayfalama
+    bozuluyordu.
+
+    NEDEN TL DEGIL USD KARSILASTIRMASI
+    Katalog fiyatlari USD. Siniri BIR KEZ USD'ye ceviriyoruz;
+    her satirda "price * kur" hesaplamak indeksi de kullanim
+    disi birakirdi.
+
+    FIYATI BILINMEYEN URUN ELENIR: "3000 TL alti" diyen birine
+    fiyati belirsiz bir urun gostermek cevabi yanlis yapar.
+    """
+
+    if not intent.has_price_filter():
+        return statement
+
+    minimum = currency.to_usd(intent.min_price_try, rate)
+    maximum = currency.to_usd(intent.max_price_try, rate)
+
+    if minimum is None and maximum is None:
+        return statement
+
+    statement = statement.where(Product.price.is_not(None))
+
+    if minimum is not None:
+        statement = statement.where(Product.price >= minimum)
+
+    if maximum is not None:
+        statement = statement.where(Product.price <= maximum)
+
+    return statement
 
 
 def _apply_pattern(statement, intent: QueryIntent):
@@ -508,6 +639,8 @@ def _run_stage(
     stage: int,
     limit: int,
     offset: int,
+    measured_color: bool = False,
+    rate: float | None = None,
 ):
     """
     Belirli bir gevsetme asamasini calistirir.
@@ -538,7 +671,9 @@ def _run_stage(
 
     # Renk sert filtre degilse bonusa donusuyor
     if stage >= 2:
-        bonus = bonus + _color_bonus_expression(intent.colors)
+        bonus = bonus + _color_bonus_expression(
+            intent.colors, measured=measured_color
+        )
 
     final_score = (similarity + bonus).label("final_score")
 
@@ -569,10 +704,19 @@ def _run_stage(
         statement = _apply_category(statement, intent.category)
 
     if stage <= 1:
-        statement = _apply_colors(statement, intent.colors)
+        statement = _apply_colors(
+            statement, intent.colors, measured=measured_color
+        )
 
     if stage <= 0:
         statement = _apply_pattern(statement, intent)
+
+    # BUTCE HER ASAMADA UYGULANIR — merdivenin disinda.
+    #
+    # Diger kisitlar sonuc bulunamazsa birakilabiliyor; fiyat
+    # birakilamaz. Butceyi gevsetmek "filtreyi biraz esnettim"
+    # degil, kullanicinin veremeyecegi bir fiyati onermektir.
+    statement = _apply_price(statement, intent, rate)
 
     statement = (
         statement
@@ -663,6 +807,7 @@ def search(
     limit: int = 24,
     offset: int = 0,
     stage: int | None = None,
+    usd_try_rate: float | None = None,
 ) -> tuple[list[dict], dict]:
     """
     Sorguyu calistirir, gerekirse filtreleri gevsetir.
@@ -688,6 +833,18 @@ def search(
     else:
         stages = _stage_plan(intent)
 
+    # Olculmus renk verisi BIR KEZ sorgulanir (5 dk onbellekli)
+    # ve yalnizca renk gercekten arandiginda: veri yoksa
+    # sistem eski metin davranisina duser.
+    measured_color = bool(intent.colors) and color_match.is_ready(db)
+
+    # Kur yalnizca butce varken gerekiyor; onbellekli oldugu
+    # icin maliyeti yok ama gereksiz cagri da yapmiyoruz.
+    rate = usd_try_rate
+
+    if intent.has_price_filter() and rate is None:
+        rate = currency.get_usd_try_rate()
+
     rows: list = []
     used_stage = stages[0]
 
@@ -700,6 +857,8 @@ def search(
             stage=candidate,
             limit=limit,
             offset=offset,
+            measured_color=measured_color,
+            rate=rate,
         )
 
         used_stage = candidate
@@ -753,6 +912,22 @@ def search(
         "min_results": MIN_RESULTS,
         "has_more": len(rows) == limit,
         "semantic": bool(query_embedding),
+
+        # Renk nereden bilindi: "measured" ise gorselden
+        # olculmus renk de kullanildi, "text" ise yalnizca
+        # metin eslesmesi. Sohbet ve arayuz durust
+        # konusabilsin diye aciga cikariyoruz.
+        "color_source": (
+            "measured" if measured_color
+            else ("text" if intent.colors else None)
+        ),
+
+        # Uygulanan butce. Kullanicinin gordugu sinirin
+        # gercekten uygulandigini dogrulamanin tek yolu.
+        "price_filter": (
+            intent.price.as_dict() if intent.has_price_filter() else None
+        ),
+        "usd_try_rate": rate,
     }
 
     return items, meta

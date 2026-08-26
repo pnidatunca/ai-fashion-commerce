@@ -33,7 +33,29 @@ const state = {
 
     searchQuery: "",
     searchMode: false,
-    searchType: "semantic",
+
+    /*
+       IKI ARAMA, IKI AYRI YER.
+
+       Onceden tek bir arama kutusu vardi ve altindaki
+       "AI Arama / Klasik Arama" dugmeleri bu degeri
+       degistiriyordu. Problem: kullanici hangi modda
+       oldugunu unutuyor, ayni kutuya "siyah gomlek" yazip
+       bambaska iki sonuc aliyordu.
+
+       Artik ayrildilar:
+
+         KLASIK  -> sayfadaki arama kutusu + header'daki
+                    buyutec. Anahtar kelime, /products/search.
+         AI      -> header'in SOL ustundeki ✦ sembolu.
+                    Konusan asistan, /api/chat.
+
+       Bu yuzden urun izgarasi HER ZAMAN klasik arama yapar.
+       setSearchType() ve semantik dal duruyor ama artik
+       cagrilmiyor: /api/search ucu hala canli ve asistanin
+       search_catalog araci onu kullaniyor.
+    */
+    searchType: "classic",
 
     category: "",
 
@@ -110,6 +132,19 @@ const sortSelect = $("sort-select");
 const searchInput = $("ai-search-input");
 const searchButton = $("ai-search-btn");
 
+/*
+   AI/Klasik secim dugmeleri HTML'den KALDIRILDI; bu iki
+   referans artik her zaman null. Dinleyiciler `?.` ile
+   baglandigi icin sessizce hicbir sey yapmiyorlar.
+
+   Kod bilerek silinmedi: setSearchType() ve loadProducts()
+   icindeki semantik dal calisir durumda duruyor. Gun gelip
+   izgarada da AI aramasi istenirse tek yapilacak sey
+   dugmeleri HTML'e geri koymak.
+
+   Iki aramanin neden ayrildigi: state.searchType yanindaki
+   "IKI ARAMA, IKI AYRI YER" notu.
+*/
 const semanticSearchModeButton =
     $("semantic-search-mode");
 const classicSearchModeButton =
@@ -174,7 +209,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setupNavigation();
     setupSearch();
-    setupAiGlow();
+    setupAiChat();
     setupSearchAlternatives();
     setupScrollTop();
     setupCategories();
@@ -1018,49 +1053,15 @@ function setSearchType(type) {
     }
 }
 
-/**
- * AI arama bolumundeki isik, fare imlecini takip eder.
- *
- * Konum dogrudan style.left/top yerine --x/--y CSS
- * degiskenleriyle veriliyor; boylece hizli mousemove
- * olaylarinda her seferinde tam bir stil hesaplamasi yerine
- * sadece transform guncellenir (ucuz, akici).
- *
- * Section'a girince yumusakca belirir, ayrilinca kaybolur —
- * ekran her zaman parlamaz, sadece etkilesimle "canlanir".
- */
-function setupAiGlow() {
+/*
+   setupAiGlow() KALDIRILDI.
 
-    const section = $("ai-search-anchor");
-    const glow = $("ai-glow");
-
-    if (!section || !glow) return;
-
-
-    section.addEventListener("mousemove", event => {
-
-        const rect = section.getBoundingClientRect();
-
-        section.style.setProperty(
-            "--x",
-            `${event.clientX - rect.left}px`
-        );
-
-        section.style.setProperty(
-            "--y",
-            `${event.clientY - rect.top}px`
-        );
-    });
-
-
-    section.addEventListener("mouseenter", () => {
-        section.classList.add("glow-active");
-    });
-
-    section.addEventListener("mouseleave", () => {
-        section.classList.remove("glow-active");
-    });
-}
+   Fare imlecini takip eden isik efekti #ai-search-anchor
+   bolumune aitti; o bolum silindi (arama artik header'da
+   iki dugme). Fonksiyon her cagrisinda hemen return
+   ediyordu — olu kod. Efektin CSS'i (.ai-glow,
+   .glow-active) da bu yuzden kaldirildi.
+*/
 
 
 function setupSearch() {
@@ -1628,25 +1629,24 @@ function renderProductModal(
                 </p>
 
 
-                ${
-                    product.product_url
-                        ? `
-                            <a
-                                href="${escapeHTML(product.product_url)}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="view-detail-btn"
-                                style="
-                                    display:block;
-                                    text-align:center;
-                                    margin-top:20px;
-                                "
-                            >
-                                AMAZON'DA GÖR
-                            </a>
-                        `
-                        : ""
-                }
+                <!--
+                    "AMAZON'DA GÖR" BAĞLANTISI KALDIRILDI.
+
+                    product_url alanı veritabanında duruyor
+                    (katalog Amazon kaynaklı), ama kullanıcıya
+                    gösterilmiyor. Sebep: satın alma akışı
+                    WishNN'in kendisinde — hemen altta TEK
+                    TIKLA SATIN AL, SEPETE EKLE ve FAVORİLERE
+                    EKLE var. Müşteriyi ürünü görmeye başka
+                    bir siteye yollamak, kendi sepetini
+                    boşaltmak demek.
+
+                    Asistanın önerdiği ürünler de zaten bu
+                    kataloğun kendisinden geliyor
+                    (backend/app/assistant.py -> search_catalog
+                    -> kendi Postgres'imiz); dışarı çıkan tek
+                    şey bu bağlantıydı.
+                -->
 
 
                 <button
@@ -3486,6 +3486,7 @@ const SEARCH_CHIP_ICONS = {
     gender: "user",
     category: "shirt",
     color: "palette",
+    price: "wallet",
     season: "sun",
     pattern: "sparkles",
     fabric: "layers",
@@ -8247,6 +8248,19 @@ const LUCIDE = {
         '<path d="M8 2v4"/><path d="M16 2v4"/>' +
         '<rect width="18" height="18" x="3" y="4" rx="2"/>' +
         '<path d="M3 10h18"/>',
+
+    /* Bütçe etiketi ve trend/yer bölümleri için. icon()
+       tanımadığı ada boş string döndürüyor — yani eksik
+       ikon sessizce kayboluyor, bu yüzden kullanılan her
+       adın burada olması gerekiyor. */
+    wallet:
+        '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15' +
+        'a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/>' +
+        '<path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+
+    "map-pin":
+        '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>' +
+        '<circle cx="12" cy="10" r="3"/>',
 };
 
 
@@ -9184,4 +9198,1034 @@ async function refreshWishlistItems() {
 
 
     renderWishlistBar();
+}
+
+
+/* =========================================================
+   AI STİL ASİSTANI — SOHBET
+
+   Klasik aramadan ayrı bir giriş noktası: header'ın sol
+   üstündeki ✦ sembolü. Backend ucu /api/chat
+   (backend/app/assistant.py).
+
+   NEDEN AYRI BİR ŞEY
+   ------------------
+   Arama kutusu tek atışlıktır: yazarsın, sonuç gelir, biter.
+   Kullanıcı "spor ayakkabı lazım" derse arama motorunun
+   yapabileceği tek şey 700 sonuç göstermektir. Asistan ise
+   bütçeyi sorabilir, cevabı hatırlar ve bir sonraki aramaya
+   taşır.
+
+   GEÇMİŞİ İSTEMCİ TUTUYOR
+   -----------------------
+   Backend oturum saklamıyor; her istekte konuşmanın tamamını
+   gönderiyoruz. Sonucu: sunucuda temizlenecek durum yok,
+   sekme kapanınca sohbet biter. Kalıcı geçmiş istenirse
+   burası bir tabloya bağlanacak yer.
+
+   KARTLAR MODELİN GÖRDÜĞÜ ÜRÜNLERDİR
+   ----------------------------------
+   products dizisi modelin uydurduğu bir liste değil; arama
+   aracının döndürdüğü GERÇEK katalog satırları. Model olmayan
+   bir ürünü anlatmaya kalkarsa kart olarak çıkmaz ve
+   tutarsızlık anında görünür.
+========================================================= */
+
+const aiChatOverlay = $("ai-chat-overlay");
+const aiChatLog = $("ai-chat-log");
+const aiChatForm = $("ai-chat-form");
+const aiChatInput = $("ai-chat-input");
+const aiChatSend = $("ai-chat-send");
+const aiChatStarters = $("ai-chat-starters");
+const aiChatSuggest = $("ai-chat-suggest");
+const aiChatStatus = $("ai-chat-status");
+
+const AI_CHAT_GREETING =
+    "Merhaba! Ben WishNN'in stil asistanıyım. Ne aradığını " +
+    "anlat — bütçeni, tarzını ya da gideceğin yeri söylemen " +
+    "yeterli, gerisini ben bulayım.";
+
+
+const aiChat = {
+    open: false,
+    sending: false,
+
+    /* Açılış önerileri (/api/chat/starters) — bir kez
+       yükleniyor, panel her açılışta yeniden istek atmıyor. */
+    suggestions: null,
+    suggestLoaded: false,
+
+    /*
+       Backend'e AYNEN gönderilen geçmiş: [{role, content}].
+       Ürün kartları buraya girmiyor — model kendi önceki
+       cevabında ürünlerden zaten bahsetmiş oluyor ve kart
+       verisini tekrar göndermek boşuna token.
+    */
+    messages: [],
+};
+
+
+function setupAiChat() {
+
+    $("open-ai-chat-btn")
+        ?.addEventListener("click", openAiChat);
+
+    $("mobile-ai-chat-btn")
+        ?.addEventListener("click", () => {
+
+            /* Mobil menü açıksa önce o kapanmalı */
+            $("mobile-menu")?.classList.remove("open");
+
+            openAiChat();
+        });
+
+    $("ai-chat-close")
+        ?.addEventListener("click", closeAiChat);
+
+    $("ai-chat-reset")
+        ?.addEventListener("click", resetAiChat);
+
+
+    /* Panelin dışına tıklama kapatır */
+    aiChatOverlay?.addEventListener("click", event => {
+
+        if (event.target === aiChatOverlay) {
+            closeAiChat();
+        }
+    });
+
+
+    document.addEventListener("keydown", event => {
+
+        if (event.key === "Escape" && aiChat.open) {
+            closeAiChat();
+        }
+    });
+
+
+    aiChatForm?.addEventListener("submit", event => {
+
+        event.preventDefault();
+
+        sendAiChatMessage(aiChatInput?.value || "");
+    });
+
+
+    /*
+       Enter gönderir, Shift+Enter satır atlar.
+
+       textarea kullanmamızın sebebi uzun tarifler: "düğüne
+       gidiyorum, lacivert bir takım arıyorum ama bütçem..."
+       tek satırlık input'ta okunmuyor.
+    */
+    aiChatInput?.addEventListener("keydown", event => {
+
+        if (event.key === "Enter" && !event.shiftKey) {
+
+            event.preventDefault();
+
+            sendAiChatMessage(aiChatInput.value);
+        }
+    });
+
+
+    /* Yazdıkça yükseklik büyüsün (max-height CSS'te) */
+    aiChatInput?.addEventListener("input", autoGrowChatInput);
+
+
+    /* Olay delegasyonu: başlangıç önerileri sabit ama
+       ürün kartları her cevapta yeniden çiziliyor. */
+    aiChatStarters?.addEventListener("click", event => {
+
+        const button =
+            event.target.closest("[data-starter]");
+
+        if (!button) return;
+
+        sendAiChatMessage(button.dataset.starter || "");
+    });
+
+
+    setupAiChatSuggest();
+
+
+    aiChatLog?.addEventListener("click", handleAiChatLogClick);
+
+
+    /*
+       Kartlar div + role="button" olarak ciziliyor (icinde
+       ayri bir kalp butonu var, ic ice buton gecersiz HTML).
+       role="button" ve tabindex="0" vermek klavyeyle
+       calisacagi SOZUNU veriyor; o sozu burada tutuyoruz.
+       Space'te sayfa kaymasini da engellemek gerekiyor.
+    */
+    aiChatLog?.addEventListener("keydown", event => {
+
+        if (event.key !== "Enter" && event.key !== " ") {
+            return;
+        }
+
+        const target =
+            event.target.closest("[data-chat-product]");
+
+        if (!target) return;
+
+        event.preventDefault();
+
+        openProduct(target.dataset.chatProduct);
+    });
+}
+
+
+function autoGrowChatInput() {
+
+    if (!aiChatInput) return;
+
+    aiChatInput.style.height = "auto";
+
+    aiChatInput.style.height =
+        `${aiChatInput.scrollHeight}px`;
+}
+
+
+/* =========================================================
+   AÇILIŞ ÖNERİLERİ: YILLIK TREND + GİDİLECEK YER
+
+   NEDEN VAR
+   Boş sohbette "ne yazsam" tereddüdü en büyük terk sebebi.
+   Dört hazır cümle bunu kısmen çözüyordu ama hepsi aynı
+   kalıptaydı. Burada iki farklı giriş kapısı var:
+
+     TREND  — sezonun rengi/tarzı/kumaşı. "Ne moda?" sorusunun
+              cevabını görüp o yönde arama başlatmak.
+     YER    — "Nereye gidiyorsun?" Kıyafet seçimi çoğu zaman
+              üründen değil OLAYDAN başlar (düğün, iş yemeği).
+
+   İÇERİK SUNUCUDAN GELİYOR
+   Trend öğeleri katalogda gerçekten kaç ürünle karşılandığına
+   göre süzülüyor ve renk hedefleri aramanın kullandığı
+   paletten geliyor. Burada ikinci bir liste tutmak, zamanla
+   ikisinin ayrışması demekti.
+
+   İSTEK BAŞARISIZ OLURSA blok boş kalır ve HTML'deki dört
+   hazır cümle görünmeye devam eder.
+========================================================= */
+
+const AI_SUGGEST_GROUPS = [
+    { key: "colors", label: "Renk", icon: "palette" },
+    { key: "styles", label: "Tarz", icon: "sparkles" },
+    { key: "fabrics", label: "Kumaş", icon: "layers" },
+];
+
+
+async function loadAiChatSuggestions() {
+
+    if (!aiChatSuggest || aiChat.suggestLoaded) return;
+
+    /* Bir kez denenir: başarısız olursa her açılışta tekrar
+       istek atıp kullanıcıyı bekletmenin anlamı yok. */
+    aiChat.suggestLoaded = true;
+
+    try {
+        const data = await apiGet("/api/chat/starters");
+
+        aiChat.suggestions = data;
+
+        renderAiChatSuggest();
+
+    } catch (error) {
+
+        console.error("Sohbet önerileri alınamadı:", error);
+    }
+}
+
+
+function renderAiChatSuggestItem(item) {
+
+    const swatch = item?.swatch
+        ? `<span
+               class="ai-suggest-swatch"
+               style="background:${escapeHTML(item.swatch)};"
+           ></span>`
+        : "";
+
+    /* Ürün sayısı GÖSTERİLİYOR: "bu sezon zeytin yeşili" deyip
+       tıklayınca üç ürün çıkması hayal kırıklığı. Kaç seçenek
+       olduğunu önceden bilmek beklentiyi doğru kuruyor. */
+    const count = Number.isFinite(Number(item?.available))
+        ? `<span class="ai-suggest-count">${Number(item.available)}</span>`
+        : "";
+
+    return `
+        <button
+            type="button"
+            class="ai-suggest-chip"
+            data-suggest-prompt="${escapeHTML(item?.prompt || "")}"
+            title="${escapeHTML(item?.note || "")}"
+        >
+            ${swatch}
+            <span>${escapeHTML(item?.label || "")}</span>
+            ${count}
+        </button>
+    `;
+}
+
+
+function renderAiChatSuggest() {
+
+    if (!aiChatSuggest) return;
+
+    const data = aiChat.suggestions;
+
+    if (!data) return;
+
+    const trend = data.trend || {};
+
+    const groups = AI_SUGGEST_GROUPS
+        .map(group => {
+
+            const items = Array.isArray(trend[group.key])
+                ? trend[group.key]
+                : [];
+
+            if (!items.length) return "";
+
+            return `
+                <div class="ai-suggest-row">
+
+                    <span class="ai-suggest-row-label">
+                        ${icon(group.icon)}
+                        ${escapeHTML(group.label)}
+                    </span>
+
+                    <div class="ai-suggest-chips">
+                        ${items.map(renderAiChatSuggestItem).join("")}
+                    </div>
+
+                </div>
+            `;
+        })
+        .join("");
+
+
+    const destination = data.destination || {};
+
+    const options = Array.isArray(destination.options)
+        ? destination.options
+        : [];
+
+    const trendBlock = groups
+        ? `
+            <section class="ai-suggest-block">
+
+                <header class="ai-suggest-head">
+                    <span class="ai-suggest-title">
+                        ${escapeHTML(trend.title || "Sezon seçkisi")}
+                    </span>
+                    <span class="ai-suggest-note">
+                        ${escapeHTML(trend.note || "")}
+                    </span>
+                </header>
+
+                ${groups}
+
+            </section>
+        `
+        : "";
+
+    /* Yer bölümü: kullanıcı önce açıyor, sonra yazıyor.
+       Kapalı başlıyor çünkü panelin yarısını bir formla
+       doldurmak, sohbete başlamayı kolaylaştırmıyor. */
+    const destinationBlock = `
+        <section class="ai-suggest-block">
+
+            <button
+                type="button"
+                class="ai-suggest-destination-toggle"
+                data-destination-toggle
+                aria-expanded="false"
+            >
+                ${icon("map-pin")}
+                <span>${escapeHTML(destination.hint || "Nereye gidiyorsun?")}</span>
+            </button>
+
+            <div class="ai-suggest-destination" hidden>
+
+                <div class="ai-suggest-chips">
+                    ${
+                        options
+                            .map(option => `
+                                <button
+                                    type="button"
+                                    class="ai-suggest-chip"
+                                    data-suggest-prompt="${escapeHTML(option.prompt || "")}"
+                                >
+                                    <span>${escapeHTML(option.label || "")}</span>
+                                </button>
+                            `)
+                            .join("")
+                    }
+                </div>
+
+                <form class="ai-suggest-place-form" data-destination-form>
+
+                    <input
+                        type="text"
+                        class="ai-suggest-place-input"
+                        maxlength="80"
+                        autocomplete="off"
+                        placeholder="${escapeHTML(destination.placeholder || "")}"
+                        aria-label="Gideceğin yer"
+                    >
+
+                    <button type="submit" class="ai-suggest-place-send">
+                        Sor
+                    </button>
+
+                </form>
+
+            </div>
+
+        </section>
+    `;
+
+    aiChatSuggest.innerHTML = trendBlock + destinationBlock;
+
+    hydrateIcons(aiChatSuggest);
+}
+
+
+/**
+ * Serbest yazılan yerden sohbet mesajı kurar.
+ *
+ * Kalıp sunucudan geliyor ({place} içeren bir cümle): iki
+ * yerde iki farklı cümle olsa, seçilen yer ile yazılan yer
+ * farklı sorular üretirdi.
+ */
+function buildDestinationPrompt(place) {
+
+    const cleaned = String(place || "").trim();
+
+    if (!cleaned) return "";
+
+    const template =
+        aiChat.suggestions?.destination?.prompt_template ||
+        "{place} için ne giyebilirim? Bana uygun parçalar önerir misin?";
+
+    /* İlk harf büyük: cümle başı gibi okunsun. */
+    const shaped =
+        cleaned.charAt(0).toLocaleUpperCase("tr-TR") + cleaned.slice(1);
+
+    return template.replace("{place}", shaped);
+}
+
+
+function setupAiChatSuggest() {
+
+    if (!aiChatSuggest) return;
+
+    aiChatSuggest.addEventListener("click", event => {
+
+        const toggle =
+            event.target.closest("[data-destination-toggle]");
+
+        if (toggle) {
+
+            const panel =
+                aiChatSuggest.querySelector(".ai-suggest-destination");
+
+            if (!panel) return;
+
+            const willOpen = panel.hidden;
+
+            panel.hidden = !willOpen;
+
+            toggle.setAttribute(
+                "aria-expanded",
+                willOpen ? "true" : "false",
+            );
+
+            if (willOpen) {
+                panel
+                    .querySelector(".ai-suggest-place-input")
+                    ?.focus();
+            }
+
+            return;
+        }
+
+
+        const chip = event.target.closest("[data-suggest-prompt]");
+
+        if (!chip) return;
+
+        sendAiChatMessage(chip.dataset.suggestPrompt || "");
+    });
+
+
+    aiChatSuggest.addEventListener("submit", event => {
+
+        const form = event.target.closest("[data-destination-form]");
+
+        if (!form) return;
+
+        event.preventDefault();
+
+        const input = form.querySelector(".ai-suggest-place-input");
+
+        const prompt = buildDestinationPrompt(input?.value);
+
+        if (!prompt) {
+            input?.focus();
+            return;
+        }
+
+        if (input) input.value = "";
+
+        sendAiChatMessage(prompt);
+    });
+}
+
+
+function openAiChat() {
+
+    if (!aiChatOverlay) return;
+
+    aiChatOverlay.classList.add("open");
+
+    aiChat.open = true;
+
+    /*
+       body scroll'u BILEREK kilitlenmiyor. Sitedeki hiçbir
+       katman (sepet, favoriler, ürün modalı, özelleştir)
+       kilitlemiyor; burada kilitlemek iki sorun doğuruyordu:
+
+         1. Sohbetten bir karta basınca ürün modalı üste
+            açılıyor. Sohbet o sırada kapatılırsa overflow
+            sıfırlanıyor ve modalın arkası kaymaya başlıyor —
+            modal kendi kilidini yönetmiyor.
+         2. İki katman aynı global stili yazarsa hangisinin
+            son sözü söylediği çağrı sırasına bağlı kalıyor.
+
+       Panelin kendi içi zaten kayıyor (.ai-chat-log).
+    */
+
+    /* İlk açılışta karşılama mesajı */
+    if (!aiChat.messages.length && !aiChatLog?.children.length) {
+
+        appendAiChatMessage({
+            role: "assistant",
+            content: AI_CHAT_GREETING,
+        });
+    }
+
+
+    /* Öneriler panel açılınca yükleniyor: sayfa yüklenirken
+       istek atmak, sohbeti hiç açmayan kullanıcı için boşuna
+       bir tur demek. */
+    loadAiChatSuggestions();
+
+    setTimeout(() => aiChatInput?.focus(), 350);
+}
+
+
+function closeAiChat() {
+
+    if (!aiChatOverlay) return;
+
+    aiChatOverlay.classList.remove("open");
+
+    aiChat.open = false;
+}
+
+
+function resetAiChat() {
+
+    aiChat.messages = [];
+
+    if (aiChatLog) {
+        aiChatLog.innerHTML = "";
+    }
+
+    aiChatStarters?.classList.remove("hidden");
+    aiChatSuggest?.classList.remove("hidden");
+
+    setAiChatStatus("Katalogdan gerçek ürünler önerir");
+
+    appendAiChatMessage({
+        role: "assistant",
+        content: AI_CHAT_GREETING,
+    });
+
+    aiChatInput?.focus();
+}
+
+
+function setAiChatStatus(text) {
+
+    if (aiChatStatus) {
+        aiChatStatus.textContent = text;
+    }
+}
+
+
+async function sendAiChatMessage(rawText) {
+
+    const text = String(rawText || "").trim();
+
+    /*
+       Aynı anda iki istek gitmemeli: ikincisi birincinin
+       cevabını içermeyen bir geçmişle gider ve model kendi
+       söylediğini görmeden cevap yazar.
+    */
+    if (!text || aiChat.sending) return;
+
+
+    /* Başlangıç önerileri ilk mesajdan sonra işini bitirdi */
+    aiChatStarters?.classList.add("hidden");
+    aiChatSuggest?.classList.add("hidden");
+
+
+    appendAiChatMessage({
+        role: "user",
+        content: text,
+    });
+
+    aiChat.messages.push({
+        role: "user",
+        content: text,
+    });
+
+
+    if (aiChatInput) {
+        aiChatInput.value = "";
+        autoGrowChatInput();
+    }
+
+
+    setAiChatSending(true);
+
+    const typing = appendAiChatTyping();
+
+
+    try {
+
+        const data = await apiFetch("/api/chat", {
+            method: "POST",
+            body: JSON.stringify({
+                messages: aiChat.messages,
+            }),
+        });
+
+        typing?.remove();
+
+
+        const reply = String(data?.reply || "").trim();
+
+        const products = Array.isArray(data?.products)
+            ? data.products
+            : [];
+
+
+        appendAiChatMessage({
+            role: "assistant",
+            content: reply,
+            products,
+        });
+
+        /*
+           Geçmişe YALNIZCA metin giriyor. Kartlar ekranda
+           duruyor ama modele geri gönderilmiyor: model zaten
+           kendi arama sonucunu görmüştü.
+
+           Boş cevap geçmişe GİRMEZ: backend ChatMessage
+           content'i min_length=1 doğruluyor, boş bir satır
+           bir sonraki isteği 422 ile düşürür ve sohbetin
+           tamamı kilitlenirdi.
+        */
+        if (reply) {
+
+            aiChat.messages.push({
+                role: "assistant",
+                content: reply,
+            });
+
+        } else {
+
+            /* Cevapsız tur: kullanıcı mesajını da bırakma */
+            aiChat.messages.pop();
+        }
+
+
+        setAiChatStatus(
+            (data?.tool_calls || []).includes("search_catalog")
+                ? "Katalogda arama yaptı"
+                : "Katalogdan gerçek ürünler önerir"
+        );
+
+
+    } catch (error) {
+
+        typing?.remove();
+
+        console.error("Sohbet hatası:", error);
+
+        appendAiChatMessage({
+            role: "assistant",
+            error: true,
+            content:
+                error?.message ||
+                "Asistana ulaşamadım. Birazdan tekrar dene.",
+        });
+
+        /*
+           BAŞARISIZ TUR GEÇMİŞTEN ÇIKARILIYOR.
+
+           Kullanıcının mesajı gönderildi ama cevap gelmedi.
+           Geçmişte cevapsız bir kullanıcı mesajı bırakırsak
+           bir sonraki istekte model iki kullanıcı mesajını
+           arka arkaya görür ve ilkini görmezden gelir.
+           Kullanıcı tekrar yazınca temiz bir tur başlasın.
+        */
+        aiChat.messages.pop();
+
+    } finally {
+
+        setAiChatSending(false);
+    }
+}
+
+
+function setAiChatSending(sending) {
+
+    aiChat.sending = sending;
+
+    if (aiChatSend) {
+        aiChatSend.disabled = sending;
+    }
+
+    if (aiChatInput) {
+        aiChatInput.disabled = sending;
+    }
+
+    if (!sending) {
+        aiChatInput?.focus();
+    }
+}
+
+
+function appendAiChatTyping() {
+
+    if (!aiChatLog) return null;
+
+    const wrapper = document.createElement("div");
+
+    wrapper.className = "ai-chat-msg assistant";
+
+    wrapper.innerHTML = `
+        <div class="ai-chat-typing">
+            <span></span><span></span><span></span>
+        </div>
+    `;
+
+    aiChatLog.appendChild(wrapper);
+
+    scrollAiChatToBottom();
+
+    return wrapper;
+}
+
+
+function appendAiChatMessage({
+    role,
+    content,
+    products = [],
+    error = false,
+}) {
+
+    if (!aiChatLog) return;
+
+
+    const wrapper = document.createElement("div");
+
+    wrapper.className =
+        `ai-chat-msg ${role}${error ? " error" : ""}`;
+
+
+    const parts = [];
+
+    if (content) {
+
+        parts.push(`
+            <div class="ai-chat-bubble">${formatAiChatText(content)}</div>
+        `);
+    }
+
+    if (products.length) {
+
+        parts.push(`
+            <div class="ai-chat-products">
+                ${products.map(renderAiChatProduct).join("")}
+            </div>
+        `);
+    }
+
+    wrapper.innerHTML = parts.join("");
+
+    aiChatLog.appendChild(wrapper);
+
+    scrollAiChatToBottom();
+}
+
+
+/**
+ * Asistan cevabını güvenli biçimde HTML'e çevirir.
+ *
+ * NEDEN GEREKLİ
+ * Sistem talimatı modelden düz metin istiyor ama modeller
+ * markdown'a alışkındır ve "**Calvin Klein**" yazması sık.
+ * Ham bırakılırsa kullanıcı yıldızları görür.
+ *
+ * SIRALAMA ÖNEMLİ: ÖNCE escapeHTML, SONRA kalın dönüşümü.
+ * Tersi olursa modelin ürettiği metin HTML olarak yorumlanır
+ * — model çıktısı da sonuçta güvenilmeyen girdi. Escape'ten
+ * sonra metinde `<` kalmadığı için buradaki <strong>
+ * enjeksiyon yüzeyi açmıyor.
+ *
+ * Yalnızca kalın destekleniyor: sohbet balonunda başlık,
+ * liste ve tablonun işi yok — sistem talimatı ürünleri madde
+ * madde saymayı zaten yasaklıyor.
+ */
+function formatAiChatText(text) {
+
+    return escapeHTML(text)
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+
+function renderAiChatProduct(product) {
+
+    const id = String(product?.product_id || "");
+
+    const liked = isWishlisted(id);
+
+    /*
+       FİYAT SUNUCUDAN GELİYORSA ONU KULLAN.
+
+       price_try, asistanın bütçe filtresinde kullandığı kurla
+       hesaplanmış TL fiyatı. Burada kendi kurumuzla yeniden
+       çevirirsek (formatPrice -> toTry) ve /exchange-rate
+       alınamamışsa sabit yedeğe (47.88) düşeriz: asistan
+       "3000 TL altında" der, kartta 3100 TL yazar. Aynı sayıyı
+       göstermek bu çelişkiyi imkânsız kılıyor.
+
+       Eski alan (USD price) yedek olarak duruyor: sohbet dışı
+       çağrılar ve eski cevaplar bozulmasın.
+    */
+    const priceTry = Number(product?.price_try);
+
+    const price = Number.isFinite(priceTry) && priceTry > 0
+        ? formatTry(priceTry)
+        : (hasPrice(product) ? formatPrice(product.price) : "Fiyat yok");
+
+    const rating = product?.rating
+        ? `★ ${Number(product.rating).toFixed(1)}`
+        : "";
+
+    /*
+       data-chat-product taşıyan sarmalayıcı bir DIV, buton
+       değil: içinde ayrı bir kalp butonu var ve iç içe
+       buton geçersiz HTML.
+    */
+    return `
+        <div
+            class="ai-chat-product"
+            data-chat-product="${escapeHTML(id)}"
+            role="button"
+            tabindex="0"
+        >
+            <img
+                class="ai-chat-product-image"
+                src="${escapeHTML(safeImage(product?.image_url))}"
+                alt=""
+                loading="lazy"
+            >
+
+            <div class="ai-chat-product-body">
+
+                ${
+                    product?.brand
+                        ? `<span class="ai-chat-product-brand">${escapeHTML(product.brand)}</span>`
+                        : ""
+                }
+
+                <p class="ai-chat-product-title">
+                    ${escapeHTML(productTitle(product))}
+                </p>
+
+                <div class="ai-chat-product-meta">
+                    <span class="ai-chat-product-price">${escapeHTML(price)}</span>
+                    <span class="ai-chat-product-rating">${escapeHTML(rating)}</span>
+                </div>
+
+            </div>
+
+            <button
+                type="button"
+                class="ai-chat-product-like${liked ? " liked" : ""}"
+                data-chat-like="${escapeHTML(id)}"
+                aria-label="${liked ? "Favorilerden çıkar" : "Favorilere ekle"}"
+            >
+                <i class="fa-${liked ? "solid" : "regular"} fa-heart"></i>
+            </button>
+
+        </div>
+    `;
+}
+
+
+function handleAiChatLogClick(event) {
+
+    /* Kalp önce kontrol edilmeli: karta da gömülü */
+    const likeButton =
+        event.target.closest("[data-chat-like]");
+
+    if (likeButton) {
+
+        event.stopPropagation();
+
+        toggleAiChatLike(likeButton);
+
+        return;
+    }
+
+
+    const card =
+        event.target.closest("[data-chat-product]");
+
+    if (!card) return;
+
+
+    /*
+       Ürün detayı modalı panelin ÜZERİNDE açılıyor
+       (z-index 4000 > 3500). Sohbet kapanmıyor: kullanıcı
+       modalı kapatınca konuşmaya kaldığı yerden devam etsin.
+    */
+    openProduct(card.dataset.chatProduct);
+}
+
+
+async function toggleAiChatLike(button) {
+
+    const productId = button.dataset.chatLike || "";
+
+    if (!productId) return;
+
+
+    if (!isUserLoggedIn()) {
+
+        /*
+           Misafir kalbe bastı. Mevcut bekleyen-etkileşim
+           mekanizması giriş sonrası işlemi tamamlıyor
+           (bkz. resumePendingInteraction).
+        */
+        closeAiChat();
+
+        requestLoginForInteraction(
+            {
+                type: "LIKE",
+                productId,
+                source: "chat",
+            },
+            "Favorilere eklemek için giriş yapmalısın."
+        );
+
+        return;
+    }
+
+
+    const liked = isWishlisted(productId);
+
+
+    try {
+
+        if (liked) {
+
+            await removeFromWishlist(productId, {
+                source: "chat",
+            });
+
+        } else {
+
+            await addToWishlist(productId, {
+                source: "chat",
+            });
+        }
+
+
+        /*
+           Sohbetteki KOPYALARIN HEPSİ güncelleniyor: aynı
+           ürün konuşma boyunca birden fazla cevapta çıkmış
+           olabilir ve yalnızca tıklananı boyamak tutarsız
+           görünürdü.
+        */
+        syncAiChatHearts(productId, !liked);
+
+        /* Sitenin geri kalanındaki kalpler de aynı üründe */
+        syncWishlistButtons(productId, !liked);
+
+
+    } catch (error) {
+
+        console.error("Favori güncellenemedi:", error);
+
+        showToast({
+            title: "Favori güncellenemedi",
+            message: error?.message || "Tekrar dene.",
+            tone: "neutral",
+        });
+    }
+}
+
+
+function syncAiChatHearts(productId, liked) {
+
+    aiChatLog
+        ?.querySelectorAll(
+            `[data-chat-like="${cssEscape(productId)}"]`
+        )
+        .forEach(button => {
+
+            button.classList.toggle("liked", liked);
+
+            button.setAttribute(
+                "aria-label",
+                liked
+                    ? "Favorilerden çıkar"
+                    : "Favorilere ekle"
+            );
+
+            const glyph = button.querySelector("i");
+
+            if (glyph) {
+
+                glyph.className =
+                    `fa-${liked ? "solid" : "regular"} fa-heart`;
+            }
+        });
+}
+
+
+function scrollAiChatToBottom() {
+
+    if (!aiChatLog) return;
+
+    /*
+       requestAnimationFrame: yeni düğüm henüz yerleşmeden
+       scrollHeight eski değeri verir ve son mesaj yarım
+       kalır.
+    */
+    requestAnimationFrame(() => {
+        aiChatLog.scrollTop = aiChatLog.scrollHeight;
+    });
 }

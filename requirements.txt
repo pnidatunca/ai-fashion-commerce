@@ -10,3 +10,9 @@ uvicorn
 passlib[bcrypt]
 bcrypt==4.0.1
 requests
+
+# Sohbet asistani motoru. Bu depoda duruyor (packages/toolchat)
+# ve duzenlenebilir (-e) kuruluyor: uygulamayla birlikte
+# gelistiriliyor ama uygulamaya bagimli DEGIL. Baska bir projeye
+# almak icin klasoru kopyalamak yeterli.
+-e ./packages/toolchat
