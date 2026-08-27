@@ -812,3 +812,179 @@ class ProductStyleScore(Base):
             "score",
         ),
     )
+
+
+# =========================================================
+# GARDIROP (KOMBIN / LOOK)
+# =========================================================
+
+# Kombin, wishlist ve sepetten FARKLI bir sey: onlar tekil
+# urun listeleridir, bu bir KOMPOZISYON. "Lacivert takim +
+# beyaz gomlek + siyah loafer" birlikte anlam tasiyor;
+# parcalardan biri degisince kombin hala ayni kombin.
+#
+# Bu yuzden iki tablo var: kombinin kendisi (baslik, sahip)
+# ve icindeki parcalar. Tek tabloda tutulsaydi "bu kombinin
+# pantolonunu degistir" islemi, kombin kimligini kaybetmeden
+# yapilamazdi.
+
+# Parcanin kombindeki rolu. Degistirme akisinin anahtari:
+# "bu kombindeki AYAKKABIYI degistir" derken hangi parcanin
+# yerine ne konacagini bu alan soyluyor.
+#
+# Bos birakilabilir: kullanici sohbetten kombin kurarken
+# parcalari elle isaretlemiyor, slot sonradan urunun
+# kategorisinden tahmin ediliyor.
+LOOK_SLOTS = (
+    "ust",
+    "alt",
+    "dis_giyim",
+    "ayakkabi",
+    "aksesuar",
+    "diger",
+)
+
+
+class WardrobeLook(Base):
+    """
+    Kullanicinin gardirobuna kaydettigi bir kombin.
+
+    source: kombinin nereden geldigi ("chat" = AI asistanin
+    onerisinden kuruldu). Sonradan "AI onerisi" rozeti
+    gostermek ve hangi girisin ise yaradigini olcmek icin.
+    """
+
+    __tablename__ = "wardrobe_looks"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    title = Column(
+        String(120),
+        nullable=False,
+    )
+
+    note = Column(
+        Text,
+        nullable=True,
+    )
+
+    source = Column(
+        String(32),
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    # Kombin silinince parcalari da silinsin. cascade burada
+    # ORM tarafi; DB tarafinda ayrica ondelete="CASCADE" var
+    # (ikisi birden gerekli: biri Python'dan, digeri dogrudan
+    # SQL ile silmede calisiyor).
+    items = relationship(
+        "WardrobeLookItem",
+        cascade="all, delete-orphan",
+        order_by="WardrobeLookItem.position",
+    )
+
+    __table_args__ = (
+
+        # Gardirop listesi hep "benim kombinlerim, yeniden
+        # eskiye" seklinde okunuyor.
+        Index(
+            "ix_wardrobe_looks_user_created",
+            "user_id",
+            "created_at",
+        ),
+    )
+
+
+class WardrobeLookItem(Base):
+    """
+    Bir kombinin icindeki tek parca.
+
+    Unique kisit ayni urunun ayni kombine iki kez
+    eklenmesini engelliyor: kombin bir kiyafet listesi,
+    alisveris sepeti degil — adet kavrami yok.
+    """
+
+    __tablename__ = "wardrobe_look_items"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+
+    look_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "wardrobe_looks.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    product_id = Column(
+        String,
+        ForeignKey(
+            "products.product_id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    slot = Column(
+        String(24),
+        nullable=True,
+    )
+
+    # Kombin icindeki gorunme sirasi. Parca degistirilince
+    # yeni urun eskisinin position'ini devraliyor ki kombin
+    # gorsel olarak yerinden oynamasin.
+    position = Column(
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    product = relationship("Product")
+
+    __table_args__ = (
+
+        UniqueConstraint(
+            "look_id",
+            "product_id",
+            name="uq_look_product",
+        ),
+    )

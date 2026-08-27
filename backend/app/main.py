@@ -1281,6 +1281,504 @@ def remove_cart_item(
 
 
 # =========================================================
+# GARDIROP (KOMBIN / LOOK)
+# =========================================================
+#
+# Sepet ve wishlist'ten farki: onlar tekil urun listeleridir,
+# bu bir KOMPOZISYON. Kullanici AI asistanin onerdigi
+# parcalardan bir "kombin" kurup kaydediyor, sonra icindeki
+# tek bir parcayi (orn. sadece ayakkabiyi) degistirebiliyor.
+#
+# DIKKAT: kimlik dogrulama sepet/wishlist ile ayni gecici
+# cozume dayaniyor (X-User-Id basligi, bkz. get_current_user
+# uzerindeki uyari). Baskasinin kombinini okumayi engellemek
+# icin her CRUD cagrisi user_id kosulu tasiyor.
+
+# Urun kategorisinden kombin yuvasi tahmini.
+#
+# Kullanici sohbetten kombin kurarken parcalari elle
+# isaretlemiyor; yuvayi burada tahmin ediyoruz ki "bu
+# kombindeki AYAKKABIYI degistir" akisi calisabilsin.
+#
+# Desenler crud.get_products ve search_service ile AYNI
+# kaynaktan gelmeli; oradaki liste degisirse buraya da
+# bakilmali.
+_SLOT_PATTERNS = (
+    ("ayakkabi", ("› Shoes",)),
+    ("dis_giyim", ("› Jackets & Coats", "Outerwear")),
+    ("alt", ("› Pants", "› Jeans", "› Shorts", "› Skirts")),
+    ("ust", ("› Shirts", "› Polos", "› Tops", "› T-Shirts", "› Dresses")),
+    ("aksesuar", ("› Accessories", "› Watches", "› Jewelry", "› Bags")),
+)
+
+
+def _guess_slot(product) -> str | None:
+    """Urun kategorisinden kombin yuvasi. Bilinmiyorsa None."""
+
+    category = (getattr(product, "category", None) or "")
+
+    for slot, patterns in _SLOT_PATTERNS:
+        for pattern in patterns:
+            if pattern.lower() in category.lower():
+                return slot
+
+    return None
+
+
+def _look_response(look) -> schemas.WardrobeLookResponse:
+    """
+    ORM kombinini response'a cevirir.
+
+    item_count ve total_price ORM'de yok, burada
+    hesaplaniyor — _cart_summary ile ayni gerekce: dort ayri
+    endpoint'te tekrarlanmasin.
+    """
+
+    items = list(look.items or [])
+
+    total_price = sum(
+        float(item.product.price or 0)
+        for item in items
+        if item.product is not None
+    )
+
+    return schemas.WardrobeLookResponse(
+        id=look.id,
+        title=look.title,
+        note=look.note,
+        source=look.source,
+        items=[
+            schemas.WardrobeLookItemResponse.model_validate(item)
+            for item in items
+        ],
+        item_count=len(items),
+        total_price=total_price,
+        created_at=look.created_at,
+        updated_at=look.updated_at,
+    )
+
+
+def _wardrobe_response(looks) -> schemas.WardrobeListResponse:
+
+    payload = [_look_response(look) for look in looks]
+
+    return schemas.WardrobeListResponse(
+        looks=payload,
+        count=len(payload),
+    )
+
+
+@app.get(
+    "/wardrobe",
+    response_model=schemas.WardrobeListResponse,
+)
+def view_wardrobe(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Gardirop paneli ve header rozeti bu tek uctan beslenir."""
+
+    looks = crud.get_looks(db=db, user_id=user.id)
+
+    return _wardrobe_response(looks)
+
+
+@app.post(
+    "/wardrobe",
+    response_model=schemas.WardrobeLookResponse,
+    status_code=201,
+)
+def create_wardrobe_look(
+    payload: schemas.SaveLookRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kombin kaydeder.
+
+    Urunlerin GERCEKTEN var oldugu dogrulaniyor: uydurma bir
+    product_id ile kombin kaydedilirse gardirop bos kartlar
+    gosterir ve hata kullanicinin karsisina cok sonra cikar.
+    """
+
+    entries = []
+
+    for item in payload.items:
+
+        product = crud.get_product(db=db, product_id=item.product_id)
+
+        if product is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Ürün bulunamadı: {item.product_id}",
+            )
+
+        entries.append(
+            {
+                "product_id": item.product_id,
+                "slot": item.slot or _guess_slot(product),
+            }
+        )
+
+    look = crud.create_look(
+        db=db,
+        user_id=user.id,
+        title=payload.title.strip(),
+        entries=entries,
+        source=payload.source,
+        note=payload.note,
+    )
+
+    if look is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Kombin oluşturulamadı.",
+        )
+
+    return _look_response(look)
+
+
+# DIKKAT: /wardrobe/suggest/... rotasi /wardrobe/{look_id}
+# ile cakismamasi icin ondan ONCE tanimlanmali
+# (/cart/checkout ve /wishlist/ids ile ayni sebep: aksi
+# halde "suggest" bir look_id sanilir).
+#
+# Yol elle "/api/..." yazildi, api router'ina TAKILMADI:
+# o router bu satirdan SONRA tanimlaniyor (bkz. asagidaki
+# "AI KISISELLESTIRME KATMANI" bolumu). Bu uc mantiken bir
+# AI ucu oldugu icin yolu /api altinda kaliyor.
+
+@app.get(
+    "/api/wardrobe/suggest/{look_id}/{product_id}",
+    response_model=schemas.LookSuggestionResponse,
+    tags=["ai"],
+)
+def suggest_look_replacement(
+    look_id: uuid.UUID,
+    product_id: str,
+    limit: int = Query(default=12, ge=1, le=24),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    "Bu parcayi degistir" ekraninin alternatiflerini uretir.
+
+    STATIK BIR FILTRE DEGIL: sorgu, degistirilecek parcanin
+    kategorisi ve kombinin GERI KALAN parcalarinin
+    renklerinden kuruluyor, sonra aramanin normal zinciri
+    calisiyor:
+
+        query_engine.analyze() -> embed_query() ->
+        search_service.search()
+
+    Yani "siyah pantolon yerine" arandiginda kombinin diger
+    parcalarinin rengi de hesaba katiliyor; alternatifler
+    kombine uyumlu geliyor.
+
+    /api altinda: bu bir AI ucu, ham CRUD degil.
+    """
+
+    look = crud.get_look(db=db, user_id=user.id, look_id=look_id)
+
+    if look is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Kombin bulunamadı.",
+        )
+
+    target = next(
+        (
+            item
+            for item in (look.items or [])
+            if item.product_id == product_id
+        ),
+        None,
+    )
+
+    if target is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Bu parça kombinde değil.",
+        )
+
+    # Sorguyu kur: once degistirilecek parcanin kendi
+    # kategorisi/basligi, sonra kombinin geri kalaninin
+    # rengi.
+    pieces = []
+
+    target_product = target.product
+
+    if target_product is not None:
+
+        if target_product.category:
+            # Kategori yolunun son parcasi en anlamli olan:
+            # "... > Men > Clothing > Pants" -> "Pants"
+            leaf = target_product.category.split("›")[-1].strip()
+            if leaf:
+                pieces.append(leaf)
+
+        if target_product.brand:
+            pieces.append(target_product.brand)
+
+    companion_colors = []
+
+    for item in (look.items or []):
+
+        if item.product_id == product_id:
+            continue
+
+        family = getattr(item.product, "color_family", None)
+
+        if family and family not in companion_colors:
+            companion_colors.append(family)
+
+    pieces.extend(companion_colors[:2])
+
+    query = " ".join(pieces).strip() or (
+        target_product.title if target_product else "kıyafet"
+    )
+
+    intent = query_engine.analyze(query)
+
+    vector = embed_query(intent.embed_text)
+
+    # Kombinde zaten olan urunler onerilmemeli.
+    existing = {item.product_id for item in (look.items or [])}
+
+    items, _meta = search_service.search(
+        db=db,
+        intent=intent,
+        query_embedding=vector,
+        limit=limit + len(existing),
+        offset=0,
+    )
+
+    suggestions = []
+
+    for entry in items:
+
+        product = entry["product"]
+
+        if product.product_id in existing:
+            continue
+
+        data = schemas.ProductResponse.model_validate(product).model_dump()
+        data["similarity_score"] = entry["similarity_score"]
+
+        suggestions.append(schemas.SemanticProductResponse(**data))
+
+        if len(suggestions) >= limit:
+            break
+
+    reason = f"{query} araması"
+
+    if companion_colors:
+        reason = (
+            f"{query} — kombindeki "
+            f"{', '.join(companion_colors[:2])} tonlarıyla uyumlu"
+        )
+
+    return schemas.LookSuggestionResponse(
+        replaced_product_id=product_id,
+        reason=reason,
+        items=suggestions,
+        count=len(suggestions),
+    )
+
+
+@app.patch(
+    "/wardrobe/{look_id}",
+    response_model=schemas.WardrobeLookResponse,
+)
+def rename_wardrobe_look(
+    look_id: uuid.UUID,
+    payload: schemas.RenameLookRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Kombin basligini degistirir."""
+
+    updated = crud.rename_look(
+        db=db,
+        user_id=user.id,
+        look_id=look_id,
+        title=payload.title.strip(),
+    )
+
+    if not updated:
+        raise HTTPException(
+            status_code=404,
+            detail="Kombin bulunamadı.",
+        )
+
+    look = crud.get_look(db=db, user_id=user.id, look_id=look_id)
+
+    return _look_response(look)
+
+
+@app.delete(
+    "/wardrobe/{look_id}",
+    response_model=schemas.WardrobeListResponse,
+)
+def delete_wardrobe_look(
+    look_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kombini siler ve GUNCEL listeyi doner.
+
+    Liste donuyor ki panel ikinci bir GET atmasin (sepet
+    endpoint'leriyle ayni sozlesme).
+    """
+
+    deleted = crud.delete_look(
+        db=db,
+        user_id=user.id,
+        look_id=look_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Kombin bulunamadı.",
+        )
+
+    looks = crud.get_looks(db=db, user_id=user.id)
+
+    return _wardrobe_response(looks)
+
+
+@app.put(
+    "/wardrobe/{look_id}/items/{product_id}",
+    response_model=schemas.WardrobeLookResponse,
+)
+def replace_wardrobe_look_item(
+    look_id: uuid.UUID,
+    product_id: str,
+    payload: schemas.ReplaceLookItemRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kombindeki bir parcayi baska urunle degistirir.
+
+    Ozelligin kalbi burasi: kombin kimligini KAYBETMEDEN
+    icerigi degisiyor. Yeni urun eskisinin sirasini ve
+    yuvasini devraliyor (bkz. crud.replace_look_item).
+    """
+
+    product = crud.get_product(db=db, product_id=payload.new_product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Yeni ürün bulunamadı.",
+        )
+
+    replaced = crud.replace_look_item(
+        db=db,
+        user_id=user.id,
+        look_id=look_id,
+        old_product_id=product_id,
+        new_product_id=payload.new_product_id,
+    )
+
+    if not replaced:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Parça değiştirilemedi. Kombin bulunamadı, "
+                "parça kombinde değil ya da yeni ürün kombinde "
+                "hâlihazırda var."
+            ),
+        )
+
+    look = crud.get_look(db=db, user_id=user.id, look_id=look_id)
+
+    return _look_response(look)
+
+
+@app.post(
+    "/wardrobe/{look_id}/items/{product_id}",
+    response_model=schemas.WardrobeLookResponse,
+    status_code=201,
+)
+def add_wardrobe_look_item(
+    look_id: uuid.UUID,
+    product_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Var olan kombine yeni parca ekler."""
+
+    product = crud.get_product(db=db, product_id=product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Ürün bulunamadı.",
+        )
+
+    added = crud.add_look_item(
+        db=db,
+        user_id=user.id,
+        look_id=look_id,
+        product_id=product_id,
+        slot=_guess_slot(product),
+    )
+
+    if not added:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Parça eklenemedi. Kombin bulunamadı ya da bu "
+                "ürün kombinde hâlihazırda var."
+            ),
+        )
+
+    look = crud.get_look(db=db, user_id=user.id, look_id=look_id)
+
+    return _look_response(look)
+
+
+@app.delete(
+    "/wardrobe/{look_id}/items/{product_id}",
+    response_model=schemas.WardrobeLookResponse,
+)
+def remove_wardrobe_look_item(
+    look_id: uuid.UUID,
+    product_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kombinden bir parca cikarir.
+
+    Son parca da cikarilabilir: bos kombin gecerli bir durum,
+    kullanici sonra doldurabilir. Kombini tamamen silmek
+    isterse DELETE /wardrobe/{look_id} var.
+    """
+
+    removed = crud.remove_look_item(
+        db=db,
+        user_id=user.id,
+        look_id=look_id,
+        product_id=product_id,
+    )
+
+    if not removed:
+        raise HTTPException(
+            status_code=404,
+            detail="Parça kombinde değil.",
+        )
+
+    look = crud.get_look(db=db, user_id=user.id, look_id=look_id)
+
+    return _look_response(look)
+
+
+# =========================================================
 # ML EGITIM VERISI
 # =========================================================
 

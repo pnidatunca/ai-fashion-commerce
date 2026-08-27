@@ -35,3 +35,7 @@ data/*
 
 # Sirket ici Hybris dokumanlari - asla push edilmeyecek
 hybris-documents-master/
+
+# "pip install -e" ciktisi. Her kurulumda yeniden uretiliyor,
+# makineye ozel yollar iceriyor - repoda durmamali.
+*.egg-info/

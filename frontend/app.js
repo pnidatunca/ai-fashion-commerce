@@ -107,7 +107,14 @@ const state = {
     pendingInteraction: null,
 
     /* Sepetteki urunler: [{product_id, quantity, product}] */
-    cart: []
+    cart: [],
+
+    /*
+       Gardiroptaki kombinler. Sepetten farki: her kayit bir
+       KOMPOZISYON, icinde parcalar var.
+       [{id, title, items: [{product_id, slot, product}], ...}]
+    */
+    wardrobe: []
 };
 
 
@@ -183,6 +190,11 @@ const cartOverlay = $("cart-overlay");
 const closeCartButton = $("close-cart");
 const cartItemsHolder = $("cart-items");
 
+const wardrobeButton = $("wardrobe-btn");
+const wardrobeOverlay = $("wardrobe-overlay");
+const closeWardrobeButton = $("close-wardrobe");
+const wardrobeListHolder = $("wardrobe-list");
+
 const exploreGrid = $("explore-grid");
 const exploreCarousel = $("explore-carousel");
 const exploreRefreshButton = $("explore-refresh");
@@ -222,6 +234,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupExplore();
     setupWishlistPanel();
     setupCartPanel();
+    setupWardrobePanel();
     setupCustomize();
     setupProductGridActions();
     setupViewTracking();
@@ -238,6 +251,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     /* Kalp durumlari kartlar cizilmeden once yuklenmeli */
     await loadWishlist();
     await loadCart();
+    await loadWardrobe();
 
     /* Alt barin kucuk gorselleri icin tam liste */
     refreshWishlistItems();
@@ -4930,6 +4944,868 @@ async function renderCartPanel() {
 }
 
 
+/* =========================================================
+   GARDIROP  (kaydedilmis kombinler)
+   ---------------------------------------------------------
+   Sepet/favoriler tekil urun listeleridir; gardirop
+   KOMBINLERI tutar. Bir kombin, birlikte giyilen parcalarin
+   kompozisyonudur ve icindeki tek bir parca (orn. sadece
+   ayakkabi) baskasiyla degistirilebilir — ozelligin kalbi bu.
+
+   Panel iki gorunumlu:
+     LISTE     kaydedilmis kombinler
+     DEGISTIR  bir parcanin AI ile bulunmus alternatifleri
+
+   Sepet endpoint'leriyle ayni sozlesme: her mutasyon GUNCEL
+   veriyi doner, panel ikinci bir GET atmaz.
+========================================================= */
+
+/* Yuva kodlarinin ekranda gorunen hali. Sunucu "ust"
+   yaziyor, kullanici "ÜST" goruyor. */
+const WARDROBE_SLOT_LABELS = {
+    ust: "Üst",
+    alt: "Alt",
+    dis_giyim: "Dış Giyim",
+    ayakkabi: "Ayakkabı",
+    aksesuar: "Aksesuar",
+    diger: "Diğer",
+};
+
+/* Hangi kombinin hangi parcasi degistiriliyor.
+   openWardrobeSwap doldurur, geri donunce temizlenir. */
+const wardrobeSwap = {
+    lookId: null,
+    productId: null,
+};
+
+
+function slotLabel(slot) {
+
+    if (!slot) return "";
+
+    return WARDROBE_SLOT_LABELS[slot] || "";
+}
+
+
+async function loadWardrobe() {
+
+    if (!isUserLoggedIn()) {
+
+        state.wardrobe = [];
+
+        renderWardrobeBadge();
+
+        return;
+    }
+
+
+    try {
+
+        const data = await apiFetch("/wardrobe");
+
+        state.wardrobe = Array.isArray(data.looks) ? data.looks : [];
+
+
+    } catch (error) {
+
+        console.error("Gardırop yüklenemedi:", error);
+
+        state.wardrobe = [];
+    }
+
+
+    renderWardrobeBadge();
+}
+
+
+function renderWardrobeBadge() {
+
+    /* Rozette kombin SAYISI yaziyor, parca sayisi degil:
+       kullanici "3 kombinim var" diye dusunuyor. */
+    const count = state.wardrobe.length;
+
+    document
+        .querySelectorAll(".wardrobe-number")
+        .forEach(element => {
+
+            element.textContent = count;
+
+            element.classList.toggle("hidden", count === 0);
+        });
+
+
+    wardrobeButton
+        ?.classList.toggle("has-items", count > 0);
+}
+
+
+/**
+ * Kombin kaydeder.
+ *
+ * items: [{product_id, slot?}] — en az iki parca.
+ * Yuvayi sunucu urun kategorisinden tahmin ediyor, istemci
+ * gondermek zorunda degil.
+ */
+async function saveLook(title, items, { source = null, note = null } = {}) {
+
+    const data = await apiFetch("/wardrobe", {
+        method: "POST",
+        body: JSON.stringify({
+            title,
+            items,
+            source,
+            note,
+        }),
+    });
+
+    /* Liste ucu tek kombin donuyor; onu listenin basina
+       koyuyoruz (sunucu da yeniden eskiye siraliyor). */
+    state.wardrobe = [data, ...state.wardrobe];
+
+    renderWardrobeBadge();
+
+    return data;
+}
+
+
+async function renameLook(lookId, title) {
+
+    const data = await apiFetch(`/wardrobe/${encodeURIComponent(lookId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+    });
+
+    state.wardrobe = state.wardrobe.map(
+        look => (look.id === lookId ? data : look)
+    );
+
+    return data;
+}
+
+
+async function deleteLook(lookId) {
+
+    const data = await apiFetch(`/wardrobe/${encodeURIComponent(lookId)}`, {
+        method: "DELETE",
+    });
+
+    state.wardrobe = Array.isArray(data.looks) ? data.looks : [];
+
+    renderWardrobeBadge();
+
+    return data;
+}
+
+
+async function replaceLookItem(lookId, oldProductId, newProductId) {
+
+    const data = await apiFetch(
+        `/wardrobe/${encodeURIComponent(lookId)}` +
+        `/items/${encodeURIComponent(oldProductId)}`,
+        {
+            method: "PUT",
+            body: JSON.stringify({ new_product_id: newProductId }),
+        }
+    );
+
+    state.wardrobe = state.wardrobe.map(
+        look => (look.id === lookId ? data : look)
+    );
+
+    return data;
+}
+
+
+async function removeLookItem(lookId, productId) {
+
+    const data = await apiFetch(
+        `/wardrobe/${encodeURIComponent(lookId)}` +
+        `/items/${encodeURIComponent(productId)}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    state.wardrobe = state.wardrobe.map(
+        look => (look.id === lookId ? data : look)
+    );
+
+    return data;
+}
+
+
+function setupWardrobePanel() {
+
+    wardrobeButton?.addEventListener("click", () => {
+
+        if (!isUserLoggedIn()) {
+            openAuth("Gardırobunu görmek için giriş yap.");
+            return;
+        }
+
+        openWardrobePanel();
+    });
+
+
+    closeWardrobeButton
+        ?.addEventListener("click", closeWardrobePanel);
+
+
+    wardrobeOverlay?.addEventListener("click", event => {
+
+        if (event.target === wardrobeOverlay) {
+            closeWardrobePanel();
+        }
+    });
+
+
+    $("wardrobe-swap-back")
+        ?.addEventListener("click", closeWardrobeSwap);
+
+
+    /* Olay delegasyonu: kombin kartlari her render'da
+       yeniden ciziliyor (sepet paneliyle ayni desen). */
+    wardrobeListHolder
+        ?.addEventListener("click", handleWardrobeListClick);
+
+    $("wardrobe-swap-items")
+        ?.addEventListener("click", handleWardrobeSwapClick);
+}
+
+
+async function openWardrobePanel() {
+
+    wardrobeOverlay?.classList.add("open");
+
+    closeWardrobeSwap();
+
+    await renderWardrobePanel();
+}
+
+
+function closeWardrobePanel() {
+
+    wardrobeOverlay?.classList.remove("open");
+}
+
+
+async function renderWardrobePanel() {
+
+    if (!wardrobeListHolder) return;
+
+
+    /* Liste zaten doluysa loader basmiyoruz: her acilista
+       ekranin bosalip dolmasi titreme gibi gorunuyor. */
+    if (!state.wardrobe.length) {
+
+        wardrobeListHolder.innerHTML = `
+            <div class="loader-container">
+                <div class="loader"></div>
+            </div>
+        `;
+    }
+
+
+    let failed = false;
+
+    try {
+        await loadWardrobe();
+
+    } catch (error) {
+        console.error("Gardırop alınamadı:", error);
+        failed = true;
+    }
+
+
+    if (failed) {
+
+        wardrobeListHolder.innerHTML = `
+            <div class="wishlist-empty">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <p>Gardırop alınamadı</p>
+                <span>Bağlantını kontrol edip tekrar dener misin?</span>
+            </div>
+        `;
+
+        return;
+    }
+
+
+    if (!state.wardrobe.length) {
+
+        wardrobeListHolder.innerHTML = `
+            <div class="wishlist-empty">
+                <i class="fa-solid fa-shirt"></i>
+                <p>Gardırobun boş</p>
+                <span>
+                    AI Asistan sana kombin önerdiğinde
+                    beğendiğin parçaları seçip
+                    "Kombin olarak kaydet"e dokun.
+                </span>
+            </div>
+        `;
+
+        return;
+    }
+
+
+    wardrobeListHolder.innerHTML =
+        state.wardrobe.map(renderWardrobeLook).join("");
+}
+
+
+function renderWardrobeLook(look) {
+
+    const lookId = escapeHTML(String(look.id));
+
+    const pieces = Array.isArray(look.items) ? look.items : [];
+
+    const sourceBadge = look.source === "chat"
+        ? '<span class="wardrobe-look-source">AI ÖNERİSİ</span>'
+        : "";
+
+    return `
+        <div class="wardrobe-look" data-look-id="${lookId}">
+
+            <div class="wardrobe-look-head">
+
+                <div class="wardrobe-look-title">
+                    <strong>${escapeHTML(look.title || "Kombin")}</strong>
+
+                    <div class="wardrobe-look-meta">
+                        <span>${pieces.length} parça</span>
+                        ${sourceBadge}
+                    </div>
+                </div>
+
+                <div class="wardrobe-look-tools">
+
+                    <button
+                        type="button"
+                        data-wardrobe-action="rename"
+                        data-look-id="${lookId}"
+                        aria-label="Kombini yeniden adlandır"
+                        title="Yeniden adlandır"
+                    >
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="danger"
+                        data-wardrobe-action="delete-look"
+                        data-look-id="${lookId}"
+                        aria-label="Kombini sil"
+                        title="Kombini sil"
+                    >
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+
+                </div>
+
+            </div>
+
+            <div class="wardrobe-pieces">
+                ${pieces.map(piece => renderWardrobePiece(piece, look.id)).join("")}
+            </div>
+
+            <div class="wardrobe-look-foot">
+
+                <span class="wardrobe-look-total">
+                    Toplam
+                    <strong>${escapeHTML(formatPrice(look.total_price))}</strong>
+                </span>
+
+                <button
+                    type="button"
+                    class="wardrobe-look-buy"
+                    data-wardrobe-action="add-all"
+                    data-look-id="${lookId}"
+                >
+                    TÜMÜNÜ SEPETE EKLE
+                </button>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+function renderWardrobePiece(piece, lookId) {
+
+    const product = piece.product || {};
+
+    const productId = escapeHTML(String(piece.product_id || ""));
+
+    const label = slotLabel(piece.slot);
+
+    return `
+        <div class="wardrobe-piece" data-product-id="${productId}">
+
+            <img
+                class="wardrobe-piece-image"
+                src="${escapeHTML(safeImage(product.image_url))}"
+                alt=""
+                loading="lazy"
+                data-wardrobe-open="${productId}"
+            >
+
+            <div class="wardrobe-piece-body">
+
+                ${
+                    label
+                        ? `<span class="wardrobe-piece-slot">${escapeHTML(label)}</span>`
+                        : ""
+                }
+
+                <p class="wardrobe-piece-title">
+                    ${escapeHTML(productTitle(product))}
+                </p>
+
+                <span class="wardrobe-piece-price">
+                    ${escapeHTML(formatPrice(product.price))}
+                </span>
+
+            </div>
+
+            <div class="wardrobe-piece-actions">
+
+                <button
+                    type="button"
+                    class="swap"
+                    data-wardrobe-action="swap"
+                    data-look-id="${escapeHTML(String(lookId))}"
+                    data-product-id="${productId}"
+                    aria-label="Bu parçayı değiştir"
+                    title="Bu parçayı değiştir"
+                >
+                    <i class="fa-solid fa-right-left"></i>
+                </button>
+
+                <button
+                    type="button"
+                    class="danger"
+                    data-wardrobe-action="remove-piece"
+                    data-look-id="${escapeHTML(String(lookId))}"
+                    data-product-id="${productId}"
+                    aria-label="Bu parçayı kombinden çıkar"
+                    title="Kombinden çıkar"
+                >
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+async function handleWardrobeListClick(event) {
+
+    /* Gorsel: urun detayini ac (buton degil, <img>) */
+    const image = event.target.closest("[data-wardrobe-open]");
+
+    if (image) {
+
+        const productId = image.dataset.wardrobeOpen;
+
+        const piece = findWardrobePiece(productId);
+
+        openProduct(productId, piece?.product);
+
+        return;
+    }
+
+
+    const button = event.target.closest("[data-wardrobe-action]");
+
+    if (!button || button.disabled) return;
+
+    const action = button.dataset.wardrobeAction;
+    const lookId = button.dataset.lookId;
+    const productId = button.dataset.productId;
+
+
+    if (action === "swap") {
+        await openWardrobeSwap(lookId, productId, button);
+        return;
+    }
+
+
+    if (action === "rename") {
+        await handleLookRename(lookId);
+        return;
+    }
+
+
+    button.disabled = true;
+
+    try {
+
+        if (action === "delete-look") {
+
+            await deleteLook(lookId);
+
+            await renderWardrobePanel();
+
+            showToast({
+                title: "Kombin silindi",
+                message: "Gardırobundan çıkarıldı.",
+                tone: "neutral",
+            });
+
+            return;
+        }
+
+
+        if (action === "remove-piece") {
+
+            await removeLookItem(lookId, productId);
+
+            await renderWardrobePanel();
+
+            return;
+        }
+
+
+        if (action === "add-all") {
+            await addLookToCart(lookId);
+            return;
+        }
+
+
+    } catch (error) {
+
+        console.error("Gardırop işlemi başarısız:", error);
+
+        showToast({
+            title: "İşlem tamamlanamadı",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+
+    } finally {
+        button.disabled = false;
+    }
+}
+
+
+/** Gardiroptaki tum kombinlerde parcayi arar. */
+function findWardrobePiece(productId) {
+
+    const target = String(productId);
+
+    for (const look of state.wardrobe) {
+
+        const piece = (look.items || []).find(
+            item => String(item.product_id) === target
+        );
+
+        if (piece) return piece;
+    }
+
+    return null;
+}
+
+
+async function handleLookRename(lookId) {
+
+    const look = state.wardrobe.find(entry => entry.id === lookId);
+
+    if (!look) return;
+
+    const next = window.prompt("Kombinin yeni adı:", look.title || "");
+
+    if (next === null) return;
+
+    const title = next.trim();
+
+    if (!title || title === look.title) return;
+
+
+    try {
+
+        await renameLook(lookId, title);
+
+        await renderWardrobePanel();
+
+
+    } catch (error) {
+
+        console.error("Kombin adlandırılamadı:", error);
+
+        showToast({
+            title: "Ad değiştirilemedi",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+    }
+}
+
+
+/**
+ * Kombindeki tum parcalari sepete ekler.
+ *
+ * Zaten sepette olanlar atlanmiyor: /cart/{id} POST'u
+ * tekrar eklemede miktari artiriyor, bu da beklenen
+ * davranis (bkz. crud.add_to_cart).
+ */
+async function addLookToCart(lookId) {
+
+    const look = state.wardrobe.find(entry => entry.id === lookId);
+
+    if (!look) return;
+
+    const pieces = (look.items || []).filter(
+        piece => hasPrice(piece.product)
+    );
+
+    if (!pieces.length) {
+
+        showToast({
+            title: "Sepete eklenemedi",
+            message: "Bu kombindeki ürünlerin fiyat bilgisi yok.",
+            tone: "error",
+        });
+
+        return;
+    }
+
+
+    let added = 0;
+
+    for (const piece of pieces) {
+
+        try {
+            await addToCart(piece.product_id, 1);
+            added += 1;
+
+        } catch (error) {
+            console.error("Parça sepete eklenemedi:", error);
+        }
+    }
+
+
+    const skipped = (look.items || []).length - added;
+
+    showToast({
+        title: added ? "Sepete eklendi" : "Sepete eklenemedi",
+        message: added
+            ? `${added} parça sepetine eklendi.` +
+              (skipped ? ` ${skipped} parça atlandı.` : "")
+            : "Hiçbir parça eklenemedi.",
+        tone: added ? "success" : "error",
+    });
+}
+
+
+/* --- PARCA DEGISTIRME --- */
+
+/**
+ * "Bu parcayi degistir" gorunumunu acar.
+ *
+ * Alternatifler SUNUCUDAN geliyor ve statik bir filtre
+ * degil: degistirilecek parcanin kategorisi + kombinin
+ * diger parcalarinin renkleri bir sorguya cevrilip
+ * aramanin normal zincirinden geciyor (bkz.
+ * suggest_look_replacement).
+ */
+async function openWardrobeSwap(lookId, productId, button) {
+
+    const swapView = $("wardrobe-swap");
+    const itemsHolder = $("wardrobe-swap-items");
+    const reasonHolder = $("wardrobe-swap-reason");
+
+    if (!swapView || !itemsHolder) return;
+
+
+    wardrobeSwap.lookId = lookId;
+    wardrobeSwap.productId = productId;
+
+    wardrobeListHolder?.classList.add("hidden");
+    swapView.classList.remove("hidden");
+
+    const titleHolder = $("wardrobe-title");
+
+    if (titleHolder) {
+        titleHolder.textContent = "Parçayı Değiştir";
+    }
+
+    if (reasonHolder) {
+        reasonHolder.textContent = "Alternatifler aranıyor...";
+    }
+
+    itemsHolder.innerHTML = `
+        <div class="loader-container">
+            <div class="loader"></div>
+        </div>
+    `;
+
+
+    if (button) button.disabled = true;
+
+    try {
+
+        const data = await apiFetch(
+            `/api/wardrobe/suggest/${encodeURIComponent(lookId)}` +
+            `/${encodeURIComponent(productId)}`
+        );
+
+        const items = Array.isArray(data.items) ? data.items : [];
+
+        if (reasonHolder) {
+            reasonHolder.textContent = data.reason
+                ? `Neden bunlar: ${data.reason}`
+                : "";
+        }
+
+        if (!items.length) {
+
+            itemsHolder.innerHTML = `
+                <div class="wishlist-empty">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <p>Alternatif bulunamadı</p>
+                    <span>Bu parçaya uygun başka ürün çıkmadı.</span>
+                </div>
+            `;
+
+            return;
+        }
+
+        itemsHolder.innerHTML =
+            items.map(renderWardrobeSwapOption).join("");
+
+
+    } catch (error) {
+
+        console.error("Alternatifler alınamadı:", error);
+
+        if (reasonHolder) {
+            reasonHolder.textContent = "";
+        }
+
+        itemsHolder.innerHTML = `
+            <div class="wishlist-empty">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <p>Alternatifler alınamadı</p>
+                <span>${escapeHTML(error.message || "Tekrar dener misin?")}</span>
+            </div>
+        `;
+
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+
+function closeWardrobeSwap() {
+
+    wardrobeSwap.lookId = null;
+    wardrobeSwap.productId = null;
+
+    $("wardrobe-swap")?.classList.add("hidden");
+    wardrobeListHolder?.classList.remove("hidden");
+
+    const titleHolder = $("wardrobe-title");
+
+    if (titleHolder) {
+        titleHolder.textContent = "Gardırop";
+    }
+}
+
+
+function renderWardrobeSwapOption(product) {
+
+    const productId = escapeHTML(String(product.product_id || ""));
+
+    return `
+        <div class="wardrobe-piece" data-product-id="${productId}">
+
+            <img
+                class="wardrobe-piece-image"
+                src="${escapeHTML(safeImage(product.image_url))}"
+                alt=""
+                loading="lazy"
+            >
+
+            <div class="wardrobe-piece-body">
+
+                ${
+                    product.brand
+                        ? `<span class="wardrobe-piece-slot">${escapeHTML(product.brand)}</span>`
+                        : ""
+                }
+
+                <p class="wardrobe-piece-title">
+                    ${escapeHTML(productTitle(product))}
+                </p>
+
+                <span class="wardrobe-piece-price">
+                    ${escapeHTML(formatPrice(product.price))}
+                </span>
+
+            </div>
+
+            <button
+                type="button"
+                class="wardrobe-swap-pick"
+                data-wardrobe-pick="${productId}"
+            >
+                SEÇ
+            </button>
+
+        </div>
+    `;
+}
+
+
+async function handleWardrobeSwapClick(event) {
+
+    const button = event.target.closest("[data-wardrobe-pick]");
+
+    if (!button || button.disabled) return;
+
+    const newProductId = button.dataset.wardrobePick;
+
+    const { lookId, productId } = wardrobeSwap;
+
+    if (!lookId || !productId) return;
+
+
+    button.disabled = true;
+
+    try {
+
+        await replaceLookItem(lookId, productId, newProductId);
+
+        closeWardrobeSwap();
+
+        await renderWardrobePanel();
+
+        showToast({
+            title: "Parça değişti",
+            message: "Kombin güncellendi.",
+            tone: "success",
+        });
+
+
+    } catch (error) {
+
+        console.error("Parça değiştirilemedi:", error);
+
+        showToast({
+            title: "Değiştirilemedi",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+
+        button.disabled = false;
+    }
+}
+
+
 /*
    Ayni urun hem Kesfet kartinda hem urun detayinda
    gorunuyor olabilir. Kalp durumunu her yerde eslestiriyoruz.
@@ -8019,6 +8895,7 @@ async function onSessionChanged() {
 
     await loadWishlist();
     await loadCart();
+    await loadWardrobe();
 
     /* Alt barin kucuk gorselleri icin tam liste */
     refreshWishlistItems();
@@ -9236,13 +10113,12 @@ const aiChatLog = $("ai-chat-log");
 const aiChatForm = $("ai-chat-form");
 const aiChatInput = $("ai-chat-input");
 const aiChatSend = $("ai-chat-send");
-const aiChatStarters = $("ai-chat-starters");
 const aiChatSuggest = $("ai-chat-suggest");
 const aiChatStatus = $("ai-chat-status");
 
 const AI_CHAT_GREETING =
     "Merhaba! Ben WishNN'in stil asistanıyım. Ne aradığını " +
-    "anlat — bütçeni, tarzını ya da gideceğin yeri söylemen " +
+    "anlat; bütçeni, tarzını ya da gideceğin yeri söylemen " +
     "yeterli, gerisini ben bulayım.";
 
 
@@ -9333,19 +10209,6 @@ function setupAiChat() {
     aiChatInput?.addEventListener("input", autoGrowChatInput);
 
 
-    /* Olay delegasyonu: başlangıç önerileri sabit ama
-       ürün kartları her cevapta yeniden çiziliyor. */
-    aiChatStarters?.addEventListener("click", event => {
-
-        const button =
-            event.target.closest("[data-starter]");
-
-        if (!button) return;
-
-        sendAiChatMessage(button.dataset.starter || "");
-    });
-
-
     setupAiChatSuggest();
 
 
@@ -9362,6 +10225,16 @@ function setupAiChat() {
     aiChatLog?.addEventListener("keydown", event => {
 
         if (event.key !== "Enter" && event.key !== " ") {
+            return;
+        }
+
+        /*
+           Kartin ICINDEKI gercek butonlar (kalp, kombin
+           secimi) klavyeyi kendileri zaten isliyor. Onlari
+           burada ele almazsak Space hem butonu hem karti
+           tetikler ve urun modali istenmeden acilir.
+        */
+        if (event.target.closest("button")) {
             return;
         }
 
@@ -9514,9 +10387,23 @@ function renderAiChatSuggest() {
         ? destination.options
         : [];
 
-    const trendBlock = groups
+    /*
+       IKISI DE KAPALI BASLIYOR.
+
+       Onceki halde sezon seckisi acik duruyordu ve panelin
+       ustunu tumuyle kaplıyordu: sohbete baslamak isteyen
+       kullanici once bir icerik duvarini geciyordu. Simdi iki
+       ayri kapi var, ikisi de kullanici isteyince aciliyor
+       (bkz. setupAiChatSuggest icindeki toggle mantigi).
+    */
+
+    const trendPanel = groups
         ? `
-            <section class="ai-suggest-block">
+            <section
+                class="ai-suggest-block"
+                data-suggest-panel="trend"
+                hidden
+            >
 
                 <header class="ai-suggest-head">
                     <span class="ai-suggest-title">
@@ -9533,23 +10420,14 @@ function renderAiChatSuggest() {
         `
         : "";
 
-    /* Yer bölümü: kullanıcı önce açıyor, sonra yazıyor.
-       Kapalı başlıyor çünkü panelin yarısını bir formla
-       doldurmak, sohbete başlamayı kolaylaştırmıyor. */
-    const destinationBlock = `
-        <section class="ai-suggest-block">
+    const destinationPanel = `
+        <section
+            class="ai-suggest-block"
+            data-suggest-panel="destination"
+            hidden
+        >
 
-            <button
-                type="button"
-                class="ai-suggest-destination-toggle"
-                data-destination-toggle
-                aria-expanded="false"
-            >
-                ${icon("map-pin")}
-                <span>${escapeHTML(destination.hint || "Nereye gidiyorsun?")}</span>
-            </button>
-
-            <div class="ai-suggest-destination" hidden>
+            <div class="ai-suggest-destination">
 
                 <div class="ai-suggest-chips">
                     ${
@@ -9589,9 +10467,68 @@ function renderAiChatSuggest() {
         </section>
     `;
 
-    aiChatSuggest.innerHTML = trendBlock + destinationBlock;
+
+    const trendTab = groups
+        ? `
+            <button
+                type="button"
+                class="ai-suggest-toggle"
+                data-suggest-toggle="trend"
+                aria-expanded="false"
+            >
+                ${icon("sparkles")}
+                <span>Moda &amp; sezon</span>
+            </button>
+        `
+        : "";
+
+    const destinationTab = `
+        <button
+            type="button"
+            class="ai-suggest-toggle"
+            data-suggest-toggle="destination"
+            aria-expanded="false"
+        >
+            ${icon("map-pin")}
+            <span>${escapeHTML(destination.hint || "Nereye gidiyorsun?")}</span>
+        </button>
+    `;
+
+
+    aiChatSuggest.innerHTML = `
+        <div class="ai-suggest-tabs">
+            ${trendTab}
+            ${destinationTab}
+        </div>
+
+        ${trendPanel}
+        ${destinationPanel}
+    `;
 
     hydrateIcons(aiChatSuggest);
+}
+
+
+/**
+ * Açık duran "Moda & sezon" / "Nereye gidiyorsun?" panelini
+ * kapatır. Tuşların kendisine dokunmaz — onlar sohbet
+ * boyunca yerinde kalıyor.
+ */
+function collapseAiChatSuggestPanels() {
+
+    if (!aiChatSuggest) return;
+
+    aiChatSuggest
+        .querySelectorAll("[data-suggest-panel]")
+        .forEach(panel => {
+            panel.hidden = true;
+        });
+
+    aiChatSuggest
+        .querySelectorAll("[data-suggest-toggle]")
+        .forEach(toggle => {
+            toggle.setAttribute("aria-expanded", "false");
+        });
 }
 
 
@@ -9627,16 +10564,23 @@ function setupAiChatSuggest() {
     aiChatSuggest.addEventListener("click", event => {
 
         const toggle =
-            event.target.closest("[data-destination-toggle]");
+            event.target.closest("[data-suggest-toggle]");
 
         if (toggle) {
 
-            const panel =
-                aiChatSuggest.querySelector(".ai-suggest-destination");
+            const key = toggle.dataset.suggestToggle;
+
+            const panel = aiChatSuggest.querySelector(
+                `[data-suggest-panel="${key}"]`
+            );
 
             if (!panel) return;
 
             const willOpen = panel.hidden;
+
+            /* Akordiyon: panel dar, ikisi birden acikken
+               kullanici kaydirmadan hicbirini goremiyor. */
+            collapseAiChatSuggestPanels();
 
             panel.hidden = !willOpen;
 
@@ -9645,7 +10589,7 @@ function setupAiChatSuggest() {
                 willOpen ? "true" : "false",
             );
 
-            if (willOpen) {
+            if (willOpen && key === "destination") {
                 panel
                     .querySelector(".ai-suggest-place-input")
                     ?.focus();
@@ -9747,8 +10691,10 @@ function resetAiChat() {
         aiChatLog.innerHTML = "";
     }
 
-    aiChatStarters?.classList.remove("hidden");
-    aiChatSuggest?.classList.remove("hidden");
+    /* Iki giris kapisi hic gizlenmiyor (bkz. index.html
+       #ai-chat-suggest), sifirlamada da acilacak bir sey yok.
+       Yalnizca acik panel varsa kapatiyoruz. */
+    collapseAiChatSuggestPanels();
 
     setAiChatStatus("Katalogdan gerçek ürünler önerir");
 
@@ -9781,9 +10727,13 @@ async function sendAiChatMessage(rawText) {
     if (!text || aiChat.sending) return;
 
 
-    /* Başlangıç önerileri ilk mesajdan sonra işini bitirdi */
-    aiChatStarters?.classList.add("hidden");
-    aiChatSuggest?.classList.add("hidden");
+    /*
+       Iki giris kapisi GIZLENMIYOR: sohbet boyunca yerinde
+       kaliyor ki kullanici ikinci, ucuncu soruyu da oradan
+       baslatabilsin. Yalnizca acik duran panel kapaniyor —
+       secim yapildi, listeyi acik tutmanin isi bitti.
+    */
+    collapseAiChatSuggestPanels();
 
 
     appendAiChatMessage({
@@ -9968,9 +10918,57 @@ function appendAiChatMessage({
                 ${products.map(renderAiChatProduct).join("")}
             </div>
         `);
+
+        /*
+           GARDIROP: iki veya daha fazla kart secilince
+           beliren "kombin olarak kaydet" seridi.
+
+           Neden burada: asistan bir "kombin" kavrami
+           dondurmuyor, sadece duz bir urun listesi veriyor
+           (bkz. [SHOW:] direktifi). Hangi parcalarin birlikte
+           bir kombin oldugunu KULLANICI seciyor.
+        */
+        if (products.length >= 2) {
+
+            /*
+               Ipucu metni SURKELI gorunuyor, serit ise 2 secim
+               olunca. Once ipucu olmadan denendiginde bos
+               daireye kimse basmiyordu: ne ise yaradigi
+               belli degildi.
+            */
+            parts.push(`
+                <div class="ai-chat-look-hint">
+                    <i class="fa-solid fa-circle-check"></i>
+                    Kombin yapmak istediğin parçaları işaretle
+                </div>
+
+                <div class="ai-chat-look-bar hidden">
+                    <span class="ai-chat-look-count"></span>
+
+                    <button
+                        type="button"
+                        class="ai-chat-look-save"
+                        data-chat-save-look
+                    >
+                        KOMBİN OLARAK KAYDET
+                    </button>
+                </div>
+            `);
+        }
     }
 
     wrapper.innerHTML = parts.join("");
+
+    /*
+       Urun verisini DOM'a degil buraya baglıyoruz: kombin
+       kaydederken product_id yeterli ama slot tahmini icin
+       kategori de gerekebiliyor ve kartta yapilandirilmis
+       veri yok. aiChat.messages'a KOYMUYORUZ — o dizi
+       backend'e aynen gidiyor, fazladan alan 422 uretir.
+    */
+    if (products.length) {
+        wrapper._chatProducts = products;
+    }
 
     aiChatLog.appendChild(wrapper);
 
@@ -10079,6 +11077,20 @@ function renderAiChatProduct(product) {
                 <i class="fa-${liked ? "solid" : "regular"} fa-heart"></i>
             </button>
 
+            <!-- Kombin secimi: bu kart kombine girsin mi?
+                 Iki veya daha fazlasi secilince altta
+                 "KOMBIN OLARAK KAYDET" seridi cikiyor. -->
+            <button
+                type="button"
+                class="ai-chat-product-pick"
+                data-chat-pick="${escapeHTML(id)}"
+                aria-pressed="false"
+                aria-label="Bu parçayı kombine ekle"
+                title="Kombine ekle"
+            >
+                <i class="fa-solid fa-check"></i>
+            </button>
+
         </div>
     `;
 }
@@ -10095,6 +11107,34 @@ function handleAiChatLogClick(event) {
         event.stopPropagation();
 
         toggleAiChatLike(likeButton);
+
+        return;
+    }
+
+
+    /* Kombin secim kutusu — kalpten sonra, karttan ONCE:
+       o da karta gomulu. */
+    const pickButton =
+        event.target.closest("[data-chat-pick]");
+
+    if (pickButton) {
+
+        event.stopPropagation();
+
+        toggleAiChatPick(pickButton);
+
+        return;
+    }
+
+
+    const saveLookButton =
+        event.target.closest("[data-chat-save-look]");
+
+    if (saveLookButton) {
+
+        event.stopPropagation();
+
+        saveLookFromChat(saveLookButton);
 
         return;
     }
@@ -10185,6 +11225,165 @@ async function toggleAiChatLike(button) {
             tone: "neutral",
         });
     }
+}
+
+
+/* ---------------------------------------------------------
+   SOHBETTEN KOMBIN KURMA
+
+   Asistan bir "kombin" kavrami dondurmuyor: [SHOW:]
+   direktifiyle duz, gruplanmamis bir urun listesi veriyor.
+   Hangi parcalarin BIRLIKTE bir kombin oldugunu kullanici
+   seciyor; bu yuzden burada secim durumu tutuluyor ve
+   asistan/prompt tarafina hic dokunulmuyor.
+
+   Secim, mesaj balonunun KENDI icinde: iki ayri cevaptaki
+   kartlar tek kombine karismasin.
+--------------------------------------------------------- */
+
+function toggleAiChatPick(button) {
+
+    const wrapper = button.closest(".ai-chat-msg");
+
+    if (!wrapper) return;
+
+    const picked = button.classList.toggle("picked");
+
+    button.setAttribute("aria-pressed", picked ? "true" : "false");
+
+    refreshAiChatLookBar(wrapper);
+}
+
+
+function refreshAiChatLookBar(wrapper) {
+
+    const bar = wrapper.querySelector(".ai-chat-look-bar");
+
+    if (!bar) return;
+
+    const picked = wrapper.querySelectorAll(
+        "[data-chat-pick].picked"
+    );
+
+    /* Tek parca kombin degil: o favorilere eklenir.
+       Sunucu da bunu dogruluyor (min_length=2). */
+    bar.classList.toggle("hidden", picked.length < 2);
+
+    const counter = bar.querySelector(".ai-chat-look-count");
+
+    if (counter) {
+        counter.textContent = `${picked.length} parça seçildi`;
+    }
+}
+
+
+async function saveLookFromChat(button) {
+
+    const wrapper = button.closest(".ai-chat-msg");
+
+    if (!wrapper) return;
+
+
+    if (!isUserLoggedIn()) {
+
+        closeAiChat();
+
+        openAuth("Kombin kaydetmek için giriş yapmalısın.");
+
+        return;
+    }
+
+
+    const picked = Array.from(
+        wrapper.querySelectorAll("[data-chat-pick].picked")
+    );
+
+    if (picked.length < 2) return;
+
+
+    const productIds = picked.map(
+        pick => pick.dataset.chatPick
+    );
+
+    const title = window.prompt(
+        "Kombine bir ad ver:",
+        suggestLookTitle(wrapper, productIds)
+    );
+
+    if (title === null) return;
+
+    const cleanTitle = title.trim();
+
+    if (!cleanTitle) return;
+
+
+    button.disabled = true;
+
+    try {
+
+        await saveLook(
+            cleanTitle,
+            productIds.map(id => ({ product_id: id })),
+            { source: "chat" }
+        );
+
+        /* Secim sifirlaniyor: kombin kaydedildi, ayni
+           kartlardan ikinci bir kombin kurmak isteyen
+           yeniden secer. */
+        picked.forEach(pick => {
+            pick.classList.remove("picked");
+            pick.setAttribute("aria-pressed", "false");
+        });
+
+        refreshAiChatLookBar(wrapper);
+
+        showToast({
+            title: "Kombin gardıroba eklendi",
+            message:
+                `"${cleanTitle}" — ${productIds.length} parça. ` +
+                "Gardıroptan parçalarını değiştirebilirsin.",
+            tone: "success",
+        });
+
+
+    } catch (error) {
+
+        console.error("Kombin kaydedilemedi:", error);
+
+        showToast({
+            title: "Kombin kaydedilemedi",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+
+    } finally {
+        button.disabled = false;
+    }
+}
+
+
+/**
+ * Kombin icin bir ad onerisi uretir.
+ *
+ * Urun verisi wrapper'a baglanmis olabilir (bkz.
+ * appendAiChatMessage); markadan bir ad kurmayi deniyoruz,
+ * olmazsa tarihli genel bir ad.
+ */
+function suggestLookTitle(wrapper, productIds) {
+
+    const products = wrapper._chatProducts || [];
+
+    const selected = products.filter(
+        product => productIds.includes(String(product.product_id))
+    );
+
+    const brand = selected.find(product => product.brand)?.brand;
+
+    if (brand) {
+        return `${brand} Kombini`;
+    }
+
+    return `Kombin (${selected.length || productIds.length} parça)`;
 }
 
 

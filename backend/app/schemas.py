@@ -1006,3 +1006,118 @@ class ChatResponse(BaseModel):
     # "katalogda arandi" rozetini gostermek ve hata
     # ayiklamak icin.
     tool_calls: list[str] = []
+
+
+# =========================================================
+# GARDIROP (KOMBIN / LOOK)
+# =========================================================
+
+# Kombin, sepet/wishlist gibi tekil bir urun listesi DEGIL:
+# birlikte giyilen parcalarin kompozisyonu. Bu yuzden
+# response ic ice: look -> items -> product.
+#
+# Kart icin ChatProduct yerine ProductResponse kullaniliyor:
+# gardirop paneli fiyat/gorsel/baslik disinda kategoriyi de
+# gosteriyor ve "parcayi degistir" akisi kategori bilgisine
+# ihtiyac duyuyor.
+
+class WardrobeLookItemResponse(BaseModel):
+    product_id: str
+
+    # Parcanin kombindeki rolu ("ust", "ayakkabi"...).
+    # Bos olabilir: sohbetten kurulan kombinlerde kullanici
+    # slot secmiyor, urun kategorisinden tahmin ediliyor.
+    slot: str | None = None
+
+    position: int
+
+    product: ProductResponse
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class WardrobeLookResponse(BaseModel):
+    """
+    Tek kombin. item_count ve total_price ORM'de YOK,
+    endpoint hesaplayip veriyor (bkz. _look_summary) — bu
+    yuzden from_attributes kullanilmiyor.
+    """
+
+    id: UUID
+    title: str
+    note: str | None = None
+    source: str | None = None
+
+    items: list[WardrobeLookItemResponse]
+
+    item_count: int
+    total_price: float
+
+    created_at: datetime
+    updated_at: datetime
+
+
+class WardrobeListResponse(BaseModel):
+    """Gardirop paneli ve header rozeti tek istekten beslenir."""
+
+    looks: list[WardrobeLookResponse]
+    count: int
+
+
+class LookItemInput(BaseModel):
+    product_id: str
+
+    # Istemci slot gonderebilir ama zorunlu degil; sunucu
+    # bos gelirse urun kategorisinden tahmin ediyor.
+    slot: str | None = Field(default=None, max_length=24)
+
+
+class SaveLookRequest(BaseModel):
+    """
+    Sohbetten ya da elle kombin kaydetme.
+
+    En az IKI parca sart: tek urun bir kombin degil, o
+    favorilere eklenir. Ust sinir 12 — bir "look" 12 parcadan
+    fazlaysa artik kombin degil gardirop listesidir.
+    """
+
+    title: str = Field(min_length=1, max_length=120)
+
+    items: list[LookItemInput] = Field(min_length=2, max_length=12)
+
+    note: str | None = Field(default=None, max_length=500)
+
+    # "chat" = AI asistanin onerisinden kuruldu.
+    source: str | None = Field(default=None, max_length=32)
+
+
+class RenameLookRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+
+
+class ReplaceLookItemRequest(BaseModel):
+    """Kombindeki bir parcayi baska urunle degistirir."""
+
+    new_product_id: str = Field(min_length=1)
+
+
+class LookSuggestionResponse(BaseModel):
+    """
+    "Bu parcayi degistir" ekraninin alternatifleri.
+
+    replaced_product_id: hangi parcanin yerine arandigi.
+    Arayuz "X yerine sunlar" diye yazabilsin diye aciga
+    cikariliyor.
+
+    reason: aramanin nasil kuruldugu (kategori + kombinin
+    diger parcalarinin renkleri). Kullaniciya "neden bunlar?"
+    sorusunun cevabini verebilmek icin.
+    """
+
+    replaced_product_id: str
+    reason: str
+
+    items: list[SemanticProductResponse]
+    count: int

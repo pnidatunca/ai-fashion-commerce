@@ -2080,6 +2080,11 @@ a {
 :root {
     --like: #c0392b;
     --like-soft: rgba(192, 57, 43, .09);
+
+    /* Gardirop rozeti/vurgusu. Favoriler kirmizi, sepet
+       altin; ucuncu bir kimlik gerekiyordu. */
+    --wardrobe: #2f5d62;
+    --wardrobe-soft: rgba(47, 93, 98, .10);
 }
 
 
@@ -2134,6 +2139,37 @@ a {
 
 #cart-btn.has-items i {
     color: var(--gold);
+}
+
+
+/* Header'daki gardirop sayaci — wishlist/sepet ile ayni
+   desen. Ucuncu bir renk gerekiyordu (kirmizi favoriler,
+   altin sepet): koyu mavi-yesil, gardirop dolabini
+   cagristirsin diye. */
+.wardrobe-number {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: 17px;
+    height: 17px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+
+    background: var(--wardrobe);
+    color: var(--white);
+
+    font-size: 8px;
+    font-weight: 600;
+}
+
+/* Sepet butonu <i>, gardirop butonu ise inline SVG
+   (data-icon) kullaniyor — bu yuzden selector <i> degil. */
+#wardrobe-btn.has-items [data-icon] svg {
+    stroke: var(--wardrobe);
 }
 
 
@@ -6032,6 +6068,13 @@ a {
 }
 
 
+/* "display: flex" tarayicinin [hidden] kuralini ezdigi icin
+   gerekli: app.js bu blogu hidden ile gizliyor. */
+.search-analysis-relaxed[hidden] {
+    display: none;
+}
+
+
 .search-analysis-relaxed [data-icon] svg {
     width: 13px;
     height: 13px;
@@ -6054,6 +6097,12 @@ a {
     padding-top: 13px;
 
     border-top: 1px solid rgba(240, 236, 228, .1);
+}
+
+
+/* Ayni sebep: bkz. .search-analysis-relaxed[hidden] */
+.search-analysis-alts[hidden] {
+    display: none;
 }
 
 
@@ -6659,41 +6708,6 @@ a {
 }
 
 
-/* --- BAŞLANGIÇ ÖNERİLERİ --- */
-
-.ai-chat-starters {
-    flex: 0 0 auto;
-
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-
-    padding: 0 22px 14px;
-}
-
-.ai-chat-starters.hidden {
-    display: none;
-}
-
-.ai-chat-starter {
-    padding: 7px 13px;
-
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--white);
-
-    font-size: 11px;
-    letter-spacing: .2px;
-
-    transition: border-color .25s ease, background .25s ease;
-}
-
-.ai-chat-starter:hover {
-    border-color: var(--black);
-    background: var(--cream);
-}
-
-
 /* --- AÇILIŞ ÖNERİLERİ: TREND + GİDİLECEK YER ---
 
    Sohbet başlamadan önce görünen blok. İki bölüm: sezon
@@ -6703,21 +6717,21 @@ a {
    panelin tamamını öneri kaplarsa mesaj alanı ekrandan
    çıkıyor ve sohbet ikincil hale geliyor. */
 
+/* Mesaj akisinin USTUNDE ve surekli duruyor (bkz. index.html
+   #ai-chat-suggest). flex-shrink: 0 — asagidaki .ai-chat-log
+   flex: 1 1 auto oldugu icin, bu blok kucultulmeye
+   zorlanmasin; panel acildiginda kendi icinde kayiyor. */
 .ai-chat-suggest {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
 
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 
     max-height: 44vh;
     overflow-y: auto;
 
-    padding: 0 22px 12px;
-}
-
-.ai-chat-suggest.hidden {
-    display: none;
+    padding: 16px 22px 4px;
 }
 
 .ai-suggest-block {
@@ -6730,6 +6744,14 @@ a {
     border: 1px solid var(--line);
     border-radius: 14px;
     background: var(--cream);
+}
+
+/* DIKKAT: yukaridaki "display: flex", tarayicinin [hidden]
+   icin uyguladigi "display: none" kuralindan daha guclu.
+   Bu satir olmadan JS panel'i hidden yapsa bile panel
+   ekranda kalir — iki bolum de acik gorunur. */
+.ai-suggest-block[hidden] {
+    display: none;
 }
 
 .ai-suggest-head {
@@ -6830,19 +6852,45 @@ a {
     font-variant-numeric: tabular-nums;
 }
 
-.ai-suggest-destination-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
+/* İki giriş kapısı yan yana: "Moda & sezon" ve "Nereye
+   gidiyorsun?". İkisi de kapalı başlar, kullanıcı basınca
+   açılır (bkz. setupAiChatSuggest akordiyon mantığı). */
+.ai-suggest-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 
-    align-self: flex-start;
-
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: .3px;
+    margin-bottom: 8px;
 }
 
-.ai-suggest-destination-toggle svg {
+.ai-suggest-toggle {
+    flex: 1 1 0;
+    min-width: 140px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+
+    padding: 10px 12px;
+
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--white);
+
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .3px;
+
+    transition: border-color .25s ease, background .25s ease, color .25s ease;
+}
+
+.ai-suggest-toggle:hover {
+    border-color: var(--black);
+    background: var(--soft);
+}
+
+.ai-suggest-toggle svg {
     width: 14px;
     height: 14px;
 
@@ -6851,7 +6899,9 @@ a {
     stroke-width: 1.6;
 }
 
-.ai-suggest-destination-toggle[aria-expanded="true"] {
+.ai-suggest-toggle[aria-expanded="true"] {
+    border-color: var(--gold);
+    background: var(--cream);
     color: var(--gold);
 }
 
@@ -6921,6 +6971,11 @@ a {
     .ai-suggest-row-label {
         flex: 0 0 auto;
         padding-top: 0;
+    }
+
+    /* İki tuş yan yana sığmıyor: alt alta, tam genişlik. */
+    .ai-suggest-toggle {
+        flex: 1 1 100%;
     }
 }
 
@@ -7052,4 +7107,435 @@ a {
     .ai-chat-typing span {
         animation: none;
     }
+}
+
+
+/* =========================================================
+   GARDIROP  (kaydedilmis kombinler)
+   ---------------------------------------------------------
+   Panel iskeleti sepet/favorilerden geliyor (.wishlist-overlay
+   / .wishlist-panel / .wishlist-items). Burada YALNIZCA
+   kombine ozel parcalar var: kombin karti, parca satiri ve
+   "degistir" gorunumu.
+========================================================= */
+
+.wardrobe-look {
+    padding: 16px 0 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+.wardrobe-look:last-child {
+    border-bottom: 0;
+}
+
+.wardrobe-look-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+
+    margin-bottom: 12px;
+}
+
+.wardrobe-look-title {
+    min-width: 0;
+}
+
+.wardrobe-look-title strong {
+    display: block;
+
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.wardrobe-look-meta {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    margin-top: 3px;
+
+    font-size: 9px;
+    letter-spacing: .6px;
+    color: var(--light-gray);
+    text-transform: uppercase;
+}
+
+/* Sohbetten kurulan kombinlerde gorunuyor. Kullanicinin
+   "bunu AI onermisti" baglantisini kurabilmesi icin. */
+.wardrobe-look-source {
+    padding: 2px 7px;
+
+    border-radius: 999px;
+    background: var(--wardrobe-soft);
+    color: var(--wardrobe);
+
+    font-weight: 600;
+}
+
+.wardrobe-look-tools {
+    flex: 0 0 auto;
+
+    display: flex;
+    gap: 2px;
+}
+
+.wardrobe-look-tools button {
+    width: 30px;
+    height: 30px;
+
+    display: grid;
+    place-items: center;
+
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+
+    font-size: 12px;
+    color: var(--light-gray);
+
+    transition: color .25s ease, background .25s ease;
+}
+
+.wardrobe-look-tools button:hover {
+    background: var(--cream);
+    color: var(--black);
+}
+
+.wardrobe-look-tools button.danger:hover {
+    color: var(--like);
+}
+
+.wardrobe-pieces {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wardrobe-piece {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+
+    padding: 7px;
+
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--white);
+
+    transition: border-color .25s ease;
+}
+
+.wardrobe-piece:hover {
+    border-color: var(--black);
+}
+
+.wardrobe-piece-image {
+    flex: 0 0 auto;
+
+    width: 48px;
+    height: 60px;
+
+    border-radius: 6px;
+    background: var(--soft);
+    object-fit: cover;
+
+    cursor: pointer;
+}
+
+.wardrobe-piece-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Parcanin kombindeki rolu: "ÜST", "AYAKKABI"...
+   Degistirme akisinin kullaniciya gorunen tarafi. */
+.wardrobe-piece-slot {
+    display: inline-block;
+
+    margin-bottom: 2px;
+
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    color: var(--wardrobe);
+    text-transform: uppercase;
+}
+
+.wardrobe-piece-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+
+    font-size: 11.5px;
+    line-height: 1.35;
+}
+
+.wardrobe-piece-price {
+    margin-top: 3px;
+
+    font-family: var(--serif);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.wardrobe-piece-actions {
+    flex: 0 0 auto;
+
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.wardrobe-piece-actions button {
+    width: 28px;
+    height: 28px;
+
+    display: grid;
+    place-items: center;
+
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+
+    font-size: 11px;
+    color: var(--light-gray);
+
+    transition: color .25s ease, background .25s ease;
+}
+
+.wardrobe-piece-actions button:hover {
+    background: var(--cream);
+    color: var(--black);
+}
+
+.wardrobe-piece-actions .swap:hover {
+    color: var(--wardrobe);
+}
+
+.wardrobe-piece-actions .danger:hover {
+    color: var(--like);
+}
+
+.wardrobe-look-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    margin-top: 12px;
+}
+
+.wardrobe-look-total {
+    font-size: 10px;
+    letter-spacing: .5px;
+    color: var(--gray);
+}
+
+.wardrobe-look-total strong {
+    font-family: var(--serif);
+    font-size: 15px;
+    color: var(--black);
+}
+
+.wardrobe-look-buy {
+    padding: 9px 15px;
+
+    border: 1px solid var(--black);
+    background: transparent;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+
+    transition: background .25s ease, color .25s ease;
+}
+
+.wardrobe-look-buy:hover {
+    background: var(--black);
+    color: var(--white);
+}
+
+
+/* --- PARCA DEGISTIRME GORUNUMU --- */
+
+.wardrobe-swap {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+/* .wishlist-panel flex oldugu icin display:flex, tarayicinin
+   [hidden]/.hidden kuralini ezebilir. .hidden zaten
+   !important tasiyor ama acik yazmak niyeti belli ediyor. */
+.wardrobe-swap.hidden {
+    display: none;
+}
+
+.wardrobe-swap-back {
+    align-self: flex-start;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 0;
+
+    border: 0;
+    background: transparent;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.3px;
+    color: var(--gray);
+
+    transition: color .25s ease;
+}
+
+.wardrobe-swap-back:hover {
+    color: var(--black);
+}
+
+/* "Neden bu urunler?" — aramanin nasil kuruldugunu
+   soyluyor (kategori + kombinin diger renkleri). */
+.wardrobe-swap-reason {
+    margin: 4px 0 10px;
+    padding: 10px 12px;
+
+    border-left: 2px solid var(--wardrobe);
+    background: var(--wardrobe-soft);
+
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: var(--gray);
+}
+
+.wardrobe-swap-pick {
+    padding: 8px 14px;
+
+    border: 1px solid var(--wardrobe);
+    background: transparent;
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    color: var(--wardrobe);
+
+    transition: background .25s ease, color .25s ease;
+}
+
+.wardrobe-swap-pick:hover {
+    background: var(--wardrobe);
+    color: var(--white);
+}
+
+
+/* --- SOHBETTEN KOMBIN KURMA --- */
+
+/* Sohbet kartinin uzerindeki secim kutusu. Kullanici
+   hangi parcalarin kombin oldugunu kendi seciyor —
+   asistan kombin kavrami dondurmuyor. */
+.ai-chat-product-pick {
+    flex: 0 0 auto;
+
+    width: 26px;
+    height: 26px;
+
+    display: grid;
+    place-items: center;
+
+    border: 1.5px solid var(--wardrobe);
+    border-radius: 50%;
+    background: var(--white);
+
+    font-size: 10px;
+
+    /* Tik SEBIK gorunuyor (silik degil, gorunmez degil):
+       kutunun tiklanabilir oldugu anlasilmali ama secili
+       olanla karismamali. */
+    color: rgba(47, 93, 98, .30);
+
+    transition: .2s ease;
+}
+
+.ai-chat-product-pick:hover {
+    background: var(--wardrobe-soft);
+    color: var(--wardrobe);
+}
+
+.ai-chat-product-pick.picked {
+    border-color: var(--wardrobe);
+    background: var(--wardrobe);
+    color: var(--white);
+}
+
+/* Kartlarin altinda SUREKLI duran ipucu. Bos daireye
+   kimsenin basmadigini gorduk; ne ise yaradigini
+   soylemek gerekiyordu. */
+.ai-chat-look-hint {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    margin-top: 8px;
+
+    font-size: 10px;
+    letter-spacing: .2px;
+    color: var(--gray);
+}
+
+.ai-chat-look-hint i {
+    font-size: 11px;
+    color: var(--wardrobe);
+}
+
+/* Iki veya daha fazla kart secilince beliriyor. */
+.ai-chat-look-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    margin-top: 8px;
+    padding: 10px 12px;
+
+    border: 1px solid var(--wardrobe);
+    border-radius: 12px;
+    background: var(--wardrobe-soft);
+}
+
+.ai-chat-look-bar.hidden {
+    display: none;
+}
+
+.ai-chat-look-count {
+    font-size: 10.5px;
+    letter-spacing: .3px;
+    color: var(--wardrobe);
+}
+
+.ai-chat-look-save {
+    flex: 0 0 auto;
+
+    padding: 8px 14px;
+
+    border: 0;
+    border-radius: 999px;
+    background: var(--wardrobe);
+    color: var(--white);
+
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+
+    transition: opacity .25s ease;
+}
+
+.ai-chat-look-save:hover {
+    opacity: .85;
 }

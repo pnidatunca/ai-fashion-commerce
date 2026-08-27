@@ -15,6 +15,8 @@ from app.models import (
     User,
     UserInteraction,
     UserPreference,
+    WardrobeLook,
+    WardrobeLookItem,
     WishlistItem,
     weight_for,
 )
@@ -1271,3 +1273,307 @@ def selected_styles_for(db: Session, user_id):
         return []
 
     return list(preference.selected_styles or [])
+
+
+# =========================================================
+# GARDIROP (KOMBIN / LOOK)
+# =========================================================
+
+# Buradaki fonksiyonlar sepet/wishlist ile ayni sozlesmeyi
+# tasiyor: her biri kendi icinde commit ediyor, kayit yoksa
+# False donuyor (404'u endpoint atiyor).
+#
+# Farki: kombin ic ice bir yapi (look -> items -> product).
+# Okuma yaparken iki seviye joinedload sart, yoksa her parca
+# icin ayri sorgu gider ve 5 kombinlik bir gardirop 20+
+# sorguya cikar.
+
+def _look_query():
+    """Look + parcalari + parcalarin urunleri, tek sorguda."""
+
+    return (
+        select(WardrobeLook)
+        .options(
+            joinedload(WardrobeLook.items)
+            .joinedload(WardrobeLookItem.product)
+        )
+    )
+
+
+def get_looks(db: Session, user_id):
+    """Kullanicinin tum kombinleri, yeniden eskiye."""
+
+    statement = (
+        _look_query()
+        .where(WardrobeLook.user_id == user_id)
+        .order_by(WardrobeLook.created_at.desc())
+    )
+
+    return list(db.scalars(statement).unique().all())
+
+
+def get_look(db: Session, user_id, look_id):
+    """
+    Tek kombin.
+
+    user_id kosulu GUVENLIK icin: look_id tahmin edilebilir
+    olmasa da, baskasinin kombinini id'siyle okumak mumkun
+    olmamali.
+    """
+
+    statement = (
+        _look_query()
+        .where(WardrobeLook.id == look_id)
+        .where(WardrobeLook.user_id == user_id)
+    )
+
+    return db.scalars(statement).unique().one_or_none()
+
+
+def get_look_count(db: Session, user_id) -> int:
+    """Header rozeti icin: kac kombin var."""
+
+    statement = (
+        select(func.count())
+        .select_from(WardrobeLook)
+        .where(WardrobeLook.user_id == user_id)
+    )
+
+    return db.scalar(statement) or 0
+
+
+def create_look(db: Session, user_id, title, entries, source=None, note=None):
+    """
+    Yeni kombin olusturur.
+
+    entries: [{"product_id": str, "slot": str | None}, ...]
+    Sira ONEMLI: listedeki sira position olarak yaziliyor,
+    kombin ekranda hep ayni duzende gorunsun diye.
+
+    Ayni urun listede iki kez gecerse ikincisi atlaniyor —
+    uq_look_product kisitina carpip tum islemi geri almasin.
+    """
+
+    look = WardrobeLook(
+        user_id=user_id,
+        title=title,
+        source=source,
+        note=note,
+    )
+
+    db.add(look)
+
+    # Parcalari eklemeden once look'un id'si gerekiyor.
+    db.flush()
+
+    seen = set()
+    position = 0
+
+    for entry in entries:
+
+        product_id = entry.get("product_id")
+
+        if not product_id or product_id in seen:
+            continue
+
+        seen.add(product_id)
+
+        db.add(
+            WardrobeLookItem(
+                look_id=look.id,
+                product_id=product_id,
+                slot=entry.get("slot"),
+                position=position,
+            )
+        )
+
+        position += 1
+
+    db.commit()
+
+    # Iliskileri dolu, taze bir nesne don: endpoint bunu
+    # dogrudan response'a ceviriyor.
+    return get_look(db, user_id, look.id)
+
+
+def rename_look(db: Session, user_id, look_id, title):
+    """Kombin basligini degistirir."""
+
+    look = db.scalar(
+        select(WardrobeLook)
+        .where(WardrobeLook.id == look_id)
+        .where(WardrobeLook.user_id == user_id)
+    )
+
+    if look is None:
+        return False
+
+    look.title = title
+    look.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    return True
+
+
+def delete_look(db: Session, user_id, look_id):
+    """Kombini ve parcalarini siler."""
+
+    look = db.scalar(
+        select(WardrobeLook)
+        .where(WardrobeLook.id == look_id)
+        .where(WardrobeLook.user_id == user_id)
+    )
+
+    if look is None:
+        return False
+
+    db.delete(look)
+    db.commit()
+
+    return True
+
+
+def _touch_look(db: Session, look_id):
+    """
+    Parca degisince kombinin updated_at'ini ilerletir.
+
+    Gardirop listesi created_at'e gore siralaniyor ama
+    "en son dokundugum kombin" bilgisi arayuzde
+    gosterilebilsin diye tutuluyor.
+    """
+
+    look = db.get(WardrobeLook, look_id)
+
+    if look is not None:
+        look.updated_at = datetime.now(timezone.utc)
+
+
+def add_look_item(db: Session, user_id, look_id, product_id, slot=None):
+    """
+    Kombine yeni parca ekler.
+
+    Ayni urun zaten varsa False doner — kombinde adet
+    kavrami yok, tekrar eklemenin anlami olmaz.
+    """
+
+    look = db.scalar(
+        select(WardrobeLook)
+        .where(WardrobeLook.id == look_id)
+        .where(WardrobeLook.user_id == user_id)
+    )
+
+    if look is None:
+        return False
+
+    exists = db.scalar(
+        select(WardrobeLookItem)
+        .where(WardrobeLookItem.look_id == look_id)
+        .where(WardrobeLookItem.product_id == product_id)
+    )
+
+    if exists is not None:
+        return False
+
+    last_position = db.scalar(
+        select(func.coalesce(func.max(WardrobeLookItem.position), -1))
+        .where(WardrobeLookItem.look_id == look_id)
+    )
+
+    db.add(
+        WardrobeLookItem(
+            look_id=look_id,
+            product_id=product_id,
+            slot=slot,
+            position=(last_position or 0) + 1
+            if last_position is not None
+            else 0,
+        )
+    )
+
+    _touch_look(db, look_id)
+
+    db.commit()
+
+    return True
+
+
+def replace_look_item(db: Session, user_id, look_id, old_product_id, new_product_id):
+    """
+    Kombindeki bir parcayi baskasiyla degistirir.
+
+    Yeni urun eskisinin position VE slot degerini
+    devraliyor: kombin gorsel olarak yerinden oynamasin ve
+    "ayakkabi" yuvasindaki parca ayakkabi kalsin.
+
+    Yeni urun kombinde ZATEN varsa islem yapilmiyor —
+    tekrar eklemek uq_look_product'a carpardi.
+    """
+
+    look = db.scalar(
+        select(WardrobeLook)
+        .where(WardrobeLook.id == look_id)
+        .where(WardrobeLook.user_id == user_id)
+    )
+
+    if look is None:
+        return False
+
+    item = db.scalar(
+        select(WardrobeLookItem)
+        .where(WardrobeLookItem.look_id == look_id)
+        .where(WardrobeLookItem.product_id == old_product_id)
+    )
+
+    if item is None:
+        return False
+
+    if old_product_id == new_product_id:
+        return True
+
+    duplicate = db.scalar(
+        select(WardrobeLookItem)
+        .where(WardrobeLookItem.look_id == look_id)
+        .where(WardrobeLookItem.product_id == new_product_id)
+    )
+
+    if duplicate is not None:
+        return False
+
+    item.product_id = new_product_id
+
+    _touch_look(db, look_id)
+
+    db.commit()
+
+    return True
+
+
+def remove_look_item(db: Session, user_id, look_id, product_id):
+    """Kombinden bir parcayi cikarir."""
+
+    look = db.scalar(
+        select(WardrobeLook)
+        .where(WardrobeLook.id == look_id)
+        .where(WardrobeLook.user_id == user_id)
+    )
+
+    if look is None:
+        return False
+
+    item = db.scalar(
+        select(WardrobeLookItem)
+        .where(WardrobeLookItem.look_id == look_id)
+        .where(WardrobeLookItem.product_id == product_id)
+    )
+
+    if item is None:
+        return False
+
+    db.delete(item)
+
+    _touch_look(db, look_id)
+
+    db.commit()
+
+    return True

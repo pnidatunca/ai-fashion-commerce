@@ -53,9 +53,10 @@
          PROJECT CSS
     ====================================================== -->
 
+    <!-- ?v= icin bkz. sayfa sonundaki app.js notu -->
     <link
         rel="stylesheet"
-        href="styles.css"
+        href="styles.css?v=2"
     >
 
 </head>
@@ -250,6 +251,26 @@
                 <span data-icon="heart"></span>
 
                 <span class="wishlist-number">
+                    0
+                </span>
+            </button>
+
+
+            <!-- Gardirop
+                 Favorilerden AYRI bir sey: favoriler tekil
+                 urun listesi, gardirop kaydedilmis
+                 KOMBINLER. Bu yuzden kendi rozeti ve kendi
+                 paneli var (bkz. #wardrobe-overlay). -->
+
+            <button
+                type="button"
+                class="icon-button"
+                id="wardrobe-btn"
+                aria-label="Gardırop"
+            >
+                <span data-icon="shirt"></span>
+
+                <span class="wardrobe-number hidden">
                     0
                 </span>
             </button>
@@ -1197,6 +1218,25 @@
         </header>
 
 
+        <!-- Iki giris kapisi: "Moda & sezon" ve "Nereye
+             gidiyorsun?". Mesaj akisinin USTUNDE ve SUREKLI
+             duruyor: sohbet ilerledikce yukari kayip
+             kaybolmasin, kullanici her an yeniden
+             baslayabilsin.
+
+             Icerigi /api/chat/starters dolduruyor: trend
+             ogeleri katalogda gercekten kac urunle
+             karsilandigina gore suzuluyor ve renk hedefleri
+             aramanin kullandigi paletten geliyor.
+
+             Istek basarisiz olursa blok BOS kalir; ozellik
+             kapanir, ekran bozulmaz. -->
+        <div
+            class="ai-chat-suggest"
+            id="ai-chat-suggest"
+        ></div>
+
+
         <!-- Mesajlar. aria-live="polite": ekran okuyucu yeni
              gelen cevabi kullaniciyi kesmeden okur. -->
         <div
@@ -1206,62 +1246,10 @@
         ></div>
 
 
-        <!-- Yillik trend seckisi + "nereye gidiyorsun".
-             Icerigi /api/chat/starters dolduruyor: trend
-             ogeleri katalogda gercekten kac urunle
-             karsilandigina gore suzuluyor ve renk hedefleri
-             aramanin kullandigi paletten geliyor.
-
-             Istek basarisiz olursa bu blok BOS kalir ve
-             asagidaki dort hazir cumle gorunmeye devam eder;
-             yani ozellik kapanir, ekran bozulmaz. -->
-        <div
-            class="ai-chat-suggest"
-            id="ai-chat-suggest"
-        ></div>
-
-
-        <!-- Baslangic onerileri. Bos sohbette "ne yazsam"
-             tereddutu en buyuk terk sebebi; ilk mesaji
-             yazmak yerine secilebiliyor. -->
-        <div
-            class="ai-chat-starters"
-            id="ai-chat-starters"
-        >
-
-            <button
-                type="button"
-                class="ai-chat-starter"
-                data-starter="Düğüne gidiyorum, 4000 TL bütçem var. Ne önerirsin?"
-            >
-                Düğüne gidiyorum
-            </button>
-
-            <button
-                type="button"
-                class="ai-chat-starter"
-                data-starter="Ofiste giyebileceğim, sade ve şık erkek gömlekleri göster."
-            >
-                Ofis için gömlek
-            </button>
-
-            <button
-                type="button"
-                class="ai-chat-starter"
-                data-starter="Yazlık, hafif kumaştan kadın elbiseleri arıyorum."
-            >
-                Yazlık elbise
-            </button>
-
-            <button
-                type="button"
-                class="ai-chat-starter"
-                data-starter="2000 TL altında günlük giyebileceğim siyah bir sneaker istiyorum."
-            >
-                Uygun sneaker
-            </button>
-
-        </div>
+        <!-- Buraya sabit hazir cumle butonlari KOYULMUYOR.
+             Sohbete girmenin iki kapisi yukarida duruyor
+             (bkz. #ai-chat-suggest). Kullanici basmadigi
+             surece hicbir oneri onune gelmiyor. -->
 
 
         <form
@@ -2103,6 +2091,86 @@
 
 
 <!-- =========================================================
+     GARDIROP  (kaydedilmis kombinler)
+     ---------------------------------------------------------
+     Sepet/favoriler panelinin iskeletini (.wishlist-overlay /
+     .wishlist-panel / .wishlist-items) YENIDEN KULLANIYOR;
+     sepet paneli de aynisini yapiyor. Yalnizca kombin
+     kartina ozel kurallar styles.css'e eklendi.
+
+     Iki gorunum var, ayni panelin icinde:
+       #wardrobe-list      kombin listesi
+       #wardrobe-swap      "bu parcayi degistir" alternatifleri
+     Ikincisi acilinca birincisi gizleniyor (bkz.
+     openWardrobeSwap / closeWardrobeSwap).
+========================================================= -->
+
+<div
+    class="wishlist-overlay"
+    id="wardrobe-overlay"
+>
+
+    <div class="wishlist-panel">
+
+        <div class="cart-header">
+
+            <h2 id="wardrobe-title">
+                Gardırop
+            </h2>
+
+            <button
+                type="button"
+                id="close-wardrobe"
+                aria-label="Gardırobu kapat"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+        </div>
+
+
+        <!-- GORUNUM 1: kombin listesi -->
+
+        <div
+            class="wishlist-items"
+            id="wardrobe-list"
+        ></div>
+
+
+        <!-- GORUNUM 2: parca degistirme -->
+
+        <div
+            class="wardrobe-swap hidden"
+            id="wardrobe-swap"
+        >
+
+            <button
+                type="button"
+                class="wardrobe-swap-back"
+                id="wardrobe-swap-back"
+            >
+                <i class="fa-solid fa-arrow-left"></i>
+                KOMBİNE DÖN
+            </button>
+
+            <p
+                class="wardrobe-swap-reason"
+                id="wardrobe-swap-reason"
+            ></p>
+
+            <div
+                class="wishlist-items"
+                id="wardrobe-swap-items"
+            ></div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
      HIZLI SATIN ALMA  (sepetsiz, tek ekran)
      ---------------------------------------------------------
      Uc adimli sepet akisi kaldirildi. Tek urun, tek ekran:
@@ -2776,7 +2844,10 @@
      JAVASCRIPT
 ========================================================= -->
 
-<script src="app.js"></script>
+<!-- ?v= surum parametresi: tarayici app.js'i agresif
+     onbellekliyor ve yeni ozellikler "calismiyor" gibi
+     gorunuyordu. Kod degistiginde bu sayiyi artir. -->
+<script src="app.js?v=2"></script>
 
 
 </body>
