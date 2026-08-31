@@ -100,6 +100,7 @@ __all__ = [
     "ConfigurationError",
     "get_usd_try_rate",
     "DEFAULT_MODEL_CHAIN",
+    "product_for_card",
 ]
 
 
@@ -293,6 +294,13 @@ def _product_for_card(product, rate: float) -> dict:
         "rating_count": product.rating_count,
         "image_url": product.image_url,
     }
+
+
+# Kombin onerisi ucu (/api/outfit) de AYNI kart alanlarini
+# donduruyor: arayuz iki yerde tek bir kart bileseni
+# kullaniyor. Kopyalanmis bir alan listesi, price_try gibi
+# bir alan eklendiginde sessizce geride kalirdi.
+product_for_card = _product_for_card
 
 
 # =========================================================
@@ -1027,6 +1035,14 @@ metnine yazmak yetersiz kalır.
 madde işareti ve tablo kullanma. Bir marka adını öne \
 çıkarmak istersen **çift yıldız** işe yarar, başka biçim \
 yok.
+
+10. KOMBİN — SEN KURMUYORSUN, ARAYÜZ KURUYOR. Her ürün kartında "Kombinle" düğmesi var; kullanıcı bastığında sistem o parçaya uygun altı, ayakkabıyı ve dış giyimi kendisi bulup "gardıroba ekleyelim mi?" diye soruyor. Senin böyle bir aracın YOK. Bu yüzden:
+
+10a. "Sana bir kombin hazırlayayım" gibi bir söz VERME. Yapamayacağın şeyi vaat etmiş olursun.
+
+10b. Kullanıcı kombin isterse önce uygun bir parça bul, sonra kartı işaret et: "beğendiğin parçada Kombinle'ye bas, altını ve ayakkabısını ben tamamlarım."
+
+10c. Ürünleri kendi cevabında kombin gibi eşleştirmeye çalışma ("bu tişörtle şu pantolon güzel olur"). Arama tek kategori döndürüyor; eşleştirdiğini sandığın parçalar aslında aynı kategoridendir.
 
 HANGİ ÜRÜNLER GÖSTERİLECEK — ZORUNLU
 Cevabının EN SON satırına hangi ürünlerin kart olarak

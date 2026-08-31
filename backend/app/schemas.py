@@ -1121,3 +1121,69 @@ class LookSuggestionResponse(BaseModel):
 
     items: list[SemanticProductResponse]
     count: int
+
+
+# =========================================================
+# KOMBIN ONERISI  (/api/outfit/{product_id})
+# =========================================================
+
+class OutfitOption(BaseModel):
+    """
+    Bir yuvanin tek adayi.
+
+    ChatProduct'i sarmalyor cunku sohbet balonunda AYNI kart
+    cizilecek — ayri bir alan kumesi ikinci bir kart
+    bilesenini zorunlu kilardi.
+    """
+
+    product: ChatProduct
+    similarity_score: float
+
+
+class OutfitSlot(BaseModel):
+    """
+    Kombinin bir yuvasi ve adaylari.
+
+    Ilk aday "secili" kabul ediliyor; gerisi kullanicinin tek
+    dokunusla degistirebilecegi alternatifler.
+
+    query/color aciga cikariliyor: kullanici "neden bu
+    pantolon?" diye sordugunda cevabi arayuz verebilsin.
+    """
+
+    slot: str
+    label: str
+
+    color: str | None = None
+    color_label: str | None = None
+
+    query: str | None = None
+
+    options: list[OutfitOption]
+
+
+class OutfitResponse(BaseModel):
+    """
+    "Bu parcayla kombin kur" cevabi.
+
+    Sohbette kullanici bir karta bastigi anda cagriliyor;
+    modelden GECMIYOR (bkz. app/outfit.py). Bu yuzden kota
+    harcamiyor ve aninda donuyor.
+
+    title: onerilen kombin adi. Kullaniciya pencere acip ad
+    sormuyoruz; kaydettikten sonra gardiroptan degistirebilir.
+    """
+
+    seed: ChatProduct
+    seed_slot: str | None = None
+    seed_color: str | None = None
+
+    title: str
+    reason: str
+
+    slots: list[OutfitSlot]
+
+    # Kac tamamlayici yuva doldu. Sifir ise arayuz "bu parcaya
+    # uygun tamamlayici bulamadim" diyip kaydet dugmesini
+    # hic gostermiyor.
+    count: int

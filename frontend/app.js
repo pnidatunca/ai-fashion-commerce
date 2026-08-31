@@ -10920,41 +10920,27 @@ function appendAiChatMessage({
         `);
 
         /*
-           GARDIROP: iki veya daha fazla kart secilince
-           beliren "kombin olarak kaydet" seridi.
+           GARDIROP IPUCUSU.
 
-           Neden burada: asistan bir "kombin" kavrami
-           dondurmuyor, sadece duz bir urun listesi veriyor
-           (bkz. [SHOW:] direktifi). Hangi parcalarin birlikte
-           bir kombin oldugunu KULLANICI seciyor.
+           Eskiden burada "kombin yapmak istedigin parcalari
+           isaretle" yazisi ve iki secim olunca beliren bir
+           kaydet seridi vardi. Kaldirildi: kombin artik tek
+           bir parcadan kuruluyor (karttaki "Kombinle"
+           dugmesi -> /api/outfit) ve kullanicidan liste
+           icinden esleme yapmasi beklenmiyor.
+
+           Ipucu KALIYOR ama isi degisti: dugmenin ne
+           yaptigini soyluyor. Olculdu, ilk surumde ipucu
+           olmadan bos daireye kimse basmamisti; adi konmamis
+           bir dugme yine gorunmez olurdu.
         */
-        if (products.length >= 2) {
-
-            /*
-               Ipucu metni SURKELI gorunuyor, serit ise 2 secim
-               olunca. Once ipucu olmadan denendiginde bos
-               daireye kimse basmiyordu: ne ise yaradigi
-               belli degildi.
-            */
-            parts.push(`
-                <div class="ai-chat-look-hint">
-                    <i class="fa-solid fa-circle-check"></i>
-                    Kombin yapmak istediğin parçaları işaretle
-                </div>
-
-                <div class="ai-chat-look-bar hidden">
-                    <span class="ai-chat-look-count"></span>
-
-                    <button
-                        type="button"
-                        class="ai-chat-look-save"
-                        data-chat-save-look
-                    >
-                        KOMBİN OLARAK KAYDET
-                    </button>
-                </div>
-            `);
-        }
+        parts.push(`
+            <div class="ai-chat-look-hint">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                Bir parçada <strong>Kombinle</strong>'ye bas —
+                altını ve ayakkabısını ben seçeyim
+            </div>
+        `);
     }
 
     wrapper.innerHTML = parts.join("");
@@ -11077,18 +11063,28 @@ function renderAiChatProduct(product) {
                 <i class="fa-${liked ? "solid" : "regular"} fa-heart"></i>
             </button>
 
-            <!-- Kombin secimi: bu kart kombine girsin mi?
-                 Iki veya daha fazlasi secilince altta
-                 "KOMBIN OLARAK KAYDET" seridi cikiyor. -->
+            <!-- KOMBINLE — tek dokunus.
+
+                 Burada eskiden bir SECIM KUTUSU vardi:
+                 kullanicidan listeden iki parca isaretlemesi
+                 bekleniyordu. Ama asistan tek kategori
+                 donduruyor (tisort arandiginda tisort), yani
+                 isaretlenen iki kart iki tisort oluyordu ve
+                 ortaya kombin degil ayni seyin iki adedi
+                 cikiyordu.
+
+                 Simdi eksik yuvalari (alt, ayakkabi, dis
+                 giyim) sistem ariyor: /api/outfit. Kullanici
+                 yalnizca "evet, ekle" diyor. -->
             <button
                 type="button"
-                class="ai-chat-product-pick"
-                data-chat-pick="${escapeHTML(id)}"
-                aria-pressed="false"
-                aria-label="Bu parçayı kombine ekle"
-                title="Kombine ekle"
+                class="ai-chat-product-outfit"
+                data-chat-outfit="${escapeHTML(id)}"
+                aria-label="Bu parçayla kombin kur"
+                title="Bu parçayla kombin kur"
             >
-                <i class="fa-solid fa-check"></i>
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Kombinle</span>
             </button>
 
         </div>
@@ -11112,29 +11108,56 @@ function handleAiChatLogClick(event) {
     }
 
 
-    /* Kombin secim kutusu — kalpten sonra, karttan ONCE:
-       o da karta gomulu. */
-    const pickButton =
-        event.target.closest("[data-chat-pick]");
+    /* KOMBINLE — kalpten sonra, karttan ONCE: o da karta
+       gomulu ve karta basmak urun detayini aciyor. */
+    const outfitButton =
+        event.target.closest("[data-chat-outfit]");
 
-    if (pickButton) {
+    if (outfitButton) {
 
         event.stopPropagation();
 
-        toggleAiChatPick(pickButton);
+        requestChatOutfit(outfitButton);
 
         return;
     }
 
 
-    const saveLookButton =
-        event.target.closest("[data-chat-save-look]");
+    /* Onerideki bir yuvanin alternatifi — secimi degistirir */
+    const optionButton =
+        event.target.closest("[data-outfit-option]");
 
-    if (saveLookButton) {
+    if (optionButton) {
 
         event.stopPropagation();
 
-        saveLookFromChat(saveLookButton);
+        selectOutfitOption(optionButton);
+
+        return;
+    }
+
+
+    const outfitSave =
+        event.target.closest("[data-outfit-save]");
+
+    if (outfitSave) {
+
+        event.stopPropagation();
+
+        saveOutfitFromChat(outfitSave);
+
+        return;
+    }
+
+
+    const outfitCancel =
+        event.target.closest("[data-outfit-cancel]");
+
+    if (outfitCancel) {
+
+        event.stopPropagation();
+
+        dismissOutfitProposal(outfitCancel);
 
         return;
     }
@@ -11241,47 +11264,419 @@ async function toggleAiChatLike(button) {
    kartlar tek kombine karismasin.
 --------------------------------------------------------- */
 
-function toggleAiChatPick(button) {
+/* ---------------------------------------------------------
+   SOHBETTEN KOMBIN
 
-    const wrapper = button.closest(".ai-chat-msg");
+   AKIS
+     1. Kullanici bir urun kartinda "Kombinle"ye basar.
+     2. /api/outfit eksik yuvalari doldurur (alt, ayakkabi,
+        dis giyim) ve bir oneri doner.
+     3. Sohbete oneri balonu dusuyor: her yuva icin secili
+        bir parca ve tek dokunusla degistirilebilen
+        alternatifler.
+     4. Kullanici "GARDIROBA EKLE" derse kombin kaydedilir.
 
-    if (!wrapper) return;
+   NEDEN BOYLE
+   Eski akista kombin kurmak kullanicinin isiydi: liste
+   icinden iki karti isaretliyordu. Ama asistan tek kategori
+   donduruyor — "tisort" arandiginda tisort — yani
+   isaretlenen iki kart iki tisort oluyordu. Ortaya kombin
+   degil ayni seyin iki adedi cikiyordu.
 
-    const picked = button.classList.toggle("picked");
+   ONERI MODELDEN GECMIYOR (bkz. backend/app/outfit.py):
+   karta basildigi anda cevap gelmesi gerekiyor ve Gemini
+   ucretsiz katmani dakikada 5 istek veriyor.
+--------------------------------------------------------- */
 
-    button.setAttribute("aria-pressed", picked ? "true" : "false");
+async function requestChatOutfit(button) {
 
-    refreshAiChatLookBar(wrapper);
-}
+    const productId = button.dataset.chatOutfit || "";
+
+    if (!productId) return;
 
 
-function refreshAiChatLookBar(wrapper) {
+    /*
+       Ayni karta iki kez basilirsa iki oneri balonu duser.
+       Dugme istek boyunca kilitleniyor.
+    */
+    if (button.disabled) return;
 
-    const bar = wrapper.querySelector(".ai-chat-look-bar");
+    button.disabled = true;
 
-    if (!bar) return;
+    button.classList.add("loading");
 
-    const picked = wrapper.querySelectorAll(
-        "[data-chat-pick].picked"
-    );
 
-    /* Tek parca kombin degil: o favorilere eklenir.
-       Sunucu da bunu dogruluyor (min_length=2). */
-    bar.classList.toggle("hidden", picked.length < 2);
+    const typing = appendAiChatTyping();
 
-    const counter = bar.querySelector(".ai-chat-look-count");
 
-    if (counter) {
-        counter.textContent = `${picked.length} parça seçildi`;
+    try {
+
+        const data = await apiGet(
+            `/api/outfit/${encodeURIComponent(productId)}`
+        );
+
+        typing?.remove();
+
+        appendAiChatOutfit(data);
+
+
+    } catch (error) {
+
+        typing?.remove();
+
+        console.error("Kombin onerisi alinamadi:", error);
+
+        /*
+           TEKNIK METIN KULLANICIYA GOSTERILMIYOR. apiGet
+           hata govdesini ayiklamiyor, mesaji "404 Not Found"
+           gibi geliyor (bkz. apiGet — apiFetch'in aksine
+           extractApiError cagirmiyor). Kullaniciya bunu
+           gostermek bilgi vermiyor; konsola dusen satir
+           gelistirici icin yeterli.
+        */
+        appendAiChatMessage({
+            role: "assistant",
+            error: true,
+            content:
+                "Kombin önerisini hazırlayamadım. Tekrar dener misin?",
+        });
+
+    } finally {
+
+        button.disabled = false;
+
+        button.classList.remove("loading");
     }
 }
 
 
-async function saveLookFromChat(button) {
+/**
+ * Kombin onerisini sohbete basar.
+ *
+ * Oneri GECMISE GIRMIYOR (aiChat.messages'a eklenmiyor):
+ * o dizi backend'e aynen gidiyor ve modelin kendi
+ * uretmedigi bir metni "kendi cevabi" olarak gormesi,
+ * sonraki turda ondan alintı yapmasına yol aciyor.
+ */
+function appendAiChatOutfit(data) {
 
-    const wrapper = button.closest(".ai-chat-msg");
+    if (!aiChatLog) return;
 
-    if (!wrapper) return;
+
+    const slots = Array.isArray(data?.slots) ? data.slots : [];
+
+    const wrapper = document.createElement("div");
+
+    wrapper.className = "ai-chat-msg assistant";
+
+
+    /* Tamamlayici bulunamadi: durust bir cevap ve kaydet
+       dugmesi YOK. Tek parcali bir "kombin" sunucu
+       tarafinda da gecersiz (min_length=2). */
+    if (!slots.length) {
+
+        wrapper.innerHTML = `
+            <div class="ai-chat-bubble">
+                ${formatAiChatText(
+                    data?.reason ||
+                    "Bu parçaya uygun tamamlayıcı bulamadım."
+                )}
+            </div>
+        `;
+
+        aiChatLog.appendChild(wrapper);
+
+        scrollAiChatToBottom();
+
+        return;
+    }
+
+
+    const question =
+        `${data.reason} Kombin olarak gardıroba ekleyeyim mi?`;
+
+
+    wrapper.innerHTML = `
+        <div class="ai-chat-bubble">${formatAiChatText(question)}</div>
+
+        <div
+            class="ai-chat-outfit"
+            data-outfit
+            data-outfit-seed="${escapeHTML(String(data.seed.product_id))}"
+            data-outfit-title="${escapeHTML(String(data.title || "Kombin"))}"
+        >
+            ${renderOutfitSeed(data.seed, data.seed_slot)}
+
+            ${slots.map(renderOutfitSlot).join("")}
+
+            <div class="ai-chat-outfit-actions">
+
+                <button
+                    type="button"
+                    class="ai-chat-outfit-save"
+                    data-outfit-save
+                >
+                    <i class="fa-solid fa-check"></i>
+                    GARDIROBA EKLE
+                </button>
+
+                <button
+                    type="button"
+                    class="ai-chat-outfit-cancel"
+                    data-outfit-cancel
+                >
+                    Vazgeç
+                </button>
+
+            </div>
+
+            <p class="ai-chat-outfit-note">
+                Parçalara dokunarak değiştirebilirsin.
+            </p>
+
+        </div>
+    `;
+
+
+    /*
+       Urun verisi DOM'a degil buraya baglanıyor: kaydederken
+       product_id yeterli ama kombin adini ve yuvalari
+       uretirken tam kayit isimize yariyor. Kartlardaki
+       veriyle ayni gerekce (bkz. appendAiChatMessage).
+    */
+    wrapper._outfit = data;
+
+    aiChatLog.appendChild(wrapper);
+
+    /* Not satirini bastan dogru yaz: her yuvanin ilk adayi
+       secili geliyor, sayiyi elle yazmak iki yerde
+       tutulacak bir sayi olurdu. */
+    refreshOutfitActions(wrapper.querySelector("[data-outfit]"));
+
+    scrollAiChatToBottom();
+}
+
+
+/**
+ * Kullanicinin sectigi parca — onerinin cikis noktasi.
+ *
+ * Degistirilemiyor ve secimi kaldirilamiyor: kombin bu
+ * parcanin ETRAFINDA kuruldu. Kullanici baska bir parcadan
+ * baslamak isterse onun kartindaki "Kombinle"ye basar.
+ */
+function renderOutfitSeed(seed, seedSlot) {
+
+    const label =
+        OUTFIT_SLOT_LABELS[seedSlot] || "Seçtiğin parça";
+
+    return `
+        <div class="ai-chat-outfit-slot seed">
+
+            <div class="ai-chat-outfit-slot-head">
+                <span class="ai-chat-outfit-slot-label">
+                    ${escapeHTML(label)}
+                </span>
+                <span class="ai-chat-outfit-slot-color">
+                    seçtiğin parça
+                </span>
+            </div>
+
+            <div class="ai-chat-outfit-options">
+                ${renderOutfitOption(seed, true, false)}
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* Yuva anahtari -> baslik. Sunucu da label gonderiyor ama
+   tohum parcasinin yuvasi icin (seed_slot) etiket gelmiyor:
+   o bir oneri degil, kullanicinin kendi secimi. */
+const OUTFIT_SLOT_LABELS = {
+    ust: "Üst",
+    alt: "Alt",
+    dis_giyim: "Dış giyim",
+    ayakkabi: "Ayakkabı",
+    aksesuar: "Aksesuar",
+};
+
+
+function renderOutfitSlot(slot) {
+
+    const options = Array.isArray(slot?.options) ? slot.options : [];
+
+    if (!options.length) return "";
+
+
+    /* Renk gerekcesi: "neden lacivert bir pantolon?"
+       sorusunun cevabi kullanicinin gozunun onunde dursun. */
+    const color = slot.color_label
+        ? `${slot.color_label} tonlar`
+        : "";
+
+    return `
+        <div
+            class="ai-chat-outfit-slot"
+            data-outfit-slot="${escapeHTML(String(slot.slot))}"
+        >
+
+            <div class="ai-chat-outfit-slot-head">
+                <span class="ai-chat-outfit-slot-label">
+                    ${escapeHTML(String(slot.label || slot.slot))}
+                </span>
+                <span class="ai-chat-outfit-slot-color">
+                    ${escapeHTML(color)}
+                </span>
+            </div>
+
+            <div class="ai-chat-outfit-options">
+                ${
+                    options
+                        .map((option, index) =>
+                            renderOutfitOption(
+                                option.product,
+                                index === 0,
+                                true
+                            )
+                        )
+                        .join("")
+                }
+            </div>
+
+        </div>
+    `;
+}
+
+
+/**
+ * Tek bir aday.
+ *
+ * selectable=false ise tohum parcasi: gorunuyor ama
+ * secimi degistirilemiyor.
+ */
+function renderOutfitOption(product, selected, selectable) {
+
+    const id = String(product?.product_id || "");
+
+    const priceTry = Number(product?.price_try);
+
+    /* Fiyat sunucudan geliyorsa onu kullan — sohbet
+       kartlariyla ayni gerekce (bkz. renderAiChatProduct). */
+    const price = Number.isFinite(priceTry) && priceTry > 0
+        ? formatTry(priceTry)
+        : (hasPrice(product) ? formatPrice(product.price) : "");
+
+    const attributes = selectable
+        ? `data-outfit-option="${escapeHTML(id)}"
+           aria-pressed="${selected ? "true" : "false"}"`
+        : `data-outfit-fixed="${escapeHTML(id)}" disabled`;
+
+    return `
+        <button
+            type="button"
+            class="ai-chat-outfit-option${selected ? " selected" : ""}"
+            ${attributes}
+        >
+            <img
+                class="ai-chat-outfit-option-image"
+                src="${escapeHTML(safeImage(product?.image_url))}"
+                alt=""
+                loading="lazy"
+            >
+
+            <span class="ai-chat-outfit-option-title">
+                ${escapeHTML(productTitle(product))}
+            </span>
+
+            <span class="ai-chat-outfit-option-price">
+                ${escapeHTML(price)}
+            </span>
+
+            <i class="ai-chat-outfit-option-tick fa-solid fa-check"></i>
+        </button>
+    `;
+}
+
+
+/**
+ * Bir yuvada baska adayi secer.
+ *
+ * SECILI OLANA TEKRAR BASMAK yuvayi bosaltiyor: kullanici
+ * "ayakkabi istemiyorum, sadece ust + alt" diyebilmeli.
+ * Bos yuva kaydedilirken atlanıyor.
+ */
+function selectOutfitOption(button) {
+
+    const slot = button.closest("[data-outfit-slot]");
+
+    if (!slot) return;
+
+
+    const wasSelected = button.classList.contains("selected");
+
+    slot.querySelectorAll("[data-outfit-option]").forEach(option => {
+        option.classList.remove("selected");
+        option.setAttribute("aria-pressed", "false");
+    });
+
+    if (!wasSelected) {
+        button.classList.add("selected");
+        button.setAttribute("aria-pressed", "true");
+    }
+
+    refreshOutfitActions(button.closest("[data-outfit]"));
+}
+
+
+/**
+ * Kaydet dugmesinin durumu.
+ *
+ * Sunucu en az IKI parca istiyor (SaveLookRequest
+ * min_length=2) ve tohum her zaman icinde. Yani en az bir
+ * yuva secili olmali; hepsi bosaltilirsa dugme kapaniyor
+ * ve kullanici 422 yerine sebebini goruyor.
+ */
+function refreshOutfitActions(root) {
+
+    if (!root) return;
+
+
+    const chosen = root.querySelectorAll(
+        "[data-outfit-option].selected"
+    ).length;
+
+    const save = root.querySelector("[data-outfit-save]");
+
+    if (!save) return;
+
+    save.disabled = chosen < 1;
+
+    const note = root.querySelector(".ai-chat-outfit-note");
+
+    if (note) {
+
+        note.textContent = chosen
+            ? `${chosen + 1} parça seçili — parçalara dokunarak değiştirebilirsin.`
+            : "En az bir tamamlayıcı parça seçmelisin.";
+    }
+}
+
+
+/**
+ * Oneriyi kombin olarak kaydeder.
+ *
+ * KULLANICIYA AD SORULMUYOR. Eski akista bir window.prompt
+ * aciliyordu; akisin en can sikici adimi oydu ve mobilde
+ * prompt bazi tarayicilarda hic gorunmuyor. Ad sunucudan
+ * geliyor (outfit._title), kullanici gardiroptan
+ * degistirebiliyor.
+ */
+async function saveOutfitFromChat(button) {
+
+    const root = button.closest("[data-outfit]");
+
+    if (!root) return;
 
 
     if (!isUserLoggedIn()) {
@@ -11294,53 +11689,89 @@ async function saveLookFromChat(button) {
     }
 
 
-    const picked = Array.from(
-        wrapper.querySelectorAll("[data-chat-pick].picked")
-    );
+    /*
+       Tohum HER ZAMAN ilk parca: kombin onun etrafinda
+       kuruldu, listede de basta gorunmeli. Sunucu sirayi
+       koruyor (position alani).
+    */
+    const items = [
+        {
+            product_id: root.dataset.outfitSeed,
+            slot: null,
+        },
+    ];
 
-    if (picked.length < 2) return;
+    root.querySelectorAll("[data-outfit-slot]").forEach(slot => {
+
+        const selected = slot.querySelector(
+            "[data-outfit-option].selected"
+        );
+
+        if (!selected) return;
+
+        items.push({
+            product_id: selected.dataset.outfitOption,
+
+            /*
+               Yuvayi ISTEMCI gonderiyor cunku burada kesin
+               biliniyor: parca o yuva icin arandi. Sunucu
+               bos gelirse kategoriden tahmin ediyor
+               (outfit.guess_slot) — tahmine gerek yok.
+            */
+            slot: slot.dataset.outfitSlot || null,
+        });
+    });
 
 
-    const productIds = picked.map(
-        pick => pick.dataset.chatPick
-    );
+    if (items.length < 2) return;
 
-    const title = window.prompt(
-        "Kombine bir ad ver:",
-        suggestLookTitle(wrapper, productIds)
-    );
 
-    if (title === null) return;
-
-    const cleanTitle = title.trim();
-
-    if (!cleanTitle) return;
-
+    const title = root.dataset.outfitTitle || "Kombin";
 
     button.disabled = true;
 
+
     try {
 
-        await saveLook(
-            cleanTitle,
-            productIds.map(id => ({ product_id: id })),
-            { source: "chat" }
-        );
+        await saveLook(title, items, { source: "chat" });
 
-        /* Secim sifirlaniyor: kombin kaydedildi, ayni
-           kartlardan ikinci bir kombin kurmak isteyen
-           yeniden secer. */
-        picked.forEach(pick => {
-            pick.classList.remove("picked");
-            pick.setAttribute("aria-pressed", "false");
+
+        /*
+           Oneri KILITLENIYOR: kaydedildi, ayni onerinin
+           ikinci kez kaydedilmesi kullanicinin istedigi sey
+           degil. Blok ekranda kaliyor ki ne kaydedildigi
+           gorunsun.
+        */
+        root.classList.add("saved");
+
+        root.querySelectorAll("button").forEach(item => {
+            item.disabled = true;
         });
 
-        refreshAiChatLookBar(wrapper);
+        const actions = root.querySelector(".ai-chat-outfit-actions");
+
+        if (actions) {
+
+            actions.innerHTML = `
+                <span class="ai-chat-outfit-done">
+                    <i class="fa-solid fa-circle-check"></i>
+                    Gardıroba eklendi
+                </span>
+            `;
+        }
+
+        const note = root.querySelector(".ai-chat-outfit-note");
+
+        if (note) {
+            note.textContent =
+                `"${title}" — ${items.length} parça. ` +
+                "Gardıroptan parçalarını değiştirebilirsin.";
+        }
 
         showToast({
             title: "Kombin gardıroba eklendi",
             message:
-                `"${cleanTitle}" — ${productIds.length} parça. ` +
+                `"${title}" — ${items.length} parça. ` +
                 "Gardıroptan parçalarını değiştirebilirsin.",
             tone: "success",
         });
@@ -11350,40 +11781,36 @@ async function saveLookFromChat(button) {
 
         console.error("Kombin kaydedilemedi:", error);
 
+        button.disabled = false;
+
         showToast({
             title: "Kombin kaydedilemedi",
             message: error.message || "Tekrar dener misin?",
             tone: "error",
         });
-
-    } finally {
-        button.disabled = false;
     }
 }
 
 
 /**
- * Kombin icin bir ad onerisi uretir.
+ * Oneriyi kapatir.
  *
- * Urun verisi wrapper'a baglanmis olabilir (bkz.
- * appendAiChatMessage); markadan bir ad kurmayi deniyoruz,
- * olmazsa tarihli genel bir ad.
+ * Mesaj akistan SILINMIYOR, yerine tek satirlik bir iz
+ * kaliyor: sohbet gecmisinde bosluk olmasin ve kullanici
+ * ne oldugunu hatirlasin.
  */
-function suggestLookTitle(wrapper, productIds) {
+function dismissOutfitProposal(button) {
 
-    const products = wrapper._chatProducts || [];
+    const wrapper = button.closest(".ai-chat-msg");
 
-    const selected = products.filter(
-        product => productIds.includes(String(product.product_id))
-    );
+    if (!wrapper) return;
 
-    const brand = selected.find(product => product.brand)?.brand;
-
-    if (brand) {
-        return `${brand} Kombini`;
-    }
-
-    return `Kombin (${selected.length || productIds.length} parça)`;
+    wrapper.innerHTML = `
+        <div class="ai-chat-bubble muted">
+            Kombin önerisini kapattım. İstediğin zaman bir parçada
+            <strong>Kombinle</strong>'ye basabilirsin.
+        </div>
+    `;
 }
 
 

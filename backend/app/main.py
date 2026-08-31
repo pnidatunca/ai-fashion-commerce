@@ -25,6 +25,7 @@ from app import (
     color_match,
     crud,
     feed,
+    outfit,
     query_engine,
     schemas,
     search_service,
@@ -1297,32 +1298,14 @@ def remove_cart_item(
 # Urun kategorisinden kombin yuvasi tahmini.
 #
 # Kullanici sohbetten kombin kurarken parcalari elle
-# isaretlemiyor; yuvayi burada tahmin ediyoruz ki "bu
-# kombindeki AYAKKABIYI degistir" akisi calisabilsin.
+# isaretlemiyor; yuvayi tahmin ediyoruz ki "bu kombindeki
+# AYAKKABIYI degistir" akisi calisabilsin.
 #
-# Desenler crud.get_products ve search_service ile AYNI
-# kaynaktan gelmeli; oradaki liste degisirse buraya da
-# bakilmali.
-_SLOT_PATTERNS = (
-    ("ayakkabi", ("› Shoes",)),
-    ("dis_giyim", ("› Jackets & Coats", "Outerwear")),
-    ("alt", ("› Pants", "› Jeans", "› Shorts", "› Skirts")),
-    ("ust", ("› Shirts", "› Polos", "› Tops", "› T-Shirts", "› Dresses")),
-    ("aksesuar", ("› Accessories", "› Watches", "› Jewelry", "› Bags")),
-)
-
-
-def _guess_slot(product) -> str | None:
-    """Urun kategorisinden kombin yuvasi. Bilinmiyorsa None."""
-
-    category = (getattr(product, "category", None) or "")
-
-    for slot, patterns in _SLOT_PATTERNS:
-        for pattern in patterns:
-            if pattern.lower() in category.lower():
-                return slot
-
-    return None
+# TABLO BURADA DEGIL: app/outfit.py tasiyor. Kombin ONERISI
+# de ayni yuvalari kullaniyor ("tisort secildi -> alt +
+# ayakkabi ara") ve iki kopya tablo kacinilmaz sekilde
+# birbirinden ayrilirdi.
+_guess_slot = outfit.guess_slot
 
 
 def _look_response(look) -> schemas.WardrobeLookResponse:
@@ -2737,6 +2720,88 @@ def ai_chat_starters(db: Session = Depends(get_db)):
     """
 
     return trends.starters(db)
+
+
+@api.get(
+    "/outfit/{product_id}",
+    response_model=schemas.OutfitResponse,
+    tags=["ai"],
+)
+def ai_outfit(
+    product_id: str,
+    slots: int = Query(
+        default=3,
+        ge=1,
+        le=4,
+        description="En fazla kac tamamlayici yuva doldurulsun.",
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    "Bu parcayla kombin kur" — tek urunden kombin onerisi.
+
+    NE ZAMAN CAGRILIYOR
+    Kullanici sohbette bir urun kartinin "Kombinle" dugmesine
+    bastigi anda. Eskiden kombin kurmak kullanicinin isiydi:
+    listeden iki karti elle isaretliyordu. Ama asistan
+    "siyah tisort" arandiginda TISORT donduruyor — isaretlenen
+    iki kart iki tisort oluyordu. Simdi sistem eksik yuvalari
+    (alt, ayakkabi, dis giyim) kendisi ariyor.
+
+    MODELDEN GECMIYOR. Sebepleri app/outfit.py basinda:
+    hiz (karta basildigi anda cevap), kota (Gemini ucretsiz
+    katmani dakikada 5 istek) ve belirlilik.
+
+    GIRIS GEREKMIYOR. Misafir de oneriyi gorebiliyor;
+    kaydetmek (POST /wardrobe) giris istiyor. Oneriyi gormek
+    icin giris istemek, kullanicinin ne kazanacagini
+    bilmeden giris yapmasini beklemek olurdu.
+    """
+
+    seed = crud.get_product(db=db, product_id=product_id)
+
+    if seed is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Ürün bulunamadı.",
+        )
+
+    result = outfit.build(db=db, seed=seed, max_slots=slots)
+
+    rate = result["rate"]
+
+    return schemas.OutfitResponse(
+        seed=schemas.ChatProduct(
+            **assistant.product_for_card(seed, rate)
+        ),
+        seed_slot=result["seed_slot"],
+        seed_color=result["seed_color"],
+        title=result["title"],
+        reason=result["reason"],
+        slots=[
+            schemas.OutfitSlot(
+                slot=entry["slot"],
+                label=entry["label"],
+                color=entry["color"],
+                color_label=entry["color_label"],
+                query=entry["query"],
+                options=[
+                    schemas.OutfitOption(
+                        product=schemas.ChatProduct(
+                            **assistant.product_for_card(
+                                option["product"],
+                                rate,
+                            )
+                        ),
+                        similarity_score=option["similarity_score"],
+                    )
+                    for option in entry["options"]
+                ],
+            )
+            for entry in result["slots"]
+        ],
+        count=len(result["slots"]),
+    )
 
 
 @api.post(
