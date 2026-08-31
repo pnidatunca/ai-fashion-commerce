@@ -25,6 +25,7 @@ from app import (
     color_match,
     crud,
     feed,
+    fit_advice,
     outfit,
     query_engine,
     schemas,
@@ -247,7 +248,7 @@ def semantic_search(
 
 @app.get(
     "/products/{product_id}",
-    response_model=schemas.ProductResponse,
+    response_model=schemas.ProductDetailResponse,
 )
 def product_detail(
     product_id: str,
@@ -264,7 +265,27 @@ def product_detail(
             detail="Product not found",
         )
 
-    return product
+    response = schemas.ProductDetailResponse.model_validate(
+        product
+    )
+
+    # BEDEN/KALIP TAVSIYESI — yalnizca DETAY ucunda.
+    #
+    # Urun listesine (/products, /api/search) eklenmedi:
+    # orada 12-24 urun donuyor ve her biri icin ayri bir
+    # sorgu demek olurdu. Kullanici kalibi zaten satin alma
+    # kararini verirken, yani detay sayfasinda soruyor.
+    #
+    # None donebilir ve bu NORMALDIR: 728 urunun 526'sinda
+    # karar verilebilecek kadar kanit yok. Script hic
+    # calismadiysa da None doner, kolon aranmaz (bkz.
+    # fit_advice.is_ready).
+    fit = fit_advice.get(db, product_id)
+
+    if fit is not None:
+        response.fit = schemas.FitAdvice(**fit)
+
+    return response
 
 
 # =========================================================

@@ -1518,6 +1518,57 @@ async function openProduct(
 }
 
 
+/**
+ * BEDEN/KALIP TAVSIYESİ KUTUSU.
+ *
+ * Veri /products/{id} cevabındaki `fit` alanından geliyor
+ * (backend/app/fit_advice.py). Metni BACKEND kuruyor —
+ * eşikler ve oy sayıları orada, burada yeniden hesaplamak
+ * aynı kuralı iki yerde yaşatmak olurdu.
+ *
+ * fit YOKSA hiçbir şey çizilmiyor ve bu NORMAL: 728 ürünün
+ * 526'sında karar verilebilecek kadar yorum kanıtı yok
+ * (ölçüldü). Boş bir iddia yerine hiçbir iddia — kartlarda
+ * eşiğin altında yüzde göstermeme kararının aynısı.
+ *
+ * Oy sayısı da gösteriliyor ("5 yorumdan 5'i"): kullanıcı
+ * iddiayı kendisi tartabilmeli. Doğrulayamadığı bir tavsiye,
+ * güvenemeyeceği bir tavsiyedir.
+ */
+function renderFitAdvice(fit) {
+
+    if (!fit || !fit.verdict) return "";
+
+    /* Beden değiştirme tavsiyesi mi, teyit mi? İkisi farklı
+       ağırlıkta ve kullanıcı bunu bir bakışta görmeli. */
+    const isChange = fit.verdict !== "true";
+
+    const icon = isChange
+        ? "fa-triangle-exclamation"
+        : "fa-circle-check";
+
+    return `
+        <div class="fit-advice ${escapeHTML(fit.verdict)}">
+
+            <div class="fit-advice-head">
+                <i class="fa-solid ${icon}"></i>
+                <strong>${escapeHTML(fit.title)}</strong>
+            </div>
+
+            <p class="fit-advice-text">
+                ${escapeHTML(fit.advice)}
+            </p>
+
+            <span class="fit-advice-basis">
+                ${fit.agree_count}/${fit.total_count} yorum
+                bu yönde
+            </span>
+
+        </div>
+    `;
+}
+
+
 function renderProductModal(
     product,
     reviews
@@ -1621,6 +1672,9 @@ function renderProductModal(
                     }
 
                 </div>
+
+
+                ${renderFitAdvice(product.fit)}
 
 
                 ${

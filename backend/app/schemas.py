@@ -77,8 +77,52 @@ class ProductResponse(BaseModel):
 # PRODUCT DETAIL RESPONSE
 # =========================================================
 
+# =========================================================
+# BEDEN/KALIP TAVSIYESI
+# =========================================================
+#
+# Veriyi scripts/17_extract_fit_signals.py uretiyor, metni
+# app/fit_advice.py kuruyor. Burada yalnizca sozlesme var.
+
+class FitAdvice(BaseModel):
+    """
+    Yorumlardan cikarilan kalip karari.
+
+    None DONMESI NORMALDIR: 728 urunun 526'sinda karar
+    verilebilecek kadar kanit yok (olculdu). O durumda alan
+    hic gonderilmiyor ve arayuz kutuyu gostermiyor. Bos bir
+    iddia yerine hicbir iddia.
+    """
+
+    # small | true | large
+    verdict: str
+
+    # Arayuzde gosterilecek baslik ve tavsiye cumlesi.
+    title: str
+    advice: str
+
+    confidence: float
+
+    # GEREKCE. "5 yorumdan 5'i" cumlesi bunlardan kuruluyor;
+    # kullanici iddiayi kendisi tartabilmeli.
+    agree_count: int
+    total_count: int
+
+    votes: dict[str, int] = {}
+
+
 class ProductDetailResponse(ProductResponse):
-    reviews: list[ReviewResponse] = []
+    """
+    /products/{id} cevabi.
+
+    `reviews` alani KALDIRILDI (tanimliydi ama hic
+    kullanilmiyordu). Arayuz yorumlari ayri bir uctan
+    cekiyor — /products/{id}/reviews — ve iki istek paralel
+    gidiyor (bkz. app.js openProduct). Burada bos bir liste
+    tasimak "bu urunun yorumu yok" der gibi olurdu.
+    """
+
+    fit: FitAdvice | None = None
 
 class SemanticProductResponse(ProductResponse):
     similarity_score: float

@@ -7796,3 +7796,82 @@ a {
         width: 76px;
     }
 }
+
+/* =========================================================
+   BEDEN/KALIP TAVSİYESİ
+
+   Ürün detayında, fiyatın hemen altında. Veri
+   scripts/17_extract_fit_signals.py'nin yorumlardan
+   saydığı oylardan geliyor.
+
+   İki ayrı görsel ağırlık var ve bu bilinçli:
+
+     kalıbına uygun  -> sakin, teyit tonu. Kullanıcı zaten
+        normal bedenini alacak; bu kutu sadece tereddüdü
+        kaldırıyor.
+
+     küçük / büyük   -> uyarı tonu. Kullanıcının DAVRANIŞINI
+        değiştirmesini istiyoruz (farklı beden al), o yüzden
+        göze çarpması gerekiyor.
+========================================================= */
+
+.fit-advice {
+    margin-top: 18px;
+    padding: 14px 16px;
+
+    border: 1px solid var(--line);
+    border-left-width: 3px;
+    border-radius: 10px;
+
+    background: var(--cream);
+}
+
+.fit-advice.true {
+    border-left-color: #4a7c59;
+}
+
+/* Beden değiştirme tavsiyesi — dikkat çekmeli */
+.fit-advice.small,
+.fit-advice.large {
+    border-left-color: var(--gold);
+    background: #fdfaf3;
+}
+
+.fit-advice-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    font-size: 12px;
+    letter-spacing: .3px;
+}
+
+.fit-advice-head i {
+    font-size: 13px;
+}
+
+.fit-advice.true .fit-advice-head i {
+    color: #4a7c59;
+}
+
+.fit-advice.small .fit-advice-head i,
+.fit-advice.large .fit-advice-head i {
+    color: var(--gold);
+}
+
+.fit-advice-text {
+    margin-top: 7px;
+
+    font-size: 12px;
+    line-height: 1.6;
+    color: #444;
+}
+
+.fit-advice-basis {
+    display: inline-block;
+    margin-top: 9px;
+
+    font-size: 10px;
+    letter-spacing: .4px;
+    color: var(--gray);
+}

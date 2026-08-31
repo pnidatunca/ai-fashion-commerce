@@ -80,6 +80,7 @@ from app import (
     color_match,
     crud,
     currency,
+    fit_advice,
     price_intent,
     query_engine,
     search_service,
@@ -793,19 +794,41 @@ def _get_product_details(args: dict, ctx: ToolContext) -> ToolResult:
 
     features = (product.features_tr or product.features or "").strip()
 
+    payload = {
+        "product": _product_for_model(product, request.rate),
+        "description": description[:900],
+        "features": features[:600],
+        "availability": product.availability or "",
+        "reviews": review_payload,
+        "review_note": (
+            "Yorum yok."
+            if not review_payload
+            else "Yalnizca bu yorumlarda yazani soyle."
+        ),
+    }
+
+    # BEDEN/KALIP.
+    #
+    # Yorumlar zaten payload'da; model kalibi kendi de
+    # okuyabilirdi. Yine de HAZIR KARARI veriyoruz cunku 8
+    # yorumu okuyup oy sayan modelin her seferinde ayni sonuca
+    # varmasi garanti degil, kural tablosunun varmasi garanti
+    # (ayni gerekce outfit.py'de de yazili).
+    #
+    # Oy sayisi da metnin icinde: asistan "herkes buyuk diyor"
+    # yerine "5 yorumdan 5'i" diyebilsin.
+    fit = fit_advice.for_model(request.db, product_id)
+
+    if fit:
+        payload["fit"] = fit
+        payload["fit_note"] = (
+            "Kalip bilgisi yorumlardan sayilarak cikarildi. "
+            "Kullanici beden sorarsa bunu kullan, kendi "
+            "tahminini ekleme."
+        )
+
     return ToolResult(
-        payload={
-            "product": _product_for_model(product, request.rate),
-            "description": description[:900],
-            "features": features[:600],
-            "availability": product.availability or "",
-            "reviews": review_payload,
-            "review_note": (
-                "Yorum yok."
-                if not review_payload
-                else "Yalnizca bu yorumlarda yazani soyle."
-            ),
-        },
+        payload=payload,
         cards=[_product_for_card(product, request.rate)],
     )
 
