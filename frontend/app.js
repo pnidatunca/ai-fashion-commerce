@@ -12709,6 +12709,14 @@ async function loadFriends() {
     } catch (error) {
 
         console.error("Arkadaşlar yüklenemedi:", error);
+
+        /* Sessiz kalma: boş liste ile "istek başarısız" aynı
+           şey değil ve kullanıcı ikisini ayırt edebilmeli. */
+        box.innerHTML = `
+            <p class="social-empty">
+                Arkadaş listesi yüklenemedi.
+            </p>
+        `;
     }
 }
 
@@ -12730,18 +12738,31 @@ async function runSocialSearch(query) {
         return;
     }
 
+    box.classList.remove("hidden");
+
     try {
 
-        const results = await apiGet("/social/users/search", {
-            q: cleaned,
-        });
+        /*
+           apiFetch, apiGet DEĞİL.
 
-        box.classList.remove("hidden");
+           apiGet düz `fetch(url)` yapıyor ve X-User-Id
+           başlığını GÖNDERMİYOR — herkese açık uçlar için
+           yazılmış. Bu uç giriş zorunlu, dolayısıyla apiGet
+           ile her arama 401 dönüyordu ve hata yalnızca
+           console'a yazıldığı için ekranda "kullanıcı yok"
+           gibi görünüyordu.
+        */
+        const results = await apiFetch(
+            `/social/users/search?q=${encodeURIComponent(cleaned)}`
+        );
 
         if (!results.length) {
 
             box.innerHTML = `
-                <p class="social-empty">Kullanıcı bulunamadı.</p>
+                <p class="social-empty">
+                    Kullanıcı bulunamadı. E-posta ile ararken
+                    adresin tamamını yazman gerekiyor.
+                </p>
             `;
 
             return;
@@ -12756,6 +12777,20 @@ async function runSocialSearch(query) {
     } catch (error) {
 
         console.error("Arama başarısız:", error);
+
+        /*
+           HATAYI EKRANA DA YAZ. Önceki sürüm yalnızca
+           console'a yazıyordu; kullanıcı "sonuç yok" ile
+           "istek başarısız"ı ayırt edemiyordu ve bu hatanın
+           fark edilmesini geciktirdi.
+        */
+        box.innerHTML = `
+            <p class="social-empty">
+                Arama yapılamadı: ${escapeHTML(
+                    error?.message || "bilinmeyen hata"
+                )}
+            </p>
+        `;
     }
 }
 
@@ -12957,6 +12992,10 @@ async function loadRequests() {
     } catch (error) {
 
         console.error("İstekler yüklenemedi:", error);
+
+        box.innerHTML = `
+            <p class="social-empty">İstekler yüklenemedi.</p>
+        `;
     }
 }
 
@@ -13372,6 +13411,12 @@ async function openShare(product) {
     } catch (error) {
 
         console.error("Arkadaşlar yüklenemedi:", error);
+
+        box.innerHTML = `
+            <p class="social-empty">
+                Arkadaş listesi yüklenemedi.
+            </p>
+        `;
     }
 }
 
