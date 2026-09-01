@@ -81,6 +81,7 @@ from app import (
     crud,
     currency,
     fit_advice,
+    outfit,
     price_intent,
     query_engine,
     search_service,
@@ -218,6 +219,21 @@ SEARCH_CATALOG_SCHEMA = {
         "min_price_try": {
             "type": "number",
             "description": "Alt fiyat sınırı, Türk Lirası cinsinden.",
+        },
+        "fit": {
+            "type": "string",
+            "enum": ["true_to_size", "avoid_small", "avoid_large"],
+            "description": (
+                "Kalıp filtresi. Kalıp bilgisi müşteri "
+                "yorumlarından sayılarak çıkarılıyor. "
+                "true_to_size: yalnızca kalıbına uygun olduğu "
+                "DOĞRULANMIŞ ürünler (kanıtı olmayan ürünler de "
+                "elenir, sonuç azalır). "
+                "avoid_small: küçük geldiği bilinenleri ele. "
+                "avoid_large: büyük geldiği bilinenleri ele. "
+                "Yalnızca kullanıcı kalıptan/bedenden söz "
+                "ederse kullan."
+            ),
         },
         "limit": {
             "type": "integer",
@@ -609,16 +625,33 @@ def _search_catalog(args: dict, ctx: ToolContext) -> ToolResult:
     # Fiyat filtresi artik SQL'de (ve merdivenin disinda):
     # once genis cekip Python'da elemek, butceye uyan urun
     # ilk 48'de degilse "yok" demeye yol aciyordu.
+    # KALIP FILTRESI VARSA GENIS CEK.
+    #
+    # Eleme Python'da: kalip karari 728 urunun 202'sinde var
+    # ve search_service'in sozlesmesine yeni bir filtre
+    # eklemek butun arama motorunu etkilerdi. Genis cekip
+    # elemek burada dogru olcek — katalog kucuk.
+    fit_filter = args.get("fit")
+
+    fetch_limit = min(limit * 4, 48) if fit_filter else limit
+
     items, meta = search_service.search(
         db=request.db,
         intent=intent,
         query_embedding=vector,
-        limit=limit,
+        limit=fetch_limit,
         offset=0,
         usd_try_rate=request.rate,
     )
 
-    products = [item["product"] for item in items][:limit]
+    products = [item["product"] for item in items]
+
+    if fit_filter:
+        products = _apply_fit_filter(
+            request.db, products, fit_filter
+        )
+
+    products = products[:limit]
 
     # SON KONTROL — BUTCE SINIRI.
     #
@@ -740,6 +773,184 @@ def _search_catalog(args: dict, ctx: ToolContext) -> ToolResult:
     )
 
 
+def _apply_fit_filter(db, products, mode: str):
+    """
+    Arama sonucunu kalip karina gore eler.
+
+    UC KIP, UC AYRI ANLAM — ve aradaki fark onemli:
+
+      true_to_size  yalnizca DOGRULANMIS "kalibina uygun".
+                    Karari olmayan urun de elenir. Kullanici
+                    "kalibina uygun olsun" dediginde istedigi
+                    budur: kanit istiyor.
+
+      avoid_small   kucuk geldigi BILINEN urunleri ele.
+      avoid_large   buyuk geldigi BILINEN urunleri ele.
+                    Karari olmayan urun KALIR. "Kucuk
+                    gelmesin" diyen biri, hakkinda bilgi
+                    olmayan urunleri de elemek istemez —
+                    o zaman katalogun ucte biri kalirdi.
+
+    Bu ayrim bilincli: "kanit istiyorum" ile "bilinen kotuyu
+    isteme" ayni sey degil.
+    """
+
+    if not products:
+        return products
+
+    verdicts = fit_advice.fetch_verdicts(
+        db, [p.product_id for p in products]
+    )
+
+    if mode == "true_to_size":
+        return [
+            p for p in products
+            if verdicts.get(p.product_id) == "true"
+        ]
+
+    unwanted = "small" if mode == "avoid_small" else "large"
+
+    return [
+        p for p in products
+        if verdicts.get(p.product_id) != unwanted
+    ]
+
+
+BUILD_OUTFIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "product_id": {
+            "type": "string",
+            "description": (
+                "Kombinin kurulacağı ürünün kimliği. "
+                "search_catalog sonucundaki değerlerden biri "
+                "olmalı."
+            ),
+        },
+    },
+    "required": ["product_id"],
+}
+
+
+def _build_outfit(args: dict, ctx: ToolContext) -> ToolResult:
+    """
+    Tek parcadan kombin kurar: eksik yuvalari doldurur.
+
+    MOTOR YENIDEN YAZILMADI. /api/outfit ucunun kullandigi
+    outfit.build'in AYNISI cagriliyor. Yani yuva mantigi
+    (pantolon secildiyse ust + ayakkabi) ve renk uyumu
+    tablosu tek yerde; asistan onlari kopyalamiyor,
+    kullaniyor.
+
+    RENK UYUMU BURADAN GELIYOR. outfit.companion_color
+    tohumun OLCULMUS rengine bakip tamamlayici rengi
+    seciyor. Asistanin kendi renk bilgisine dayanmasi
+    gerekmiyor — dayansaydi her seferinde farkli bir cevap
+    verebilirdi.
+    """
+
+    request: ChatRequest = ctx.request
+
+    product_id = str(args.get("product_id") or "").strip()
+
+    if not product_id:
+        return ToolResult(payload={"error": "product_id bos olamaz."})
+
+    seed = crud.get_product(db=request.db, product_id=product_id)
+
+    if seed is None:
+        return ToolResult(
+            payload={
+                "error": (
+                    f"'{product_id}' katalogda yok. Yalnizca "
+                    "search_catalog sonucundaki kimlikleri kullan."
+                )
+            }
+        )
+
+    try:
+        result = outfit.build(
+            db=request.db, seed=seed, rate=request.rate
+        )
+
+    except Exception as error:
+
+        logger.exception("Kombin kurulamadi")
+
+        return ToolResult(
+            payload={
+                "error": (
+                    "Kombin onerisi uretilemedi. Kullaniciya "
+                    "kisaca soyle."
+                )
+            }
+        )
+
+    cards = [_product_for_card(seed, request.rate)]
+
+    slots_payload = []
+
+    for entry in result.get("slots", []):
+
+        options = entry.get("options") or []
+
+        if not options:
+            continue
+
+        # Modele YALNIZCA ilk secenek adiyla veriliyor; geri
+        # kalanlar kart olarak zaten gorunuyor. Butun
+        # secenekleri metne dokmek modeli liste yapmaya
+        # itiyordu.
+        best = options[0]["product"]
+
+        slots_payload.append(
+            {
+                "slot": entry["slot"],
+                "label": entry["label"],
+                "color": entry.get("color_label") or entry.get("color"),
+                "onerilen": (
+                    best.title_tr or best.title or ""
+                )[:80],
+                "secenek_sayisi": len(options),
+            }
+        )
+
+        for option in options:
+            cards.append(
+                _product_for_card(option["product"], request.rate)
+            )
+
+    if not slots_payload:
+        return ToolResult(
+            payload={
+                "seed": _product_for_model(seed, request.rate),
+                "note": (
+                    "Bu parcaya uyacak tamamlayici urun "
+                    "bulunamadi. Kullaniciya durustce soyle."
+                ),
+            },
+            cards=[_product_for_card(seed, request.rate)],
+        )
+
+    return ToolResult(
+        payload={
+            "seed": _product_for_model(seed, request.rate),
+            "seed_slot": result.get("seed_slot"),
+            "seed_color": result.get("seed_color"),
+            "title": result.get("title"),
+            "reason": result.get("reason"),
+            "slots": slots_payload,
+            "note": (
+                "Kombin yuva mantigi ve renk uyumu tablosuyla "
+                "kuruldu. Kullaniciya NEDEN bu parcalarin "
+                "yakistigini anlat; secenekleri tek tek "
+                "listeleme, kartlar zaten gorunuyor."
+            ),
+        },
+        cards=cards[:MAX_CARDS],
+    )
+
+
 def _get_product_details(args: dict, ctx: ToolContext) -> ToolResult:
 
     request: ChatRequest = ctx.request
@@ -822,6 +1033,27 @@ def _get_product_details(args: dict, ctx: ToolContext) -> ToolResult:
 
     if fit:
         payload["fit"] = fit
+
+        # KULLANICININ BEDENIYLE BIRLESTIR.
+        #
+        # "Kalibi buyuk geliyor" bilgisi tek basina
+        # kullanicidan bir cikarim yapmasini istiyor.
+        # Bedenini biliyorsak cikarimi biz yapariz:
+        # urunun kategorisi hangi beden alanini
+        # ilgilendiriyorsa ondan okunuyor (ust/alt/ayakkabi).
+        if request.user is not None:
+
+            data = fit_advice.get(request.db, product_id)
+
+            field = fit_advice.size_field_for(product.category)
+
+            concrete = fit_advice.size_advice(
+                (data or {}).get("verdict"),
+                getattr(request.user, field, None),
+            )
+
+            if concrete:
+                payload["beden_onerisi"] = concrete
         payload["fit_note"] = (
             "Kalip bilgisi yorumlardan sayilarak cikarildi. "
             "Kullanici beden sorarsa bunu kullan, kendi "
@@ -862,6 +1094,19 @@ TOOLS = [
         ),
         parameters=GET_PRODUCT_DETAILS_SCHEMA,
         handler=_get_product_details,
+    ),
+    ToolSpec(
+        name="build_outfit",
+        description=(
+            "Bir üründen KOMBİN kurar: eksik parçaları "
+            "(üst/alt/ayakkabı/dış giyim) renk uyumuna göre "
+            "doldurur. Kullanıcı 'bununla ne giyerim', "
+            "'kombin öner', 'buna ne yakışır', 'tamamla' "
+            "gibi bir şey sorduğunda kullan. Önce ürünü "
+            "search_catalog ile bulman gerekebilir."
+        ),
+        parameters=BUILD_OUTFIT_SCHEMA,
+        handler=_build_outfit,
     ),
 ]
 
@@ -919,6 +1164,32 @@ def _user_context(db: Session, user: User | None) -> str:
             labels.append(profile["label"] if profile else archetype)
 
         lines.append("Keşfet için seçtiği tarzlar: " + ", ".join(labels))
+
+    # BEDEN PROFILI.
+    #
+    # Kalip karari tek basina "bir beden buyuk al" diyebilir
+    # ama BIR BEDEN USTU NE oldugunu ancak kullanicinin
+    # bedeni bilinince soyleyebiliriz. Bu satirlar tam da
+    # onun icin.
+    sizes = []
+
+    if user.size_top:
+        sizes.append("üst %s" % user.size_top)
+
+    if user.size_bottom:
+        sizes.append("alt %s" % user.size_bottom)
+
+    if user.size_shoe:
+        sizes.append("ayakkabı %s" % user.size_shoe)
+
+    if sizes:
+        lines.append(
+            "Normalde aldığı bedenler: "
+            + ", ".join(sizes)
+            + ". Kalıp bilgisi olan bir ürün önerirken SOMUT "
+            "beden söyle (örn. 'bu üründe bir beden büyük, "
+            "yani L al'), genel cümle kurma."
+        )
 
     if not lines:
         return "Kullanıcı giriş yapmış ama profili boş."

@@ -402,6 +402,13 @@ class UpdateProfileRequest(BaseModel):
     age: int | None = Field(default=None, ge=13, le=100)
     address: str | None = Field(default=None, max_length=500)
 
+    # BEDEN PROFILI. Hepsi opsiyonel — kullanici girmek
+    # zorunda degil ve girmezse kalip tavsiyesi genel
+    # cumleye ("bir beden ustunu tercih edin") duser.
+    size_top: str | None = Field(default=None, max_length=8)
+    size_bottom: str | None = Field(default=None, max_length=8)
+    size_shoe: str | None = Field(default=None, max_length=8)
+
 
 class ChangeEmailRequest(BaseModel):
     """
@@ -478,6 +485,10 @@ class AccountResponse(BaseModel):
     gender: str | None = None
     age: int | None = None
     address: str | None = None
+
+    size_top: str | None = None
+    size_bottom: str | None = None
+    size_shoe: str | None = None
 
 
 # =========================================================

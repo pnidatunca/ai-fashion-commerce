@@ -2798,6 +2798,15 @@ function fillAccountForms(user) {
     if (ageInput) ageInput.value = user.age ?? "";
     if (addressInput) addressInput.value = user.address || "";
 
+    /* Beden profili */
+    const sizeTop = $("account-size-top");
+    const sizeBottom = $("account-size-bottom");
+    const sizeShoe = $("account-size-shoe");
+
+    if (sizeTop) sizeTop.value = user.size_top || "";
+    if (sizeBottom) sizeBottom.value = user.size_bottom || "";
+    if (sizeShoe) sizeShoe.value = user.size_shoe || "";
+
     if (accountCurrentEmailInput) {
         accountCurrentEmailInput.value = user.email || "";
     }
@@ -2868,6 +2877,9 @@ async function handleAccountProfileSubmit(event) {
                 gender: gender || null,
                 age,
                 address: address || null,
+                size_top: $("account-size-top")?.value || null,
+                size_bottom: $("account-size-bottom")?.value || null,
+                size_shoe: $("account-size-shoe")?.value || null,
             }),
         });
 
@@ -11214,6 +11226,87 @@ function setAiChatStatus(text) {
 }
 
 
+/**
+ * SSE akışını okur ve her olayı `onEvent`'e verir.
+ *
+ * NEDEN EventSource DEĞİL
+ * EventSource yalnızca GET yapıyor ve özel başlık
+ * gönderemiyor. Bize POST (mesaj geçmişi gövdede) ve
+ * X-User-Id başlığı lazım. fetch + ReadableStream ikisini de
+ * veriyor.
+ *
+ * TAMPON ŞART
+ * Ağdan gelen parça (chunk) satır sınırında bitmek zorunda
+ * değil; bir JSON olayı ikiye bölünebilir. Yarım kalan son
+ * parça `buffer`da bekletiliyor, tam olaylar işleniyor.
+ */
+async function streamAiChat(messages, onEvent) {
+
+    const response = await fetch(`${API_BASE}/api/chat/stream`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+        },
+        body: JSON.stringify({ messages }),
+    });
+
+    if (!response.ok || !response.body) {
+
+        /*
+           Akış hiç başlayamadı. Çağıran taraf senkron uca
+           düşecek — akış bir HIZLANDIRMA, sohbetin çalışma
+           şartı değil.
+        */
+        const error = new Error(
+            `Akış başlatılamadı (${response.status})`
+        );
+
+        error.streamUnavailable = true;
+
+        throw error;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    let buffer = "";
+
+    while (true) {
+
+        const { value, done } = await reader.read();
+
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        /* SSE olayları boş satırla ayrılıyor */
+        const parts = buffer.split("\n\n");
+
+        /* Son parça yarım olabilir; tamponda bekliyor */
+        buffer = parts.pop() || "";
+
+        for (const part of parts) {
+
+            for (const line of part.split("\n")) {
+
+                if (!line.startsWith("data:")) continue;
+
+                const payload = line.slice(5).trim();
+
+                if (!payload) continue;
+
+                try {
+                    onEvent(JSON.parse(payload));
+                } catch (error) {
+                    console.warn("Bozuk akış olayı:", payload);
+                }
+            }
+        }
+    }
+}
+
+
 async function sendAiChatMessage(rawText) {
 
     const text = String(rawText || "").trim();
@@ -11226,24 +11319,13 @@ async function sendAiChatMessage(rawText) {
     if (!text || aiChat.sending) return;
 
 
-    /*
-       Iki giris kapisi GIZLENMIYOR: sohbet boyunca yerinde
-       kaliyor ki kullanici ikinci, ucuncu soruyu da oradan
-       baslatabilsin. Yalnizca acik duran panel kapaniyor —
-       secim yapildi, listeyi acik tutmanin isi bitti.
-    */
-    collapseAiChatSuggestPanels();
+    /* Başlangıç önerileri ilk mesajdan sonra işini bitirdi */
+    aiChatStarters?.classList.add("hidden");
 
 
-    appendAiChatMessage({
-        role: "user",
-        content: text,
-    });
+    appendAiChatMessage({ role: "user", content: text });
 
-    aiChat.messages.push({
-        role: "user",
-        content: text,
-    });
+    aiChat.messages.push({ role: "user", content: text });
 
 
     if (aiChatInput) {
@@ -11256,62 +11338,203 @@ async function sendAiChatMessage(rawText) {
 
     const typing = appendAiChatTyping();
 
+    /*
+       Cevap balonu ilk metin parçası gelince oluşturuluyor,
+       şimdi değil: model önce arama yapıyor olabilir ve o
+       sırada boş bir balon göstermek "cevap verdi ama boş"
+       gibi görünürdü. Yazıyor göstergesi o boşluğu dolduruyor.
+    */
+    let bubble = null;
+    let reply = "";
+
+    const showText = delta => {
+
+        if (!delta) return;
+
+        if (bubble === null) {
+
+            typing?.remove();
+
+            const wrapper = document.createElement("div");
+
+            wrapper.className = "ai-chat-msg assistant";
+
+            bubble = document.createElement("div");
+            bubble.className = "ai-chat-bubble";
+
+            wrapper.appendChild(bubble);
+            aiChatLog?.appendChild(wrapper);
+        }
+
+        reply += delta;
+
+        /*
+           formatAiChatText her seferinde TÜM metni yeniden
+           işliyor, delta'yı eklemiyor. Sebep: **kalın**
+           işareti iki parçaya bölünmüş olabilir; yalnızca
+           son parçaya bakan bir dönüşüm onu kaçırır.
+        */
+        bubble.innerHTML = formatAiChatText(reply);
+
+        scrollAiChatToBottom();
+    };
+
+    try {
+
+        let finished = false;
+
+        await streamAiChat(aiChat.messages, event => {
+
+            if (event.type === "text") {
+                showText(event.delta);
+
+            } else if (event.type === "tool") {
+                setAiChatStatus("Katalogda arıyor...");
+
+            } else if (event.type === "done") {
+
+                finished = true;
+
+                reply = String(event.reply || reply || "").trim();
+
+                if (bubble) {
+                    bubble.innerHTML = formatAiChatText(reply);
+                } else {
+                    typing?.remove();
+                    appendAiChatMessage({
+                        role: "assistant",
+                        content: reply,
+                    });
+                }
+
+                const products = Array.isArray(event.products)
+                    ? event.products
+                    : [];
+
+                if (products.length) {
+                    appendAiChatProducts(products);
+                }
+
+                setAiChatStatus(
+                    (event.tool_calls || []).includes("search_catalog")
+                        ? "Katalogda arama yaptı"
+                        : "Katalogdan gerçek ürünler önerir"
+                );
+
+            } else if (event.type === "error") {
+
+                finished = true;
+
+                typing?.remove();
+
+                appendAiChatMessage({
+                    role: "assistant",
+                    error: true,
+                    content:
+                        event.detail ||
+                        "Asistana ulaşamadım. Birazdan tekrar dene.",
+                });
+            }
+        });
+
+        if (!finished) {
+            /*
+               Akış "done" görmeden bitti (bağlantı koptu).
+               Yarım metni geçmişe yazmıyoruz: model kendi
+               yarım cümlesini görüp üstüne devam ederse
+               tutarsız olur.
+            */
+            throw new Error("Akış yarıda kesildi.");
+        }
+
+        if (reply) {
+            aiChat.messages.push({
+                role: "assistant",
+                content: reply,
+            });
+        } else {
+            aiChat.messages.pop();
+        }
+
+    } catch (error) {
+
+        typing?.remove();
+
+        if (error?.streamUnavailable) {
+
+            /*
+               Akış başlamadı — senkron uca düş. Kullanıcı
+               farkı yalnızca beklemede görür, sohbet çalışır.
+            */
+            console.warn("Akış yok, /api/chat kullanılıyor:", error);
+
+            await sendAiChatMessageSync(text, bubble);
+
+            return;
+        }
+
+        console.error("Sohbet hatası:", error);
+
+        if (bubble) bubble.closest(".ai-chat-msg")?.remove();
+
+        appendAiChatMessage({
+            role: "assistant",
+            error: true,
+            content:
+                error?.message ||
+                "Asistana ulaşamadım. Birazdan tekrar dene.",
+        });
+
+        /* Cevapsız tur: kullanıcı mesajını geçmişte bırakma */
+        if (
+            aiChat.messages[aiChat.messages.length - 1]?.role === "user"
+        ) {
+            aiChat.messages.pop();
+        }
+
+    } finally {
+
+        setAiChatSending(false);
+    }
+}
+
+
+/**
+ * Akış kullanılamadığında devreye giren eski yol.
+ *
+ * Kullanıcı mesajı geçmişe ZATEN eklendi; burada yalnızca
+ * istek atılıp cevap gösteriliyor.
+ */
+async function sendAiChatMessageSync(text, bubble) {
+
+    if (bubble) bubble.closest(".ai-chat-msg")?.remove();
+
+    const typing = appendAiChatTyping();
 
     try {
 
         const data = await apiFetch("/api/chat", {
             method: "POST",
-            body: JSON.stringify({
-                messages: aiChat.messages,
-            }),
+            body: JSON.stringify({ messages: aiChat.messages }),
         });
 
         typing?.remove();
 
-
         const reply = String(data?.reply || "").trim();
-
-        const products = Array.isArray(data?.products)
-            ? data.products
-            : [];
-
 
         appendAiChatMessage({
             role: "assistant",
             content: reply,
-            products,
+            products: Array.isArray(data?.products)
+                ? data.products
+                : [],
         });
 
-        /*
-           Geçmişe YALNIZCA metin giriyor. Kartlar ekranda
-           duruyor ama modele geri gönderilmiyor: model zaten
-           kendi arama sonucunu görmüştü.
-
-           Boş cevap geçmişe GİRMEZ: backend ChatMessage
-           content'i min_length=1 doğruluyor, boş bir satır
-           bir sonraki isteği 422 ile düşürür ve sohbetin
-           tamamı kilitlenirdi.
-        */
         if (reply) {
-
-            aiChat.messages.push({
-                role: "assistant",
-                content: reply,
-            });
-
+            aiChat.messages.push({ role: "assistant", content: reply });
         } else {
-
-            /* Cevapsız tur: kullanıcı mesajını da bırakma */
             aiChat.messages.pop();
         }
-
-
-        setAiChatStatus(
-            (data?.tool_calls || []).includes("search_catalog")
-                ? "Katalogda arama yaptı"
-                : "Katalogdan gerçek ürünler önerir"
-        );
-
 
     } catch (error) {
 
@@ -11327,15 +11550,6 @@ async function sendAiChatMessage(rawText) {
                 "Asistana ulaşamadım. Birazdan tekrar dene.",
         });
 
-        /*
-           BAŞARISIZ TUR GEÇMİŞTEN ÇIKARILIYOR.
-
-           Kullanıcının mesajı gönderildi ama cevap gelmedi.
-           Geçmişte cevapsız bir kullanıcı mesajı bırakırsak
-           bir sonraki istekte model iki kullanıcı mesajını
-           arka arkaya görür ve ilkini görmezden gelir.
-           Kullanıcı tekrar yazınca temiz bir tur başlasın.
-        */
         aiChat.messages.pop();
 
     } finally {
@@ -11343,6 +11557,35 @@ async function sendAiChatMessage(rawText) {
         setAiChatSending(false);
     }
 }
+
+
+/**
+ * Ürün kartlarını akıştan sonra ekler.
+ *
+ * Ayrı fonksiyon: akışta metin ve kartlar farklı zamanlarda
+ * geliyor (metin damla damla, kartlar 'done' ile birlikte),
+ * bu yüzden appendAiChatMessage'ın ikisini birden çizen
+ * yolu burada işe yaramıyor.
+ */
+function appendAiChatProducts(products) {
+
+    if (!aiChatLog || !products.length) return;
+
+    const wrapper = document.createElement("div");
+
+    wrapper.className = "ai-chat-msg assistant";
+
+    wrapper.innerHTML = `
+        <div class="ai-chat-products">
+            ${products.map(renderAiChatProduct).join("")}
+        </div>
+    `;
+
+    aiChatLog.appendChild(wrapper);
+
+    scrollAiChatToBottom();
+}
+
 
 
 function setAiChatSending(sending) {

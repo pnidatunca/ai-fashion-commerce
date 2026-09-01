@@ -8660,3 +8660,27 @@ a {
         transition: none;
     }
 }
+
+/* Hesap formundaki beden secicileri: uc kutu yan yana */
+.size-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.size-row select {
+    width: 100%;
+    padding: 11px 10px;
+
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--white);
+
+    font-size: 12px;
+}
+
+@media (max-width: 520px) {
+    .size-row {
+        grid-template-columns: 1fr;
+    }
+}

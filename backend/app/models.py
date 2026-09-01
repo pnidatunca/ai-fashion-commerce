@@ -318,6 +318,19 @@ class User(Base):
     # icin kayit sirasinda veya Hesabim'dan eklenebilir.
     address = Column(Text, nullable=True)
 
+    # BEDEN PROFILI (scripts/19_add_user_sizes.py)
+    #
+    # Kalip karari "bir beden buyuk al" diyor; BIR BEDEN
+    # USTU NE oldugunu soyleyebilmek icin kullanicinin
+    # bedeni gerekiyor. Hesap fit_advice.shift_size'da.
+    #
+    # products'taki turetilmis kolonlarin aksine bunlar
+    # ORM modelinde: script'in urettigi opsiyonel bir
+    # zenginlestirme degil, kullanicinin girdigi veri.
+    size_top = Column(String(8), nullable=True)
+    size_bottom = Column(String(8), nullable=True)
+    size_shoe = Column(String(8), nullable=True)
+
     password_hash = Column(
         String,
         nullable=False,

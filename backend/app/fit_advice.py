@@ -245,3 +245,160 @@ def for_model(db: Session, product_id: str) -> str | None:
         data["agree_count"],
         data["total_count"],
     )
+
+# =========================================================
+# BEDEN OLCEGI — "bir beden ustu" hesabi
+# =========================================================
+#
+# Kalip karari "bir beden buyuk al" diyor ama BIR BEDEN
+# USTU NE oldugunu bilmek icin bir siraya ihtiyac var.
+# Kullanicinin bedeni users.size_top/bottom/shoe'da
+# (bkz. scripts/19_add_user_sizes.py).
+#
+# Ayakkabi SAYISAL: 41'in bir ustu 42. Harf olceginden ayri
+# ele aliniyor.
+
+LETTER_SCALE = ("XS", "S", "M", "L", "XL", "XXL", "3XL")
+
+
+def _shift_letter(size: str, step: int) -> str | None:
+
+    try:
+        index = LETTER_SCALE.index(size.strip().upper())
+    except ValueError:
+        return None
+
+    target = index + step
+
+    # Olcegin disina tasma: "XXL'in bir ustu" diye bir sey
+    # yoksa oneri uretmiyoruz. Uydurmak yerine susmak.
+    if target < 0 or target >= len(LETTER_SCALE):
+        return None
+
+    return LETTER_SCALE[target]
+
+
+def _shift_numeric(size: str, step: int) -> str | None:
+
+    try:
+        value = int(str(size).strip())
+    except (TypeError, ValueError):
+        return None
+
+    target = value + step
+
+    if target < 30 or target > 50:
+        return None
+
+    return str(target)
+
+
+def shift_size(size: str | None, step: int) -> str | None:
+    """
+    Bedeni step kadar kaydirir. Harf ve sayi olcegini
+    kendisi ayirt eder. Cozemezse None.
+    """
+
+    if not size:
+        return None
+
+    return (
+        _shift_numeric(size, step)
+        or _shift_letter(size, step)
+    )
+
+
+# Karar -> beden kaydirma yonu.
+#   kalibi kucuk geliyorsa BIR UST
+#   kalibi buyuk geliyorsa BIR ALT
+VERDICT_STEP = {"small": +1, "true": 0, "large": -1}
+
+
+def size_advice(
+    verdict: str,
+    user_size: str | None,
+) -> str | None:
+    """
+    Kullanicinin bedeni biliniyorsa SOMUT beden onerisi.
+
+    Bilinmiyorsa None doner ve arayuz genel cumleyi
+    ("bir beden ustunu tercih edin") gostermeye devam eder.
+    Somut oneri her zaman genelinden iyi ama olmayan veriyi
+    uydurmuyoruz.
+    """
+
+    if not user_size or verdict not in VERDICT_STEP:
+        return None
+
+    step = VERDICT_STEP[verdict]
+
+    if step == 0:
+        return "Normalde aldığın %s bedeni bu üründe uygun." % user_size
+
+    target = shift_size(user_size, step)
+
+    if target is None:
+        return None
+
+    return (
+        "Sen genelde %s alıyorsun; bu üründe %s öneriyoruz."
+        % (user_size, target)
+    )
+
+
+# Urun kategorisinden hangi beden alaninin okunacagi.
+#
+# Kaba ama yeterli: katalog kategorileri "... > Shoes > ..."
+# gibi dallardan olusuyor ve ayakkabi/alt/ust ayrimi bu
+# kelimelerle guvenilir sekilde yapilabiliyor.
+def size_field_for(category: str | None) -> str:
+
+    text_value = (category or "").casefold()
+
+    if "shoe" in text_value or "sneaker" in text_value or "boot" in text_value:
+        return "size_shoe"
+
+    for word in ("pant", "jean", "trouser", "short", "skirt", "bottom"):
+        if word in text_value:
+            return "size_bottom"
+
+    return "size_top"
+
+
+def fetch_verdicts(db: Session, product_ids) -> dict:
+    """
+    Cok urunun kalip karari TEK sorguda.
+
+    Arama sonucunu kalibina gore elemek icin gerekli: urun
+    basina ayri sorgu, 24 sonuc icin 24 istek demekti.
+    Karari olmayan urun sozlukte HIC yer almiyor (None ile
+    doldurmuyoruz) — cagiran taraf "bilinmiyor" ile "kalibi
+    normal"i ayirt edebilmeli.
+    """
+
+    ids = [str(pid) for pid in (product_ids or []) if pid]
+
+    if not ids or not is_ready(db):
+        return {}
+
+    try:
+        rows = db.execute(
+            text(
+                """
+                SELECT product_id, fit_verdict
+                FROM products
+                WHERE product_id = ANY(:ids)
+                  AND fit_verdict IS NOT NULL
+                """
+            ),
+            {"ids": ids},
+        ).all()
+
+    except Exception as error:
+
+        logger.warning("Toplu kalip okunamadi: %s", error)
+
+        return {}
+
+    return {row[0]: row[1] for row in rows}
+

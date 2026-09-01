@@ -512,6 +512,9 @@ def _account_response(user: User) -> schemas.AccountResponse:
         gender=user.gender,
         age=user.age,
         address=user.address,
+        size_top=user.size_top,
+        size_bottom=user.size_bottom,
+        size_shoe=user.size_shoe,
     )
 
 
@@ -548,6 +551,14 @@ def update_profile(
     user.gender = payload.gender
     user.age = payload.age
     user.address = payload.address
+
+    # BEDEN PROFILI. Bos gonderilen alan NULL'a cekiliyor:
+    # kullanici bedenini kaldirmak isteyebilir ve "bos
+    # gonderdiysen eskisi kalsin" davranisi onu imkansiz
+    # kilardi (ayni mantik address'te de var).
+    user.size_top = payload.size_top or None
+    user.size_bottom = payload.size_bottom or None
+    user.size_shoe = payload.size_shoe or None
 
     db.commit()
     db.refresh(user)
