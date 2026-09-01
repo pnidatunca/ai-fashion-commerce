@@ -229,10 +229,55 @@ class Review(Base):
     # Dataset içerisindeki sentiment skoru
     sentiment_score = Column(Float)
 
+    # ---- SITEDE YAZILAN YORUMLAR ----
+    #
+    # Iki tur yorum ayni tabloda duruyor:
+    #
+    #   user_id NULL     -> Amazon veri setinden gelen yorum
+    #                       (tarihi yok, helpful_votes'u var)
+    #   user_id DOLU     -> bu sitede bir kullanicinin yazdigi
+    #
+    # Ayri tablo yerine ayni tabloda tutuluyor cunku urun
+    # detayinda ikisi TEK bir liste olarak gosteriliyor;
+    # ayirmak her okumada UNION gerektirirdi.
+    #
+    # Ikisi de nullable: 700+ eski satirin user_id'si ve
+    # tarihi yok, olamaz da.
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
+        nullable=True,
+        index=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Review -> Product ilişkisi
     product = relationship(
         "Product",
         back_populates="reviews",
+    )
+
+    user = relationship("User")
+
+    __table_args__ = (
+
+        # Bir kullanici bir urune BIR yorum yazar.
+        #
+        # Postgres NULL'lari birbirinden farkli saydigi icin
+        # bu kisit veri setinden gelen (user_id NULL) yuzlerce
+        # satiri etkilemiyor.
+        UniqueConstraint(
+            "user_id",
+            "product_id",
+            name="uq_review_user_product",
+        ),
     )
 
 # =========================================================

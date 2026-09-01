@@ -267,46 +267,6 @@ def product_detail(
     return product
 
 
-# =========================================================
-# PRODUCT REVIEWS
-# =========================================================
-
-@app.get(
-    "/products/{product_id}/reviews",
-    response_model=list[schemas.ReviewResponse],
-)
-def product_reviews(
-    product_id: str,
-    limit: int = Query(
-        default=50,
-        ge=1,
-        le=200,
-    ),
-    offset: int = Query(
-        default=0,
-        ge=0,
-    ),
-    db: Session = Depends(get_db),
-):
-    product = crud.get_product(
-        db=db,
-        product_id=product_id,
-    )
-
-    if product is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Product not found",
-        )
-
-    return crud.get_product_reviews(
-        db=db,
-        product_id=product_id,
-        limit=limit,
-        offset=offset,
-    )
-
-
 @app.get("/exchange-rate")
 def get_exchange_rate():
     """
@@ -685,6 +645,173 @@ def _parse_exclude(raw: str | None) -> list[str]:
     ]
 
     return ids[:200]
+
+
+# =========================================================
+# PRODUCT REVIEWS
+# =========================================================
+
+def _review_author_name(review) -> str | None:
+    """
+    Yorumun altinda gorunecek ad.
+
+    E-POSTA DONMUYOR: yorumlar herkese acik. Soyadin yalnizca
+    bas harfi veriliyor ("Ayse K.") — gercek isim gorunurken
+    kimlik tam olarak aciga cikmasin.
+    """
+
+    user = getattr(review, "user", None)
+
+    if user is None:
+        return None
+
+    first = (user.first_name or "").strip()
+    last = (user.last_name or "").strip()
+
+    if not first and not last:
+        return None
+
+    if last:
+        return f"{first} {last[0]}.".strip()
+
+    return first
+
+
+def _review_response(review, current_user_id=None):
+
+    payload = schemas.ReviewResponse.model_validate(review)
+
+    payload.author_name = _review_author_name(review)
+
+    payload.is_mine = bool(
+        current_user_id
+        and review.user_id
+        and review.user_id == current_user_id
+    )
+
+    return payload
+
+
+@app.get(
+    "/products/{product_id}/reviews",
+    response_model=list[schemas.ReviewResponse],
+)
+def product_reviews(
+    product_id: str,
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
+    # Giris SART DEGIL: yorumlar herkese acik. Kullanici
+    # varsa kendi yorumunu is_mine ile isaretliyoruz ki
+    # arayuz duzenle/sil dugmesini gosterebilsin.
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    product = crud.get_product(
+        db=db,
+        product_id=product_id,
+    )
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found",
+        )
+
+    reviews = crud.get_product_reviews(
+        db=db,
+        product_id=product_id,
+        limit=limit,
+        offset=offset,
+    )
+
+    current_id = user.id if user is not None else None
+
+    return [_review_response(r, current_id) for r in reviews]
+
+
+@app.post(
+    "/products/{product_id}/reviews",
+    response_model=schemas.ReviewResponse,
+    status_code=201,
+)
+def create_product_review(
+    product_id: str,
+    payload: schemas.CreateReviewRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kullanicinin yorumunu kaydeder.
+
+    Ayni urune ikinci gonderim yorumu GUNCELLER (tek yorum
+    hakki var, bkz. uq_review_user_product).
+
+    "Verified Purchase" etiketi UYDURULMUYOR: kullanicinin o
+    urun icin QUICK_BUY kaydi varsa true oluyor
+    (crud.user_has_purchased).
+    """
+
+    product = crud.get_product(db=db, product_id=product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Ürün bulunamadı.",
+        )
+
+    review = crud.save_user_review(
+        db=db,
+        user_id=user.id,
+        product_id=product_id,
+        rating=payload.rating,
+        review_text=payload.review_text,
+        review_title=payload.review_title,
+    )
+
+    return _review_response(review, user.id)
+
+
+# DIKKAT: /reviews/mine rotasi, ayni onekteki parametreli
+# rotalardan ONCE tanimlanmali (bkz. /cart/checkout ve
+# /wishlist/ids ile ayni sebep).
+
+@app.delete(
+    "/products/{product_id}/reviews/mine",
+    status_code=204,
+)
+def delete_product_review(
+    product_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kullanici KENDI yorumunu siler.
+
+    Veri setinden gelen yorumlara ve baskalarinin
+    yorumlarina dokunulamaz: crud.delete_user_review
+    sorgusu user_id kosulu tasiyor.
+    """
+
+    deleted = crud.delete_user_review(
+        db=db,
+        user_id=user.id,
+        product_id=product_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Bu ürüne ait bir yorumun yok.",
+        )
+
+    return None
 
 
 # =========================================================

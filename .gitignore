@@ -39,3 +39,6 @@ hybris-documents-master/
 # "pip install -e" ciktisi. Her kurulumda yeniden uretiliyor,
 # makineye ozel yollar iceriyor - repoda durmamali.
 *.egg-info/
+
+# Kisisel staj defteri notlari - projenin parcasi degil
+staj/

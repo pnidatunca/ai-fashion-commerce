@@ -29,9 +29,62 @@ class ReviewResponse(BaseModel):
 
     sentiment_score: float | None = None
 
+    # Sitede yazilmis yorumlarda dolu, veri setinden
+    # gelenlerde None (onlarin tarihi yok).
+    created_at: datetime | None = None
+
+    # Yorumu yazan kullanicinin gorunen adi. Veri seti
+    # yorumlarinda None.
+    #
+    # E-POSTA ASLA DONMUYOR: yorumlar herkese acik, adres
+    # sizdirmak olurdu. Yalnizca ad + soyadin bas harfi.
+    author_name: str | None = None
+
+    # Bu yorum, istegi yapan kullanicinin kendi yorumu mu?
+    # Arayuz "duzenle/sil" dugmesini buna gore gosteriyor.
+    is_mine: bool = False
+
     model_config = ConfigDict(
         from_attributes=True
     )
+
+
+class CreateReviewRequest(BaseModel):
+    """
+    Kullanicinin yazdigi yorum.
+
+    Ayni kullanici ayni urune tekrar gonderirse yorumu
+    GUNCELLENIYOR (bkz. crud.save_user_review) — "zaten yorum
+    yaptin" hatasi vermek yerine duzenlemesine izin veriyoruz.
+    """
+
+    # Yarim yildiz yok: arayuz 1-5 arasi tam yildiz gosteriyor.
+    rating: int = Field(ge=1, le=5)
+
+    review_text: str = Field(min_length=3, max_length=2000)
+
+    review_title: str | None = Field(default=None, max_length=120)
+
+    @field_validator("review_text", "review_title")
+    @classmethod
+    def _strip(cls, value):
+
+        if value is None:
+            return None
+
+        cleaned = value.strip()
+
+        return cleaned or None
+
+    @model_validator(mode="after")
+    def _require_text(self):
+
+        # _strip bosluktan olusan metni None'a cevirebiliyor;
+        # min_length bunu yakalamiyor.
+        if not self.review_text:
+            raise ValueError("Yorum metni boş olamaz.")
+
+        return self
 
 
 # =========================================================

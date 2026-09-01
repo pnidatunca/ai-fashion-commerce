@@ -240,7 +240,19 @@ STOPPHRASES = (
 # 3 harfli anahtarlarin cekimli halleri elle yazildi
 # (on-ek eslesmesi yalnizca 4+ harfte aciliyor).
 
+# SIRA ONEMLI: _first_match sozlukten ILK esleseni donuyor.
+#
+# "kids" en basta, cunku "erkek cocuk pantolonu" bir COCUK
+# urunudur, erkek urunu degil. Kids once bakildigi icin
+# "cocuk" kelimesi "erkek"i eziyor. Ayni sekilde "kiz cocuk"
+# -> kids ("kiz" tek basina kaldigi surece women).
 GENDER_TERMS: dict[str, list[str]] = {
+    "kids": [
+        "cocuk", "cocuklar", "cocuklu",
+        "kids", "kid", "child", "children", "childrens",
+        "bebek", "bebekler", "baby", "babies",
+        "boys", "girls", "toddler", "juniors", "youth",
+    ],
     "women": [
         "kadin", "kadinlar", "bayan", "bayanlar",
         "women", "woman", "womens", "female", "ladies",
@@ -892,6 +904,8 @@ def _build_embed_text(intent: QueryIntent) -> str:
         parts.append("kadın women")
     elif intent.gender == "men":
         parts.append("erkek men")
+    elif intent.gender == "kids":
+        parts.append("çocuk kids boys girls baby")
 
     expansions = _ordered_expansions(intent)
 
@@ -978,6 +992,8 @@ def _build_alternatives(intent: QueryIntent) -> list[str]:
         base_parts.append("kadın")
     elif intent.gender == "men":
         base_parts.append("erkek")
+    elif intent.gender == "kids":
+        base_parts.append("çocuk")
 
     # KULLANICININ KENDI KELIMESI tercih ediliyor.
     #
@@ -1074,7 +1090,7 @@ def _build_alternatives(intent: QueryIntent) -> list[str]:
 # ACIKLAMA (kullaniciya gosterilen)
 # =========================================================
 
-_GENDER_LABEL = {"women": "Kadın", "men": "Erkek"}
+_GENDER_LABEL = {"women": "Kadın", "men": "Erkek", "kids": "Çocuk"}
 
 _CATEGORY_LABEL = {
     "dress": "Elbise",

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import func, or_, select
@@ -9,6 +10,7 @@ from app.models import (
     INTERACTION_DISLIKE,
     INTERACTION_INITIAL_STYLE,
     INTERACTION_LIKE,
+    INTERACTION_QUICK_BUY,
     CartItem,
     Product,
     Review,
@@ -101,6 +103,30 @@ def get_products(
                 or_(
                     Product.category.ilike("%› Women ›%"),
                     Product.category.ilike("%› Women"),
+                )
+            )
+
+        # COCUK: katalogda tek bir "Kids" bolumu YOK.
+        # Uc ayri bolum var ve ucu birlikte cocugu karsiliyor:
+        #
+        #   Boys                33 urun
+        #   Baby                35 urun  (Baby Boys / Baby Girls
+        #                                 alt dallariyla)
+        #   Girls                0 urun  (bugun standalone yok;
+        #                                 ileride cikarsa hazir)
+        #
+        # Olculdu: bu desen Men/Women ile HIC kesismiyor
+        # (kids AND men = 0, kids AND women = 0), yani bir urun
+        # iki bolumde birden gorunmuyor.
+        elif category == "kids":
+            statement = statement.where(
+                or_(
+                    Product.category.ilike("%› Boys ›%"),
+                    Product.category.ilike("%› Boys"),
+                    Product.category.ilike("%› Girls ›%"),
+                    Product.category.ilike("%› Girls"),
+                    Product.category.ilike("%› Baby ›%"),
+                    Product.category.ilike("%› Baby"),
                 )
             )
 
@@ -200,7 +226,14 @@ def get_product_reviews(
     """
     Belirli bir urune ait yorumlari getirir.
 
-    Helpful vote sayisi yuksek yorumlari once gosterir.
+    SIRALAMA: sitede yazilan yorumlar (created_at DOLU) en
+    ustte, yeniden eskiye; ardindan veri setinden gelenler
+    helpful_votes'a gore.
+
+    Neden boyle: onceden yalnizca helpful_votes'a gore
+    siralaniyordu. Yeni yazilan bir yorumun oyu 0 oldugu icin
+    yuzlerce veri seti yorumunun ALTINA dusuyordu — kullanici
+    yorumunu yazip bulamiyordu.
     """
 
     statement = (
@@ -209,7 +242,12 @@ def get_product_reviews(
             Review.product_id == product_id
         )
         .order_by(
-            Review.helpful_votes.desc()
+            # nullslast: created_at'i olanlar (kullanici
+            # yorumlari) once, NULL olanlar (veri seti) sonra
+            Review.created_at.desc().nullslast(),
+            Review.helpful_votes.desc(),
+            # Esit degerlerde deterministik sira
+            Review.review_id.asc(),
         )
         .offset(offset)
         .limit(limit)
@@ -218,6 +256,114 @@ def get_product_reviews(
     return list(
         db.scalars(statement).all()
     )
+
+
+# =========================================================
+# KULLANICI YORUMLARI
+# =========================================================
+
+# Veri setinden gelen yorumlar READ-ONLY: onlarin user_id'si
+# NULL ve dokunulmuyor. Buradaki fonksiyonlar yalnizca
+# kullanicinin KENDI yorumunu yonetiyor.
+
+def get_user_review(db: Session, user_id, product_id: str):
+    """Kullanicinin bu urune yazdigi yorum (yoksa None)."""
+
+    return db.scalar(
+        select(Review)
+        .where(Review.product_id == product_id)
+        .where(Review.user_id == user_id)
+    )
+
+
+def user_has_purchased(db: Session, user_id, product_id: str) -> bool:
+    """
+    Kullanici bu urunu satin aldi mi?
+
+    "Verified Purchase" etiketini UYDURMUYORUZ: hem sepet
+    odemesi hem Hizli Al, QUICK_BUY etkilesimi kaydediyor
+    (bkz. main.checkout_cart / quick_order). Etiket bu kayda
+    dayaniyor.
+    """
+
+    found = db.scalar(
+        select(UserInteraction.id)
+        .where(UserInteraction.user_id == user_id)
+        .where(UserInteraction.product_id == product_id)
+        .where(
+            UserInteraction.interaction_type == INTERACTION_QUICK_BUY
+        )
+        .limit(1)
+    )
+
+    return found is not None
+
+
+def save_user_review(
+    db: Session,
+    user_id,
+    product_id: str,
+    rating: float,
+    review_text: str,
+    review_title: str | None = None,
+):
+    """
+    Yorumu olusturur, varsa GUNCELLER.
+
+    uq_review_user_product kisiti bir kullaniciya urun basina
+    tek yorum hakki veriyor; ikinci gonderim "duzenleme"
+    olarak ele aliniyor — kullaniciya "zaten yorum yaptin"
+    hatasi vermek yerine yazdigini degistirmesine izin
+    vermek daha dogru.
+    """
+
+    verified = user_has_purchased(db, user_id, product_id)
+
+    review = get_user_review(db, user_id, product_id)
+
+    if review is None:
+
+        review = Review(
+            # review_id String bir PK (veri setinde Amazon
+            # kimlikleri var). Kendi yorumlarimiza "u-" oneki
+            # koyuyoruz: kaynagi tek bakista belli olsun.
+            review_id=f"u-{uuid.uuid4().hex[:24]}",
+            product_id=product_id,
+            user_id=user_id,
+            helpful_votes=0,
+        )
+
+        db.add(review)
+
+    review.rating = rating
+    review.review_title = review_title
+    review.review_text = review_text
+    review.verified_purchase = verified
+    review.created_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(review)
+
+    return review
+
+
+def delete_user_review(db: Session, user_id, product_id: str) -> bool:
+    """
+    Kullanicinin kendi yorumunu siler.
+
+    user_id kosulu SART: veri seti yorumlarinin ve baska
+    kullanicilarin yorumlarinin silinememesi buna bagli.
+    """
+
+    review = get_user_review(db, user_id, product_id)
+
+    if review is None:
+        return False
+
+    db.delete(review)
+    db.commit()
+
+    return True
 
 
 # =========================================================
@@ -340,6 +486,17 @@ def semantic_search_products(
                 Product.category.ilike("%› Women ›%")
             )
 
+        # Bkz. get_products icindeki ayni desenin aciklamasi:
+        # tek bir "Kids" bolumu yok, uc bolum birlikte.
+        elif category == "kids":
+            statement = statement.where(
+                or_(
+                    Product.category.ilike("%› Boys ›%"),
+                    Product.category.ilike("%› Girls ›%"),
+                    Product.category.ilike("%› Baby ›%"),
+                )
+            )
+
         elif category == "dress":
             statement = statement.where(
                 Product.category.ilike("%› Dresses%")
@@ -412,6 +569,17 @@ def semantic_search_products(
         elif gender == "women":
             statement = statement.where(
                 Product.category.ilike("%› Women ›%")
+            )
+
+        # "cocuk pantolonu" gibi sorgular: cinsiyet cocuk,
+        # kategori pantolon — ikisi birlikte filtreleniyor.
+        elif gender == "kids":
+            statement = statement.where(
+                or_(
+                    Product.category.ilike("%› Boys ›%"),
+                    Product.category.ilike("%› Girls ›%"),
+                    Product.category.ilike("%› Baby ›%"),
+                )
             )
 
     # =====================================================

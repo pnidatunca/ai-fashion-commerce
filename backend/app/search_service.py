@@ -454,19 +454,26 @@ _CATEGORY_PATTERNS: dict[str, list[str]] = {
     ],
 }
 
+# Deger LISTE: "kids" tek bir breadcrumb dalina denk
+# gelmiyor. Katalogda Boys / Baby (Baby Boys, Baby Girls) diye
+# ayri bolumler var, ucu birlikte cocugu karsiliyor.
+# Men/Women tek desen olarak kaliyor, davranislari degismedi.
 _GENDER_PATTERNS = {
-    "women": "%› Women ›%",
-    "men": "%› Men ›%",
+    "women": ["%› Women ›%"],
+    "men": ["%› Men ›%"],
+    "kids": ["%› Boys ›%", "%› Girls ›%", "%› Baby ›%"],
 }
 
 
 def _apply_gender(statement, gender: str | None):
-    pattern = _GENDER_PATTERNS.get(gender or "")
+    patterns = _GENDER_PATTERNS.get(gender or "")
 
-    if not pattern:
+    if not patterns:
         return statement
 
-    return statement.where(Product.category.ilike(pattern))
+    return statement.where(
+        or_(*[Product.category.ilike(p) for p in patterns])
+    )
 
 
 def _apply_category(statement, category: str | None):

@@ -1711,7 +1711,14 @@ function renderProductModal(
                 Müşteri Yorumları
             </h3>
 
-            ${renderReviews(reviews)}
+            <!-- Form yorumlarin USTUNDE: yuzlerce veri seti
+                 yorumunun altina koymak, kullanicinin
+                 yorum yazabildigini hic gormemesi demekti. -->
+            ${renderReviewForm(product.product_id, findMyReview(reviews))}
+
+            <div id="reviews-list">
+                ${renderReviews(reviews)}
+            </div>
 
         </div>
     `;
@@ -1734,7 +1741,253 @@ function renderProductModal(
 
     setupModalWishlistButton(product);
 
+    setupReviewForm(product);
+
     hydrateIcons(modalContent);
+}
+
+
+/* =========================================================
+   YORUM YAZMA
+   ---------------------------------------------------------
+   Veri setinden gelen yorumlar READ-ONLY; buradaki her sey
+   kullanicinin KENDI yorumu icin. Bir kullanici urun basina
+   tek yorum yazar, ikinci gonderim onu gunceller.
+========================================================= */
+
+/** Listedeki "benim" yorumum (yoksa null). */
+function findMyReview(reviews) {
+
+    if (!Array.isArray(reviews)) return null;
+
+    return reviews.find(review => review.is_mine) || null;
+}
+
+
+function setupReviewForm(product) {
+
+    /* Misafir: form yerine giris cagrisi duruyor */
+    $("review-login-btn")?.addEventListener("click", () => {
+
+        closeModal();
+
+        openAuth("Yorum yazmak için giriş yap.");
+    });
+
+
+    /* Yildiz secimi */
+    $("review-stars-input")?.addEventListener("click", event => {
+
+        const star = event.target.closest("[data-rating]");
+
+        if (!star) return;
+
+        const value = Number(star.dataset.rating);
+
+        const field = $("review-rating");
+
+        if (field) {
+            field.value = String(value);
+        }
+
+        /* Secilen ve solundaki yildizlar dolu gorunur */
+        $("review-stars-input")
+            ?.querySelectorAll("[data-rating]")
+            .forEach(item => {
+
+                item.classList.toggle(
+                    "on",
+                    Number(item.dataset.rating) <= value
+                );
+            });
+    });
+
+
+    $("review-form")?.addEventListener("submit", event => {
+
+        event.preventDefault();
+
+        submitReview(product);
+    });
+
+
+    /* Kendi yorumundaki sil / duzenle */
+    $("reviews-list")?.addEventListener("click", event => {
+
+        if (event.target.closest("[data-review-delete]")) {
+            deleteMyReview(product);
+            return;
+        }
+
+        if (event.target.closest("[data-review-edit]")) {
+
+            /* Form zaten mevcut yorumla dolu aciliyor;
+               yapilacak tek sey oraya goturmek. */
+            $("review-form")?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+            });
+
+            $("review-text")?.focus();
+        }
+    });
+}
+
+
+async function submitReview(product) {
+
+    const ratingField = $("review-rating");
+    const textField = $("review-text");
+    const titleField = $("review-title");
+    const message = $("review-form-message");
+    const button = $("review-submit");
+
+    const rating = Number(ratingField?.value || 0);
+    const text = (textField?.value || "").trim();
+
+
+    /* Sunucu da dogruluyor; burada erken uyarmak
+       gonderip hata almaktan iyi. */
+    if (!rating) {
+        setMessage(message, "Kaç yıldız verdiğini seç.", "error");
+        return;
+    }
+
+    if (text.length < 3) {
+        setMessage(message, "Birkaç kelime de yazar mısın?", "error");
+        return;
+    }
+
+
+    setMessage(message, "");
+
+    if (button) button.disabled = true;
+
+    try {
+
+        await apiFetch(
+            `/products/${encodeURIComponent(product.product_id)}/reviews`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    rating,
+                    review_text: text,
+                    review_title: (titleField?.value || "").trim() || null,
+                }),
+            }
+        );
+
+        showToast({
+            title: "Yorumun kaydedildi",
+            message: "Teşekkürler, yorumun yayında.",
+            tone: "success",
+        });
+
+        await refreshModalReviews(product);
+
+
+    } catch (error) {
+
+        console.error("Yorum kaydedilemedi:", error);
+
+        setMessage(
+            message,
+            error.message || "Yorum kaydedilemedi.",
+            "error"
+        );
+
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+
+async function deleteMyReview(product) {
+
+    if (!window.confirm("Yorumunu silmek istediğine emin misin?")) {
+        return;
+    }
+
+    try {
+
+        await apiFetch(
+            `/products/${encodeURIComponent(product.product_id)}` +
+            "/reviews/mine",
+            { method: "DELETE" }
+        );
+
+        showToast({
+            title: "Yorum silindi",
+            message: "Yorumun kaldırıldı.",
+            tone: "neutral",
+        });
+
+        await refreshModalReviews(product);
+
+
+    } catch (error) {
+
+        console.error("Yorum silinemedi:", error);
+
+        showToast({
+            title: "Silinemedi",
+            message: error.message || "Tekrar dener misin?",
+            tone: "error",
+        });
+    }
+}
+
+
+/**
+ * Yorum listesini ve formu yeniden cizer.
+ *
+ * Modalin tamamini yeniden cizmiyoruz: kullanicinin
+ * kaydirma konumu ve galerideki secili gorsel korunuyor.
+ */
+async function refreshModalReviews(product) {
+
+    const list = $("reviews-list");
+
+    if (!list) return;
+
+    try {
+
+        const reviews = await apiFetch(
+            `/products/${encodeURIComponent(product.product_id)}` +
+            "/reviews?limit=20&offset=0"
+        );
+
+        const items = Array.isArray(reviews) ? reviews : [];
+
+        list.innerHTML = renderReviews(items);
+
+        /* Form da tazelensin: yorum silindiyse "gonder"e,
+           eklendiyse "guncelle"ye donmeli. */
+        const form = $("review-form");
+        const mine = findMyReview(items);
+
+        if (form) {
+
+            const holder = document.createElement("div");
+
+            holder.innerHTML = renderReviewForm(
+                product.product_id,
+                mine
+            );
+
+            const fresh = holder.firstElementChild;
+
+            if (fresh) {
+                form.replaceWith(fresh);
+                setupReviewForm(product);
+            }
+        }
+
+
+    } catch (error) {
+
+        console.error("Yorumlar tazelenemedi:", error);
+    }
 }
 
 
@@ -1784,22 +2037,72 @@ async function handleModalAddToCart(product, button) {
    REVIEWS
 ========================================================= */
 
+/**
+ * Yildiz gosterimi. Dolu/bos yildiz, 1-5.
+ *
+ * Veri setinde ondalikli puanlar var (4.3 gibi); en yakin
+ * tam yildiza yuvarliyoruz — yarim yildiz cizmek icin ayri
+ * bir ikon seti gerekirdi.
+ */
+function starRow(rating) {
+
+    const value = Math.round(Number(rating) || 0);
+
+    let out = "";
+
+    for (let i = 1; i <= 5; i += 1) {
+        out += i <= value ? "★" : "☆";
+    }
+
+    return out;
+}
+
+
+function formatReviewDate(value) {
+
+    if (!value) return "";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleDateString("tr-TR", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+    });
+}
+
+
 function renderReviews(reviews) {
 
     if (!Array.isArray(reviews) || !reviews.length) {
 
         return `
-            <p>
-                Bu ürün için yorum bulunamadı.
+            <p class="reviews-empty">
+                Bu ürün için henüz yorum yok. İlk yorumu sen yaz.
             </p>
         `;
     }
 
 
     return reviews
-        .map(review => `
+        .map(review => {
 
-            <div class="review-card">
+            /*
+               Kimin yorumu:
+                 author_name dolu  -> bu sitede yazilmis
+                 author_name None  -> Amazon veri setinden
+               Veri seti yorumlarinda yazar adi YOK, uydurmuyoruz.
+            */
+            const author = review.author_name
+                ? escapeHTML(review.author_name)
+                : "Doğrulanmış alıcı";
+
+            const date = formatReviewDate(review.created_at);
+
+            return `
+            <div class="review-card${review.is_mine ? " mine" : ""}">
 
                 <div class="review-header">
 
@@ -1810,28 +2113,32 @@ function renderReviews(reviews) {
                         )}
                     </strong>
 
-                    <span>
-                        ★ ${
-                            review.rating !== null
-                                ? Number(
-                                    review.rating
-                                ).toFixed(1)
-                                : "-"
-                        }
+                    <span class="review-stars">
+                        ${starRow(review.rating)}
                     </span>
 
                 </div>
 
 
-                ${
-                    review.verified_purchase
-                        ? `
-                            <small>
-                                ✓ Verified Purchase
-                            </small>
-                        `
-                        : ""
-                }
+                <div class="review-meta">
+
+                    <span class="review-author">${author}</span>
+
+                    ${date ? `<span>${escapeHTML(date)}</span>` : ""}
+
+                    ${
+                        review.verified_purchase
+                            ? '<span class="review-verified">✓ Satın aldı</span>'
+                            : ""
+                    }
+
+                    ${
+                        review.is_mine
+                            ? '<span class="review-own-tag">Senin yorumun</span>'
+                            : ""
+                    }
+
+                </div>
 
 
                 ${
@@ -1846,10 +2153,121 @@ function renderReviews(reviews) {
                         : ""
                 }
 
+
+                ${
+                    review.is_mine
+                        ? `
+                            <div class="review-own-actions">
+                                <button
+                                    type="button"
+                                    data-review-edit
+                                >
+                                    Düzenle
+                                </button>
+                                <button
+                                    type="button"
+                                    class="danger"
+                                    data-review-delete
+                                >
+                                    Sil
+                                </button>
+                            </div>
+                        `
+                        : ""
+                }
+
+            </div>
+        `;
+        })
+        .join("");
+}
+
+
+/**
+ * "Yorum yaz" formu.
+ *
+ * Misafire form GOSTERILMIYOR: doldurup gonderemeyecegi bir
+ * formu doldurtmak, girisi en sonda istemek demek olurdu.
+ * Onun yerine giris cagrisi var.
+ *
+ * mine: kullanicinin bu urune yazdigi mevcut yorum (varsa).
+ * Varsa form onun degerleriyle dolu aciliyor — bir kullanici
+ * urun basina tek yorum yazabiliyor, ikinci gonderim
+ * duzenleme oluyor (bkz. uq_review_user_product).
+ */
+function renderReviewForm(productId, mine) {
+
+    if (!isUserLoggedIn()) {
+
+        return `
+            <div class="review-form-login">
+                <p>Bu ürüne yorum yazmak için giriş yapmalısın.</p>
+                <button type="button" id="review-login-btn">
+                    GİRİŞ YAP
+                </button>
+            </div>
+        `;
+    }
+
+
+    const rating = mine ? Math.round(Number(mine.rating) || 0) : 0;
+
+    return `
+        <form
+            class="review-form"
+            id="review-form"
+            data-product-id="${escapeHTML(String(productId))}"
+        >
+
+            <span class="review-form-label">
+                ${mine ? "Yorumunu düzenle" : "Bu ürünü değerlendir"}
+            </span>
+
+
+            <div class="review-stars-input" id="review-stars-input">
+                ${
+                    [1, 2, 3, 4, 5]
+                        .map(value => `
+                            <button
+                                type="button"
+                                class="review-star${value <= rating ? " on" : ""}"
+                                data-rating="${value}"
+                                aria-label="${value} yıldız"
+                            >★</button>
+                        `)
+                        .join("")
+                }
+                <input
+                    type="hidden"
+                    id="review-rating"
+                    value="${rating || ""}"
+                >
             </div>
 
-        `)
-        .join("");
+
+            <input
+                type="text"
+                id="review-title"
+                maxlength="120"
+                placeholder="Başlık (isteğe bağlı)"
+                value="${escapeHTML(mine?.review_title || "")}"
+            >
+
+            <textarea
+                id="review-text"
+                rows="3"
+                maxlength="2000"
+                placeholder="Ürün hakkındaki düşüncelerin..."
+            >${escapeHTML(mine?.review_text || "")}</textarea>
+
+            <p class="review-form-message" id="review-form-message"></p>
+
+            <button type="submit" id="review-submit">
+                ${mine ? "YORUMU GÜNCELLE" : "YORUMU GÖNDER"}
+            </button>
+
+        </form>
+    `;
 }
 
 

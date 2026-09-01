@@ -180,9 +180,10 @@ SEARCH_CATALOG_SCHEMA = {
         },
         "gender": {
             "type": "string",
-            "enum": ["women", "men"],
+            "enum": ["women", "men", "kids"],
             "description": (
-                "Cinsiyet filtresi. Yalnızca konuşmadan AÇIKÇA "
+                "Cinsiyet/bölüm filtresi. \"kids\" çocuk, bebek "
+                "ve gençleri kapsar. Yalnızca konuşmadan AÇIKÇA "
                 "biliyorsan gönder. Emin değilsen boş bırak — "
                 "tahmin etme."
             ),
@@ -560,7 +561,7 @@ def _search_catalog(args: dict, ctx: ToolContext) -> ToolResult:
     # cumlesinde cinsiyet yok ama model biliyor.
     gender = args.get("gender")
 
-    if gender in ("women", "men"):
+    if gender in ("women", "men", "kids"):
         intent.gender = gender
 
     color_label = _apply_color_argument(intent, args.get("color"))
