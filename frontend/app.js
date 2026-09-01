@@ -11319,8 +11319,18 @@ async function sendAiChatMessage(rawText) {
     if (!text || aiChat.sending) return;
 
 
-    /* Başlangıç önerileri ilk mesajdan sonra işini bitirdi */
-    aiChatStarters?.classList.add("hidden");
+    /*
+       Iki giris kapisi GIZLENMIYOR: sohbet boyunca yerinde
+       kaliyor ki kullanici ikinci, ucuncu soruyu da oradan
+       baslatabilsin. Yalnizca acik duran panel kapaniyor.
+
+       NOT: onceki surumde burada `aiChatStarters` vardi ama
+       bu dosyada oyle bir eleman YOK — oneri kapisi
+       #ai-chat-suggest. Akis yeniden yazilirken eski surumun
+       adi kullanilmisti ve her mesaj gonderiminde
+       ReferenceError atiyordu.
+    */
+    collapseAiChatSuggestPanels();
 
 
     appendAiChatMessage({ role: "user", content: text });
