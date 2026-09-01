@@ -26,6 +26,7 @@ from app import (
     crud,
     feed,
     fit_advice,
+    social,
     outfit,
     query_engine,
     schemas,
@@ -41,6 +42,7 @@ from app.models import (
     INTERACTION_QUICK_BUY,
     INTERACTION_UNLIKE,
     CartItem,
+    Message,
     User,
 )
 
@@ -1970,6 +1972,316 @@ def ml_interactions(
 # =========================================================
 # AI KISISELLESTIRME KATMANI  (/api)
 # =========================================================
+
+
+
+# =========================================================
+# SOSYAL KATMAN — ARKADASLIK / MESAJLASMA / URUN PAYLASIMI
+# =========================================================
+#
+# Kurallar app/social.py'de. Buradaki uclar ince: dogrula,
+# cagir, cevir.
+#
+# HEPSI GIRIS ZORUNLU (get_current_user). Misafir sosyal
+# ozellikleri hic gormuyor — arkadaslik ve mesaj kimlik
+# olmadan anlamsiz.
+
+def _social_error(error: social.SocialError) -> HTTPException:
+    """
+    Kural ihlalini HTTP'ye cevirir.
+
+    SocialError kendi durum kodunu tasiyor: 403 (yetkin yok)
+    ile 400 (yanlis istek) ayni sey degil ve arayuz bunlara
+    farkli tepki veriyor.
+    """
+
+    return HTTPException(
+        status_code=error.status,
+        detail=str(error),
+    )
+
+
+def _message_out(
+    message: Message,
+    me_id,
+    product=None,
+) -> schemas.MessageResponse:
+    """Mesaj satirini API sekline cevirir."""
+
+    payload = None
+
+    if product is not None:
+        payload = schemas.MessageProduct(
+            product_id=product.product_id,
+            title=product.title,
+            title_tr=product.title_tr,
+            brand=product.brand,
+            price=product.price,
+            image_url=product.image_url,
+        )
+
+    return schemas.MessageResponse(
+        id=str(message.id),
+        conversation_id=str(message.conversation_id),
+        sender_id=str(message.sender_id),
+        from_me=message.sender_id == me_id,
+        body=message.body,
+        product=payload,
+        created_at=message.created_at,
+        read_at=message.read_at,
+    )
+
+
+# ---------------------------------------------------------
+# ARKADASLIK
+# ---------------------------------------------------------
+
+@app.get(
+    "/social/users/search",
+    response_model=list[schemas.UserSearchResult],
+)
+def social_search_users(
+    q: str = Query(min_length=2, max_length=120),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Arkadas eklemek icin kullanici arar.
+
+    E-posta ile arama TAM eslesme istiyor; ad ile arama kismi.
+    Gerekce social.search_users docstring'inde: kismi e-posta
+    aramasi bir adres hasat araci olurdu.
+    """
+
+    return social.search_users(db=db, me=user, query=q)
+
+
+@app.get(
+    "/social/friends",
+    response_model=list[schemas.PublicUser],
+)
+def social_list_friends(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return social.list_friends(db=db, me=user)
+
+
+@app.get(
+    "/social/requests",
+    response_model=list[schemas.FriendRequest],
+)
+def social_list_requests(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Bana gelen, yanitlanmamis istekler."""
+
+    return social.list_pending(db=db, me=user)
+
+
+@app.post(
+    "/social/requests",
+    status_code=201,
+)
+def social_send_request(
+    payload: schemas.FriendRequestCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Arkadaslik istegi gonderir."""
+
+    try:
+        friendship = social.send_request(
+            db=db, me=user, target_id=payload.user_id
+        )
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return {
+        "friendship_id": str(friendship.id),
+        "status": friendship.status,
+    }
+
+
+@app.post("/social/requests/{friendship_id}")
+def social_respond_request(
+    friendship_id: uuid.UUID,
+    payload: schemas.FriendRequestResponse,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Istegi kabul eder veya reddeder.
+
+    Yalnizca ALICI cagirabilir; gonderen kendi istegini
+    kabul edemez (social.respond_request kontrol ediyor).
+    """
+
+    try:
+        friendship = social.respond_request(
+            db=db,
+            me=user,
+            friendship_id=friendship_id,
+            accept=payload.accept,
+        )
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return {
+        "friendship_id": str(friendship.id),
+        "status": friendship.status,
+    }
+
+
+@app.delete(
+    "/social/friends/{other_id}",
+    status_code=204,
+)
+def social_remove_friend(
+    other_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Arkadasliktan cikarir.
+
+    Sohbet gecmisi SILINMIYOR — yazisma arkadaslik durumuna
+    bagli degil. Yeni mesaj gonderilemez, eskiler durur.
+    """
+
+    try:
+        social.remove_friend(db=db, me=user, other_id=other_id)
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return None
+
+
+# ---------------------------------------------------------
+# MESAJLASMA
+# ---------------------------------------------------------
+
+@app.get(
+    "/social/conversations",
+    response_model=list[schemas.ConversationSummary],
+)
+def social_list_conversations(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Gelen kutusu.
+
+    Sohbet basina son mesaj ve okunmamis sayisi AYNI sorguda
+    geliyor (LATERAL + korele alt sorgu). Ayri ayri sorulsa
+    20 sohbet 41 sorgu ederdi.
+    """
+
+    return social.list_conversations(db=db, me=user)
+
+
+@app.get(
+    "/social/unread",
+    response_model=schemas.UnreadCountResponse,
+)
+def social_unread(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Header rozeti icin toplam okunmamis."""
+
+    return schemas.UnreadCountResponse(
+        unread=social.unread_total(db=db, me=user)
+    )
+
+
+@app.get(
+    "/social/conversations/{conversation_id}",
+    response_model=schemas.ConversationDetail,
+)
+def social_get_conversation(
+    conversation_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Sohbeti acar ve okundu isaretler.
+
+    Acilis okundu sayilir: ayri bir "okundu" istegi atmak
+    fazladan bir tur demek ve kullanici zaten mesajlari
+    goruyor.
+    """
+
+    try:
+        conversation, messages = social.list_messages(
+            db=db, me=user, conversation_id=conversation_id
+        )
+
+        social.mark_read(
+            db=db, me=user, conversation_id=conversation_id
+        )
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    other = db.get(
+        User, social.other_party(conversation, user)
+    )
+
+    return schemas.ConversationDetail(
+        id=str(conversation.id),
+        user=schemas.PublicUser(**social.public_user(other)),
+        messages=[
+            _message_out(message, user.id, message.product)
+            for message in messages
+        ],
+    )
+
+
+@app.post(
+    "/social/messages",
+    response_model=schemas.SendMessageResponse,
+    status_code=201,
+)
+def social_send_message(
+    payload: schemas.SendMessageRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Mesaj gonderir — metin, urun ya da ikisi.
+
+    URUN PAYLASIMI da bu uctan geciyor: ayri bir
+    /social/share ucu yapmadik cunku yapilan is ayni
+    (sohbeti bul, satir yaz) ve iki uc iki kod yolu demek
+    olurdu. Fark yalnizca product_id'nin dolu olmasi.
+
+    Arkadaslik kontrolu social.send_message icinde: arkadas
+    olmayana mesaj gitmiyor.
+    """
+
+    try:
+        conversation, message = social.send_message(
+            db=db,
+            me=user,
+            to_user_id=payload.to_user_id,
+            conversation_id=payload.conversation_id,
+            body=payload.body,
+            product_id=payload.product_id,
+        )
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return schemas.SendMessageResponse(
+        conversation_id=str(conversation.id),
+        message=_message_out(message, user.id, message.product),
+    )
+
 
 api = APIRouter(prefix="/api", tags=["ai"])
 

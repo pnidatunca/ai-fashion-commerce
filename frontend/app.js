@@ -222,6 +222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupNavigation();
     setupSearch();
     setupAiChat();
+    setupSocial();
     setupSearchAlternatives();
     setupScrollTop();
     setupCategories();
@@ -255,6 +256,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     /* Alt barin kucuk gorselleri icin tam liste */
     refreshWishlistItems();
+
+    /* Okunmamis mesaj rozeti. Hem acilista hem oturum
+       degisiminde tazeleniyor: cikis yapinca rozet
+       birinin okunmamislarini gostermeye devam etmemeli. */
+    refreshSocialBadge();
 
     /* Arketip: feed'den ONCE bilinmeli ki ilk istek
        dogru skorlarla gelsin */
@@ -1754,6 +1760,19 @@ function renderProductModal(
                     FAVORİLERE EKLE
                 </button>
 
+
+                <!-- Urunu arkadasa gonder. Secim penceresi
+                     #share-overlay; oradan /social/messages'a
+                     product_id ile gidiyor. -->
+                <button
+                    type="button"
+                    class="modal-wishlist-btn"
+                    id="modal-share-btn"
+                >
+                    <i class="fa-regular fa-paper-plane"></i>
+                    ARKADAŞINA GÖNDER
+                </button>
+
             </div>
 
         </div>
@@ -1792,6 +1811,9 @@ function renderProductModal(
             handleModalAddToCart(product, event.currentTarget)
         );
 
+
+    $("modal-share-btn")
+        ?.addEventListener("click", () => openShare(product));
 
     setupModalWishlistButton(product);
 
@@ -9372,6 +9394,11 @@ async function onSessionChanged() {
     /* Alt barin kucuk gorselleri icin tam liste */
     refreshWishlistItems();
 
+    /* Okunmamis mesaj rozeti. Hem acilista hem oturum
+       degisiminde tazeleniyor: cikis yapinca rozet
+       birinin okunmamislarini gostermeye devam etmemeli. */
+    refreshSocialBadge();
+
     await syncArchetypeAfterLogin();
 
 
@@ -12326,4 +12353,1074 @@ function scrollAiChatToBottom() {
     requestAnimationFrame(() => {
         aiChatLog.scrollTop = aiChatLog.scrollHeight;
     });
+}
+
+
+/* =========================================================
+   SOSYAL — ARKADAŞLIK, MESAJLAŞMA, ÜRÜN PAYLAŞIMI
+
+   Backend: /social/* uçları (backend/app/main.py),
+   kurallar backend/app/social.py'de.
+
+   TEK PANEL, İKİ GÖRÜNÜM
+     #social-home    sekmeler (sohbetler / arkadaşlar / istekler)
+     #social-thread  tek sohbet + yazma alanı
+   Gardırop'taki look/swap deseninin aynısı.
+
+   POLLING YOK
+   Gerçek zamanlı mesajlaşma WebSocket ister. Bu sürümde yok:
+   panel açıldığında ve mesaj gönderildiğinde yeniden
+   yükleniyor, okunmamış rozeti sayfa yüklenişinde bir kez
+   çekiliyor. Sürekli polling, kullanıcı paneli hiç açmasa
+   bile sunucuya dakikada bir istek demek olurdu; karşılığı
+   olmayan bir maliyet. Canlı bildirim istenirse doğru adım
+   WebSocket, daha sık polling değil.
+========================================================= */
+
+const socialState = {
+    open: false,
+
+    /* "chats" | "friends" | "requests" */
+    tab: "chats",
+
+    /* Açık sohbet: {id, user} — null ise liste görünümü */
+    thread: null,
+
+    sending: false,
+
+    /* Ürün paylaşımı için seçili ürün */
+    shareProduct: null,
+};
+
+
+function setupSocial() {
+
+    $("social-btn")?.addEventListener("click", openSocial);
+    $("close-social")?.addEventListener("click", closeSocial);
+    $("social-back")?.addEventListener("click", showSocialHome);
+
+    $("social-overlay")?.addEventListener("click", event => {
+
+        if (event.target === $("social-overlay")) {
+            closeSocial();
+        }
+    });
+
+
+    /* Sekmeler */
+    document
+        .querySelectorAll("[data-social-tab]")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+                setSocialTab(button.dataset.socialTab);
+            });
+        });
+
+
+    /* Kullanıcı arama — her tuşta istek atmıyoruz */
+    let searchTimer = null;
+
+    $("social-search-input")?.addEventListener("input", event => {
+
+        clearTimeout(searchTimer);
+
+        const value = event.target.value;
+
+        /*
+           300ms bekleme: "nurgul" yazmak 6 tuş, yani 6 istek
+           demekti. Kullanıcı yazmayı bıraktığında tek istek
+           gidiyor.
+        */
+        searchTimer = setTimeout(
+            () => runSocialSearch(value),
+            300
+        );
+    });
+
+
+    /* Liste tıklamaları — olay delegasyonu, satırlar
+       her yüklemede yeniden çiziliyor */
+    $("social-conversations")
+        ?.addEventListener("click", handleConversationClick);
+
+    $("social-friends")
+        ?.addEventListener("click", handleFriendListClick);
+
+    $("social-search-results")
+        ?.addEventListener("click", handleFriendListClick);
+
+    $("social-requests")
+        ?.addEventListener("click", handleRequestClick);
+
+    $("social-messages")
+        ?.addEventListener("click", handleSocialMessageClick);
+
+
+    /* Mesaj gönderme */
+    $("social-composer")?.addEventListener("submit", event => {
+
+        event.preventDefault();
+
+        sendSocialMessage();
+    });
+
+    $("social-input")?.addEventListener("keydown", event => {
+
+        if (event.key === "Enter" && !event.shiftKey) {
+
+            event.preventDefault();
+
+            sendSocialMessage();
+        }
+    });
+
+
+    /* Ürün paylaşma penceresi */
+    $("close-share")?.addEventListener("click", closeShare);
+
+    $("share-overlay")?.addEventListener("click", event => {
+
+        if (event.target === $("share-overlay")) {
+            closeShare();
+        }
+    });
+
+    $("share-friends")?.addEventListener("click", handleShareClick);
+}
+
+
+/* =========================================================
+   PANEL AÇ / KAPA
+========================================================= */
+
+function openSocial() {
+
+    if (!isUserLoggedIn()) {
+
+        requestLoginForInteraction(
+            null,
+            "Mesajlar için giriş yapmalısın."
+        );
+
+        return;
+    }
+
+    $("social-overlay")?.classList.add("open");
+
+    socialState.open = true;
+
+    showSocialHome();
+
+    loadSocialHome();
+}
+
+
+function closeSocial() {
+
+    $("social-overlay")?.classList.remove("open");
+
+    socialState.open = false;
+}
+
+
+function showSocialHome() {
+
+    socialState.thread = null;
+
+    $("social-home")?.classList.remove("hidden");
+    $("social-thread")?.classList.add("hidden");
+    $("social-back")?.classList.add("hidden");
+
+    const title = $("social-title");
+
+    if (title) title.textContent = "Mesajlar";
+}
+
+
+function setSocialTab(tab) {
+
+    socialState.tab = tab;
+
+    document
+        .querySelectorAll("[data-social-tab]")
+        .forEach(button => {
+
+            button.classList.toggle(
+                "active",
+                button.dataset.socialTab === tab
+            );
+        });
+
+    document
+        .querySelectorAll("[data-social-pane]")
+        .forEach(pane => {
+
+            pane.classList.toggle(
+                "hidden",
+                pane.dataset.socialPane !== tab
+            );
+        });
+
+    loadSocialHome();
+}
+
+
+/**
+ * Açık sekmenin verisini yükler.
+ *
+ * Yalnızca GÖRÜNEN sekme çekiliyor: panel açılışında üç
+ * isteği birden atmak, kullanıcının bakmadığı iki listeyi
+ * de yüklemek olurdu.
+ */
+async function loadSocialHome() {
+
+    if (socialState.tab === "chats") {
+        await loadConversations();
+    } else if (socialState.tab === "friends") {
+        await loadFriends();
+    } else {
+        await loadRequests();
+    }
+
+    /* İstek rozeti sekmeden bağımsız: kullanıcı "İstekler"e
+       bakmasa da orada bir şey olduğunu görmeli. */
+    refreshRequestBadge();
+}
+
+
+/* =========================================================
+   SOHBET LİSTESİ
+========================================================= */
+
+async function loadConversations() {
+
+    const box = $("social-conversations");
+
+    if (!box) return;
+
+    box.innerHTML = `<p class="social-empty">Yükleniyor...</p>`;
+
+    try {
+
+        const rows = await apiFetch("/social/conversations");
+
+        if (!rows.length) {
+
+            box.innerHTML = `
+                <p class="social-empty">
+                    Henüz mesajın yok. Arkadaşlar sekmesinden
+                    birini bulup sohbet başlatabilirsin.
+                </p>
+            `;
+
+            return;
+        }
+
+        box.innerHTML = rows
+            .map(renderConversationRow)
+            .join("");
+
+    } catch (error) {
+
+        console.error("Sohbetler yüklenemedi:", error);
+
+        box.innerHTML = `
+            <p class="social-empty">Sohbetler yüklenemedi.</p>
+        `;
+    }
+}
+
+
+function renderConversationRow(row) {
+
+    const preview = row.last_from_me
+        ? `Sen: ${row.last_message}`
+        : row.last_message;
+
+    return `
+        <button
+            type="button"
+            class="social-row"
+            data-conversation="${escapeHTML(row.id)}"
+            data-name="${escapeHTML(row.user.name)}"
+        >
+            <span class="social-avatar">
+                ${escapeHTML(row.user.initials)}
+            </span>
+
+            <span class="social-row-body">
+                <strong>${escapeHTML(row.user.name)}</strong>
+                <small>${escapeHTML(preview || "—")}</small>
+            </span>
+
+            ${
+                row.unread
+                    ? `<span class="social-unread">${row.unread}</span>`
+                    : ""
+            }
+        </button>
+    `;
+}
+
+
+function handleConversationClick(event) {
+
+    const row = event.target.closest("[data-conversation]");
+
+    if (!row) return;
+
+    openThread(row.dataset.conversation, row.dataset.name);
+}
+
+
+/* =========================================================
+   ARKADAŞLAR + ARAMA
+========================================================= */
+
+async function loadFriends() {
+
+    const box = $("social-friends");
+
+    if (!box) return;
+
+    try {
+
+        const friends = await apiFetch("/social/friends");
+
+        if (!friends.length) {
+
+            box.innerHTML = `
+                <p class="social-empty">
+                    Henüz arkadaşın yok. Yukarıdan isim veya
+                    e-posta ile arayabilirsin.
+                </p>
+            `;
+
+            return;
+        }
+
+        box.innerHTML =
+            `<span class="quick-section-label">ARKADAŞLARIN</span>` +
+            friends
+                .map(user => renderPersonRow(user, "friends"))
+                .join("");
+
+    } catch (error) {
+
+        console.error("Arkadaşlar yüklenemedi:", error);
+    }
+}
+
+
+async function runSocialSearch(query) {
+
+    const box = $("social-search-results");
+
+    if (!box) return;
+
+    const cleaned = String(query || "").trim();
+
+    /* Backend en az 2 karakter istiyor; boşuna istek atma */
+    if (cleaned.length < 2) {
+
+        box.classList.add("hidden");
+        box.innerHTML = "";
+
+        return;
+    }
+
+    try {
+
+        const results = await apiGet("/social/users/search", {
+            q: cleaned,
+        });
+
+        box.classList.remove("hidden");
+
+        if (!results.length) {
+
+            box.innerHTML = `
+                <p class="social-empty">Kullanıcı bulunamadı.</p>
+            `;
+
+            return;
+        }
+
+        box.innerHTML =
+            `<span class="quick-section-label">SONUÇLAR</span>` +
+            results
+                .map(user => renderPersonRow(user, user.relation))
+                .join("");
+
+    } catch (error) {
+
+        console.error("Arama başarısız:", error);
+    }
+}
+
+
+/**
+ * Kişi satırı. Sağdaki buton İLİŞKİ DURUMUNA göre değişiyor.
+ *
+ * Durumu backend söylüyor (relation alanı) — frontend kendi
+ * hesaplamıyor. Aynı gerekçe arama analizinde de vardı:
+ * kuralı bilen taraf tek olsun.
+ */
+function renderPersonRow(user, relation) {
+
+    let action = "";
+
+    if (relation === "none" || relation === "declined") {
+
+        action = `
+            <button
+                type="button"
+                class="social-action"
+                data-add-friend="${escapeHTML(user.id)}"
+            >
+                Ekle
+            </button>
+        `;
+
+    } else if (relation === "outgoing") {
+
+        action = `<span class="social-note">İstek gönderildi</span>`;
+
+    } else if (relation === "incoming") {
+
+        action = `
+            <button
+                type="button"
+                class="social-action"
+                data-accept="${escapeHTML(user.friendship_id || "")}"
+            >
+                Kabul et
+            </button>
+        `;
+
+    } else if (relation === "friends") {
+
+        action = `
+            <button
+                type="button"
+                class="social-action ghost"
+                data-message="${escapeHTML(user.id)}"
+                data-name="${escapeHTML(user.name)}"
+            >
+                Mesaj
+            </button>
+        `;
+    }
+
+    return `
+        <div class="social-row static">
+
+            <span class="social-avatar">
+                ${escapeHTML(user.initials)}
+            </span>
+
+            <span class="social-row-body">
+                <strong>${escapeHTML(user.name)}</strong>
+            </span>
+
+            ${action}
+        </div>
+    `;
+}
+
+
+async function handleFriendListClick(event) {
+
+    const add = event.target.closest("[data-add-friend]");
+
+    if (add) {
+
+        add.disabled = true;
+
+        try {
+
+            await apiFetch("/social/requests", {
+                method: "POST",
+                body: JSON.stringify({
+                    user_id: add.dataset.addFriend,
+                }),
+            });
+
+            showToast({
+                title: "İstek gönderildi",
+                tone: "success",
+            });
+
+            runSocialSearch($("social-search-input")?.value || "");
+
+        } catch (error) {
+
+            add.disabled = false;
+
+            showToast({
+                title: "Gönderilemedi",
+                message: error?.message || "",
+                tone: "neutral",
+            });
+        }
+
+        return;
+    }
+
+
+    const accept = event.target.closest("[data-accept]");
+
+    if (accept) {
+
+        await respondToRequest(accept.dataset.accept, true);
+
+        return;
+    }
+
+
+    const message = event.target.closest("[data-message]");
+
+    if (message) {
+
+        /*
+           Sohbet henüz olmayabilir. Panelde boş bir eşik
+           açıyoruz; ilk mesaj gönderilince backend sohbeti
+           kendisi oluşturuyor (get_or_create_conversation).
+        */
+        openThread(
+            null,
+            message.dataset.name,
+            message.dataset.message
+        );
+    }
+}
+
+
+/* =========================================================
+   İSTEKLER
+========================================================= */
+
+async function loadRequests() {
+
+    const box = $("social-requests");
+
+    if (!box) return;
+
+    try {
+
+        const rows = await apiFetch("/social/requests");
+
+        if (!rows.length) {
+
+            box.innerHTML = `
+                <p class="social-empty">
+                    Bekleyen arkadaşlık isteğin yok.
+                </p>
+            `;
+
+            return;
+        }
+
+        box.innerHTML = rows
+            .map(row => `
+                <div class="social-row static">
+
+                    <span class="social-avatar">
+                        ${escapeHTML(row.initials)}
+                    </span>
+
+                    <span class="social-row-body">
+                        <strong>${escapeHTML(row.name)}</strong>
+                        <small>arkadaş olmak istiyor</small>
+                    </span>
+
+                    <button
+                        type="button"
+                        class="social-action"
+                        data-accept="${escapeHTML(row.friendship_id)}"
+                    >
+                        Kabul
+                    </button>
+
+                    <button
+                        type="button"
+                        class="social-action ghost"
+                        data-decline="${escapeHTML(row.friendship_id)}"
+                    >
+                        Yoksay
+                    </button>
+                </div>
+            `)
+            .join("");
+
+    } catch (error) {
+
+        console.error("İstekler yüklenemedi:", error);
+    }
+}
+
+
+function handleRequestClick(event) {
+
+    const accept = event.target.closest("[data-accept]");
+
+    if (accept) {
+        respondToRequest(accept.dataset.accept, true);
+        return;
+    }
+
+    const decline = event.target.closest("[data-decline]");
+
+    if (decline) {
+        respondToRequest(decline.dataset.decline, false);
+    }
+}
+
+
+async function respondToRequest(friendshipId, accept) {
+
+    if (!friendshipId) return;
+
+    try {
+
+        await apiFetch(`/social/requests/${friendshipId}`, {
+            method: "POST",
+            body: JSON.stringify({ accept }),
+        });
+
+        showToast({
+            title: accept ? "Arkadaş eklendi" : "İstek yoksayıldı",
+            tone: accept ? "success" : "neutral",
+        });
+
+        loadSocialHome();
+
+    } catch (error) {
+
+        showToast({
+            title: "İşlem başarısız",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+    }
+}
+
+
+async function refreshRequestBadge() {
+
+    const badge = $("social-requests-badge");
+
+    if (!badge) return;
+
+    try {
+
+        const rows = await apiFetch("/social/requests");
+
+        badge.textContent = rows.length;
+        badge.classList.toggle("hidden", rows.length === 0);
+
+    } catch (error) {
+        badge.classList.add("hidden");
+    }
+}
+
+
+/* =========================================================
+   SOHBET GÖRÜNÜMÜ
+========================================================= */
+
+/**
+ * Sohbeti açar.
+ *
+ * conversationId null olabilir: arkadaş listesinden "Mesaj"
+ * denince henüz sohbet yoktur. O durumda boş bir eşik
+ * gösteriliyor ve ilk mesajla birlikte backend sohbeti
+ * oluşturuyor.
+ */
+async function openThread(conversationId, name, userId = null) {
+
+    socialState.thread = {
+        id: conversationId,
+        userId,
+        name: name || "Sohbet",
+    };
+
+    $("social-home")?.classList.add("hidden");
+    $("social-thread")?.classList.remove("hidden");
+    $("social-back")?.classList.remove("hidden");
+
+    const title = $("social-title");
+
+    if (title) title.textContent = socialState.thread.name;
+
+    const box = $("social-messages");
+
+    if (!conversationId) {
+
+        if (box) {
+            box.innerHTML = `
+                <p class="social-empty">
+                    İlk mesajı sen yaz.
+                </p>
+            `;
+        }
+
+        $("social-input")?.focus();
+
+        return;
+    }
+
+    if (box) {
+        box.innerHTML = `<p class="social-empty">Yükleniyor...</p>`;
+    }
+
+    try {
+
+        const data = await apiFetch(
+            `/social/conversations/${conversationId}`
+        );
+
+        socialState.thread.userId = data.user.id;
+
+        renderThreadMessages(data.messages || []);
+
+        /* Açılış okundu sayıldı; header rozetini tazele */
+        refreshSocialBadge();
+
+    } catch (error) {
+
+        console.error("Sohbet açılamadı:", error);
+
+        if (box) {
+            box.innerHTML = `
+                <p class="social-empty">Sohbet açılamadı.</p>
+            `;
+        }
+    }
+
+    $("social-input")?.focus();
+}
+
+
+function renderThreadMessages(messages) {
+
+    const box = $("social-messages");
+
+    if (!box) return;
+
+    if (!messages.length) {
+
+        box.innerHTML = `
+            <p class="social-empty">İlk mesajı sen yaz.</p>
+        `;
+
+        return;
+    }
+
+    box.innerHTML = messages.map(renderSocialMessage).join("");
+
+    /* requestAnimationFrame: düğümler yerleşmeden
+       scrollHeight eski değeri verir */
+    requestAnimationFrame(() => {
+        box.scrollTop = box.scrollHeight;
+    });
+}
+
+
+function renderSocialMessage(message) {
+
+    const side = message.from_me ? "me" : "them";
+
+    const product = message.product;
+
+    /*
+       ÜRÜN KARTI. Mesaj başına en fazla bir ürün — bu bir
+       şema garantisi (messages.product_id tek kolon), arayüz
+       varsayımı değil.
+    */
+    const productHtml = product
+        ? `
+            <button
+                type="button"
+                class="social-product"
+                data-social-product="${escapeHTML(product.product_id)}"
+            >
+                <img
+                    src="${escapeHTML(safeImage(product.image_url))}"
+                    alt=""
+                    loading="lazy"
+                >
+
+                <span class="social-product-body">
+                    <small>${escapeHTML(product.brand || "")}</small>
+                    <strong>${escapeHTML(productTitle(product))}</strong>
+                    <span>${escapeHTML(
+                        hasPrice(product)
+                            ? formatPrice(product.price)
+                            : ""
+                    )}</span>
+                </span>
+            </button>
+        `
+        : "";
+
+    return `
+        <div class="social-msg ${side}">
+
+            ${productHtml}
+
+            ${
+                message.body
+                    ? `<div class="social-bubble">${escapeHTML(message.body)}</div>`
+                    : ""
+            }
+        </div>
+    `;
+}
+
+
+function handleSocialMessageClick(event) {
+
+    const card = event.target.closest("[data-social-product]");
+
+    if (!card) return;
+
+    /*
+       Ürün modalı sosyal panelin ÜZERİNDE açılıyor. Panel
+       kapanmıyor: kullanıcı modalı kapatınca sohbete kaldığı
+       yerden dönsün.
+    */
+    openProduct(card.dataset.socialProduct);
+}
+
+
+async function sendSocialMessage() {
+
+    const input = $("social-input");
+
+    const text = (input?.value || "").trim();
+
+    if (!text || socialState.sending || !socialState.thread) return;
+
+    socialState.sending = true;
+
+    const sendButton = $("social-send");
+
+    if (sendButton) sendButton.disabled = true;
+
+    try {
+
+        const payload = socialState.thread.id
+            ? { conversation_id: socialState.thread.id, body: text }
+            : { to_user_id: socialState.thread.userId, body: text };
+
+        const data = await apiFetch("/social/messages", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        if (input) input.value = "";
+
+        /* İlk mesajda sohbet yeni oluştu; kimliğini sakla */
+        socialState.thread.id = data.conversation_id;
+
+        await openThread(
+            data.conversation_id,
+            socialState.thread.name
+        );
+
+    } catch (error) {
+
+        showToast({
+            title: "Mesaj gönderilemedi",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+
+    } finally {
+
+        socialState.sending = false;
+
+        if (sendButton) sendButton.disabled = false;
+    }
+}
+
+
+/* =========================================================
+   OKUNMAMIŞ ROZETİ
+========================================================= */
+
+async function refreshSocialBadge() {
+
+    const badge = document.querySelector(".social-number");
+
+    if (!badge) return;
+
+    if (!isUserLoggedIn()) {
+        badge.classList.add("hidden");
+        return;
+    }
+
+    try {
+
+        const data = await apiFetch("/social/unread");
+
+        const count = Number(data?.unread || 0);
+
+        badge.textContent = count;
+        badge.classList.toggle("hidden", count === 0);
+
+    } catch (error) {
+        badge.classList.add("hidden");
+    }
+}
+
+
+/* =========================================================
+   ÜRÜN PAYLAŞIMI
+========================================================= */
+
+/**
+ * Ürün detayındaki "Arkadaşına Gönder" düğmesinden açılıyor.
+ *
+ * Arkadaş listesi HER AÇILIŞTA tazeleniyor: kullanıcı bu
+ * arada yeni birini eklemiş olabilir ve eski listeyi
+ * göstermek "arkadaşım yok" gibi yanlış bir izlenim verirdi.
+ */
+async function openShare(product) {
+
+    if (!isUserLoggedIn()) {
+
+        requestLoginForInteraction(
+            null,
+            "Ürün paylaşmak için giriş yapmalısın."
+        );
+
+        return;
+    }
+
+    socialState.shareProduct = product;
+
+    const preview = $("share-product");
+
+    if (preview) {
+
+        preview.innerHTML = `
+            <img
+                src="${escapeHTML(safeImage(product.image_url))}"
+                alt=""
+            >
+            <div>
+                <strong>${escapeHTML(productTitle(product))}</strong>
+                <span>${escapeHTML(
+                    hasPrice(product) ? formatPrice(product.price) : ""
+                )}</span>
+            </div>
+        `;
+    }
+
+    const note = $("share-note");
+
+    if (note) note.value = "";
+
+    $("share-overlay")?.classList.add("open");
+
+    const box = $("share-friends");
+
+    if (box) {
+        box.innerHTML = `<p class="social-empty">Yükleniyor...</p>`;
+    }
+
+    try {
+
+        const friends = await apiFetch("/social/friends");
+
+        if (!friends.length) {
+
+            box.innerHTML = `
+                <p class="social-empty">
+                    Henüz arkadaşın yok. Mesajlar panelinden
+                    arkadaş ekleyebilirsin.
+                </p>
+            `;
+
+            return;
+        }
+
+        box.innerHTML = friends
+            .map(user => `
+                <button
+                    type="button"
+                    class="social-row"
+                    data-share-to="${escapeHTML(user.id)}"
+                    data-name="${escapeHTML(user.name)}"
+                >
+                    <span class="social-avatar">
+                        ${escapeHTML(user.initials)}
+                    </span>
+
+                    <span class="social-row-body">
+                        <strong>${escapeHTML(user.name)}</strong>
+                    </span>
+
+                    <span class="social-note">Gönder</span>
+                </button>
+            `)
+            .join("");
+
+    } catch (error) {
+
+        console.error("Arkadaşlar yüklenemedi:", error);
+    }
+}
+
+
+function closeShare() {
+
+    $("share-overlay")?.classList.remove("open");
+
+    socialState.shareProduct = null;
+}
+
+
+async function handleShareClick(event) {
+
+    const row = event.target.closest("[data-share-to]");
+
+    if (!row || !socialState.shareProduct) return;
+
+    row.disabled = true;
+
+    try {
+
+        await apiFetch("/social/messages", {
+            method: "POST",
+            body: JSON.stringify({
+                to_user_id: row.dataset.shareTo,
+                product_id: socialState.shareProduct.product_id,
+                body: ($("share-note")?.value || "").trim() || null,
+            }),
+        });
+
+        closeShare();
+
+        showToast({
+            title: "Gönderildi",
+            message: `${row.dataset.name} kişisine ürünü yolladın.`,
+            tone: "success",
+        });
+
+        refreshSocialBadge();
+
+    } catch (error) {
+
+        row.disabled = false;
+
+        showToast({
+            title: "Gönderilemedi",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+    }
 }

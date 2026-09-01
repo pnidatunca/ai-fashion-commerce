@@ -1284,3 +1284,186 @@ class OutfitResponse(BaseModel):
     # uygun tamamlayici bulamadim" diyip kaydet dugmesini
     # hic gostermiyor.
     count: int
+
+
+# =========================================================
+# SOSYAL KATMAN — ARKADASLIK / MESAJLASMA
+# =========================================================
+#
+# Kurallar app/social.py'de, tablolar models.py'de.
+# Burada yalnizca disari acilan sozlesme var.
+
+class PublicUser(BaseModel):
+    """
+    Baskasina gosterilen kullanici.
+
+    E-POSTA YOK ve bu bilincli: arkadas arama sonuclari ile
+    mesaj basliklari, kullanicinin adresini gormeyi hak
+    etmeyen kisilere de gorunuyor. Ayni karar
+    ReviewResponse'ta da alinmisti.
+    """
+
+    id: str
+    name: str
+    initials: str
+
+
+class UserSearchResult(PublicUser):
+    """
+    Arama sonucu — mevcut iliski durumuyla birlikte.
+
+    relation arayuzun hangi dugmeyi cizecegini belirliyor:
+
+        none      -> "Arkadaş Ekle"
+        outgoing  -> "İstek gönderildi" (pasif)
+        incoming  -> "Kabul Et"  (friendship_id dolu)
+        friends   -> "Arkadaşınız"
+        declined  -> "Arkadaş Ekle" (tekrar denenebilir)
+    """
+
+    relation: str
+
+    # Yalnizca incoming durumunda dolu.
+    friendship_id: str | None = None
+
+
+class FriendRequestCreate(BaseModel):
+    user_id: UUID
+
+
+class FriendRequest(PublicUser):
+    friendship_id: str
+    created_at: datetime
+
+
+class FriendRequestResponse(BaseModel):
+    """Kabul mu red mi."""
+
+    accept: bool
+
+
+# =========================================================
+# MESAJLASMA
+# =========================================================
+
+class MessageProduct(BaseModel):
+    """
+    Mesajin icindeki urun karti.
+
+    ProductResponse DEGIL: sohbet balonunda yalnizca gorsel,
+    ad, marka ve fiyat gorunuyor. Tam urun sozlesmesini
+    tasimak her mesajda kilobaytlarca description ve
+    search_text goturmek olurdu. Karta basildiginda arayuz
+    /products/{id} ile tam kaydi zaten cekiyor.
+
+    Ayni gerekce ChatProduct icin de yazilmisti.
+    """
+
+    product_id: str
+    title: str
+    title_tr: str | None = None
+    brand: str | None = None
+    price: float | None = None
+    image_url: str | None = None
+
+
+class MessageResponse(BaseModel):
+    id: str
+    conversation_id: str
+
+    sender_id: str
+
+    # Arayuz balonu saga mi sola mi hizalayacak. sender_id ile
+    # de hesaplanabilirdi ama o zaman istemcinin kendi
+    # kimligini bilmesi ve karsilastirmasi gerekirdi; sunucu
+    # zaten biliyor.
+    from_me: bool
+
+    body: str | None = None
+
+    # PAYLASILAN URUN. Mesaj basina en fazla BIR tane —
+    # bu bir sema garantisi, uygulama kurali degil
+    # (bkz. models.py Message.product_id notu).
+    product: MessageProduct | None = None
+
+    created_at: datetime
+    read_at: datetime | None = None
+
+
+class ConversationSummary(BaseModel):
+    """Gelen kutusundaki tek satir."""
+
+    id: str
+
+    user: PublicUser
+
+    last_message: str = ""
+    last_message_at: datetime
+
+    unread: int = 0
+
+    # Son mesaji ben mi yazdim — arayuz "Sen: ..." on eki
+    # koyuyor.
+    last_from_me: bool = False
+
+
+class ConversationDetail(BaseModel):
+    id: str
+    user: PublicUser
+    messages: list[MessageResponse] = []
+
+
+class SendMessageRequest(BaseModel):
+    """
+    Mesaj gonderme.
+
+    ALICI IKI SEKILDE verilebiliyor:
+      conversation_id -> mevcut sohbete yaz
+      to_user_id      -> kisiye yaz (sohbet yoksa acilir)
+
+    Ikisi de yoksa istek reddediliyor. Urun paylasimi
+    genelde ikinci yoldan geliyor: kullanici urun
+    sayfasindan "arkadasima gonder" diyor ve o an bir
+    sohbet olmayabilir.
+    """
+
+    conversation_id: UUID | None = None
+    to_user_id: UUID | None = None
+
+    body: str | None = Field(default=None, max_length=2000)
+
+    product_id: str | None = Field(default=None, max_length=64)
+
+    @field_validator("body")
+    @classmethod
+    def _strip_body(cls, value):
+
+        if value is None:
+            return None
+
+        return value.strip() or None
+
+    @model_validator(mode="after")
+    def _require_content_and_target(self):
+
+        # Bos mesaj: veritabaninda da CHECK var
+        # (ck_messages_not_empty) ama hatayi 500 yerine 422
+        # olarak ve anlasilir bir mesajla vermek istiyoruz.
+        if not self.body and not self.product_id:
+            raise ValueError(
+                "Mesaj metni veya ürün göndermelisin."
+            )
+
+        if self.conversation_id is None and self.to_user_id is None:
+            raise ValueError("Alıcı belirtilmedi.")
+
+        return self
+
+
+class SendMessageResponse(BaseModel):
+    conversation_id: str
+    message: MessageResponse
+
+
+class UnreadCountResponse(BaseModel):
+    unread: int = 0

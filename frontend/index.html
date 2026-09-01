@@ -287,6 +287,25 @@
             </button>
 
 
+
+            <!-- Mesajlar
+                 Arkadaslik ve birebir yazisma. Rozet
+                 okunmamis mesaj sayisi (bkz. /social/unread). -->
+
+            <button
+                type="button"
+                class="icon-button"
+                id="social-btn"
+                aria-label="Mesajlar"
+            >
+                <i class="fa-regular fa-comment-dots"></i>
+
+                <span class="social-number hidden">
+                    0
+                </span>
+            </button>
+
+
             <!-- Sepet -->
 
             <button
@@ -2880,6 +2899,233 @@
 <!-- ?v= surum parametresi: tarayici app.js'i agresif
      onbellekliyor ve yeni ozellikler "calismiyor" gibi
      gorunuyordu. Kod degistiginde bu sayiyi artir. -->
+
+
+<!-- =========================================================
+     SOSYAL — MESAJLAR / ARKADASLAR
+
+     Kabuk olarak .wishlist-overlay / .wishlist-panel yeniden
+     kullaniliyor (Gardirop da oyle yapiyor): ayni cekmece
+     davranisi icin ucuncu bir kopya CSS yazmanin anlami yok.
+
+     IKI GORUNUM, tek panel:
+       #social-home    sekmeler (sohbetler / arkadaslar / istekler)
+       #social-thread  tek sohbet + yazma alani
+     Ikincisi acilinca birincisi gizleniyor — Gardirop'taki
+     look/swap deseninin aynisi.
+========================================================= -->
+
+<div
+    class="wishlist-overlay"
+    id="social-overlay"
+>
+
+    <div class="wishlist-panel">
+
+        <div class="cart-header">
+
+            <!-- Sohbet gorunumundeyken listeye donus -->
+            <button
+                type="button"
+                id="social-back"
+                class="social-back hidden"
+                aria-label="Geri"
+            >
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+
+            <h2 id="social-title">
+                Mesajlar
+            </h2>
+
+            <button
+                type="button"
+                id="close-social"
+                aria-label="Kapat"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+        </div>
+
+
+        <!-- ================= GORUNUM 1: LISTE ================= -->
+
+        <div id="social-home">
+
+            <div class="social-tabs">
+
+                <button
+                    type="button"
+                    class="social-tab active"
+                    data-social-tab="chats"
+                >
+                    Sohbetler
+                </button>
+
+                <button
+                    type="button"
+                    class="social-tab"
+                    data-social-tab="friends"
+                >
+                    Arkadaşlar
+                </button>
+
+                <button
+                    type="button"
+                    class="social-tab"
+                    data-social-tab="requests"
+                >
+                    İstekler
+                    <span
+                        class="social-tab-badge hidden"
+                        id="social-requests-badge"
+                    >0</span>
+                </button>
+
+            </div>
+
+
+            <!-- SEKME: SOHBETLER -->
+            <div class="social-pane" data-social-pane="chats">
+                <div id="social-conversations"></div>
+            </div>
+
+
+            <!-- SEKME: ARKADASLAR -->
+            <div
+                class="social-pane hidden"
+                data-social-pane="friends"
+            >
+
+                <div class="social-search">
+
+                    <i class="fa-solid fa-magnifying-glass"></i>
+
+                    <input
+                        type="text"
+                        id="social-search-input"
+                        placeholder="İsim veya e-posta ile ara..."
+                        autocomplete="off"
+                    >
+
+                </div>
+
+                <!-- Arama sonuclari; bos sorguda gizli -->
+                <div
+                    id="social-search-results"
+                    class="hidden"
+                ></div>
+
+                <div id="social-friends"></div>
+
+            </div>
+
+
+            <!-- SEKME: ISTEKLER -->
+            <div
+                class="social-pane hidden"
+                data-social-pane="requests"
+            >
+                <div id="social-requests"></div>
+            </div>
+
+        </div>
+
+
+        <!-- ================= GORUNUM 2: SOHBET ================= -->
+
+        <div id="social-thread" class="hidden">
+
+            <div
+                class="social-messages"
+                id="social-messages"
+                aria-live="polite"
+            ></div>
+
+            <form
+                class="social-composer"
+                id="social-composer"
+            >
+
+                <textarea
+                    id="social-input"
+                    rows="1"
+                    maxlength="2000"
+                    placeholder="Mesaj yaz..."
+                ></textarea>
+
+                <button
+                    type="submit"
+                    id="social-send"
+                    aria-label="Gönder"
+                >
+                    <i class="fa-solid fa-arrow-up"></i>
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     URUNU ARKADASA GONDER — secim penceresi
+
+     Urun detayindaki "Arkadaşına Gönder" dugmesi bunu aciyor.
+     Ayri bir katman cunku urun modali z-index 4000'de ve
+     sosyal panelin uzerinde duruyor; listeyi panelin icine
+     koysaydik modalin altinda kalirdi.
+========================================================= -->
+
+<div
+    class="share-overlay"
+    id="share-overlay"
+>
+
+    <div class="share-panel">
+
+        <div class="cart-header">
+
+            <h2>Arkadaşına Gönder</h2>
+
+            <button
+                type="button"
+                id="close-share"
+                aria-label="Kapat"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+        </div>
+
+        <div class="share-product" id="share-product"></div>
+
+        <div class="field">
+            <label for="share-note">NOT (İSTEĞE BAĞLI)</label>
+            <input
+                type="text"
+                id="share-note"
+                maxlength="300"
+                placeholder="Buna bak, sana yakışır..."
+                autocomplete="off"
+            >
+        </div>
+
+        <span class="quick-section-label">
+            KİME GÖNDERİLECEK
+        </span>
+
+        <div class="share-friends" id="share-friends"></div>
+
+    </div>
+
+</div>
+
+
 <script src="app.js?v=2"></script>
 
 

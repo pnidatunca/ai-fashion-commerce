@@ -1033,3 +1033,363 @@ class WardrobeLookItem(Base):
             name="uq_look_product",
         ),
     )
+
+
+# =========================================================
+# SOSYAL KATMAN — ARKADASLIK / MESAJLASMA / URUN PAYLASIMI
+# =========================================================
+#
+# Uc tablo: friendships, conversations, messages.
+#
+# Tasarim kararlari asagida her tablonun basinda; en onemli
+# ikisi kisaca:
+#
+#   1. Bir CIFT icin TEK satir. Hem arkadaslikta hem
+#      sohbette ayni problem var: A-B ile B-A ayni sey ama
+#      naif sema iki satir yazmaya izin verir. Cozum
+#      veritabani seviyesinde (bkz. her iki tablonun notu).
+#
+#   2. Paylasilan urun mesajin KENDI kolonunda, ayri bir
+#      tabloda degil (bkz. Message.product_id notu).
+
+
+FRIENDSHIP_PENDING = "pending"
+FRIENDSHIP_ACCEPTED = "accepted"
+FRIENDSHIP_DECLINED = "declined"
+
+FRIENDSHIP_STATUSES = (
+    FRIENDSHIP_PENDING,
+    FRIENDSHIP_ACCEPTED,
+    FRIENDSHIP_DECLINED,
+)
+
+
+class Friendship(Base):
+    """
+    Iki kullanici arasindaki arkadaslik iliskisi.
+
+    YON KORUNUYOR, CIFT TEKILLESTIRILIYOR
+    requester_id / addressee_id ayri duruyor cunku "kim istek
+    gonderdi" bilgisi gerekli: istegi yalnizca ALICI kabul
+    edebilmeli, gonderen kendi istegini kabul edememeli.
+
+    Ama iliski aslinda YONSUZ: A-B ile B-A ayni arkadasliktir.
+    Naif sema ikisinin de yazilmasina izin verir ve o zaman
+    "arkadas miyiz?" sorusu iki satir birden bulur, kabul
+    edilen biri reddedilen digeri olabilir.
+
+    Cozum uygulama katmaninda DEGIL veritabaninda:
+
+        CREATE UNIQUE INDEX uq_friendship_pair ON friendships (
+            LEAST(requester_id, addressee_id),
+            GREATEST(requester_id, addressee_id)
+        );
+
+    Boylece A→B varken B→A INSERT'i veritabani tarafindan
+    reddediliyor. Uygulama unutsa bile ikinci satir olusamaz.
+    (Ayni gerekce wishlist_items'daki UNIQUE(user_id,
+    product_id) icin de yazilmisti.)
+
+    REDDEDILEN ISTEK SILINMIYOR
+    status='declined' olarak kaliyor. Sebep: silseydik ayni
+    kisi tekrar tekrar istek gonderebilirdi ve bu bir taciz
+    kanali olurdu. Kayit durunca "zaten reddedilmis" kontrolu
+    yapilabiliyor.
+    """
+
+    __tablename__ = "friendships"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+
+    requester_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    addressee_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    status = Column(
+        String(16),
+        nullable=False,
+        server_default=text("'pending'"),
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    # Kabul/red zamani. Istegin ne kadar bekledigini ve
+    # kabul oranini olcmek icin.
+    responded_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    requester = relationship("User", foreign_keys=[requester_id])
+    addressee = relationship("User", foreign_keys=[addressee_id])
+
+    __table_args__ = (
+
+        CheckConstraint(
+            "status IN ('pending', 'accepted', 'declined')",
+            name="ck_friendships_status",
+        ),
+
+        # Kendi kendine arkadaslik istegi gonderilemez.
+        CheckConstraint(
+            "requester_id <> addressee_id",
+            name="ck_friendships_not_self",
+        ),
+
+        # "Arkadas listem" sorgusu: benim taraf olduğum ve
+        # kabul edilmis satirlar. Iki yonden de aranıyor.
+        Index(
+            "ix_friendships_addressee_status",
+            "addressee_id",
+            "status",
+        ),
+
+        Index(
+            "ix_friendships_requester_status",
+            "requester_id",
+            "status",
+        ),
+    )
+
+
+class Conversation(Base):
+    """
+    Iki kullanici arasindaki birebir sohbet.
+
+    NEDEN participants TABLOSU YOK
+    Yaygin sema conversations + conversation_participants
+    seklindedir ve grup sohbetini de destekler. Burada
+    istenen acikca BIREBIR yazisma. Katilimci tablosu
+    olsaydi "A ile B'nin sohbeti hangisi?" sorusu her
+    seferinde iki satirlik bir gruplama/join gerektirirdi:
+
+        SELECT conversation_id FROM conversation_participants
+        WHERE user_id IN (:a, :b)
+        GROUP BY conversation_id HAVING COUNT(*) = 2
+
+    Iki kolonla ayni soru tek indeks aramasi. Grup sohbeti
+    gerekirse o zaman katilimci tablosuna gecilir; simdiden
+    onun karmasikligini tasimanin karsiligi yok.
+
+    KANONIK SIRA
+    user_low_id / user_high_id, UUID siralamasina gore kucuk
+    olan basta. Sira INSERT aninda sabitleniyor, boylece
+    (A,B) ve (B,A) ayni satira dusuyor ve UNIQUE kisiti iki
+    sohbet acilmasini engelliyor. Arkadaslik tablosundaki
+    LEAST/GREATEST indeksiyle ayni fikir; burada kolonlarin
+    kendisi sirali oldugu icin sorgu daha basit.
+
+    last_message_at DENORMALIZE
+    Gelen kutusu sohbetleri "en son yazilana gore" siralar.
+    Bunu her acilista MAX(messages.created_at) ile hesaplamak
+    sohbet sayisi kadar agregasyon demek. user_preferences'ta
+    da ayni karar verilmisti: turetilmis ozeti yaninda tut,
+    her istekte gecmisi yeniden okuma.
+    """
+
+    __tablename__ = "conversations"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+
+    user_low_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    user_high_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    # Gelen kutusu siralamasi. Mesaj eklendikce guncelleniyor.
+    last_message_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        index=True,
+    )
+
+    __table_args__ = (
+
+        UniqueConstraint(
+            "user_low_id",
+            "user_high_id",
+            name="uq_conversation_pair",
+        ),
+
+        CheckConstraint(
+            "user_low_id <> user_high_id",
+            name="ck_conversations_not_self",
+        ),
+
+        # Kanonik sira DB seviyesinde de garanti: uygulama
+        # yanlislikla ters sirada yazarsa satir kabul
+        # edilmiyor. UNIQUE kisitinin ise yaramasi buna bagli.
+        CheckConstraint(
+            "user_low_id < user_high_id",
+            name="ck_conversations_canonical_order",
+        ),
+    )
+
+
+class Message(Base):
+    """
+    Bir sohbetteki tek mesaj.
+
+    URUN NEDEN AYRI TABLODA DEGIL
+    -----------------------------
+    Iki secenek vardi:
+
+      A) messages.product_id  (nullable kolon)   <- SECILEN
+      B) message_products     (ayri tablo)
+
+    Secim (A). Gerekceler:
+
+      1. OKUMA YOLU EN SICAK YER. Sohbet acildiginda son N
+         mesaj cekiliyor. (A) ile bu tek sorgu + products'a
+         tek LEFT JOIN. (B) ile ya ikinci bir sorgu ya da
+         satir cogaltan bir join + Python'da gruplama gerekir.
+         Mesaj listesi uygulamanin en sik okunan yeri; oraya
+         join eklemenin bedeli her acilista odenir.
+
+      2. "EN FAZLA BIR URUN" KURALINI SEMA GARANTI EDIYOR.
+         Ozellik "bu urunu arkadasima gonder" — mesaj basina
+         tek urun. (B) semasi N urune izin verir ve "aslinda
+         bir tane olmali" kurali yalnizca uygulama kodunda
+         yasar; biri unutunca arayuz bozulur.
+
+      3. MALIYET YOK. Cogu mesaj duz metin ve product_id NULL
+         kalacak. PostgreSQL'de NULL degerler satir basindaki
+         null bitmap'te 1 bit tutuyor; ayri bir alan
+         ayrilmiyor. Yani "cogu satirda bos duracak" endisesi
+         bu semada olcumsuz kaliyor.
+
+    (B) NE ZAMAN DOGRU OLURDU
+      - Bir mesaj birden fazla urun tasiyacaksa (ornegin bir
+        gardirop kombininin tamami gonderilecekse),
+      - ya da ek turleri cogalacaksa (urun + kombin + gorsel
+        + siparis). O zaman polimorfik bir "attachments"
+        tablosu (A)'nin kolon kolon buyumesinden iyidir.
+
+    Bugunku gereksinim tek urun oldugu icin (A). Ileride
+    kombin paylasimi istenirse eklenecek sey nullable bir
+    look_id kolonu; iki nullable ek kolon hala attachments
+    tablosundan basit.
+
+    BOS MESAJ OLAMAZ
+    CHECK ile: metin de urun de yoksa satir kabul edilmiyor.
+    Aksi halde bos balonlar olusur ve bunu her cagiran yerde
+    ayri ayri kontrol etmek gerekirdi.
+    """
+
+    __tablename__ = "messages"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+
+    conversation_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    sender_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    body = Column(
+        Text,
+        nullable=True,
+    )
+
+    # PAYLASILAN URUN. Bkz. yukaridaki "urun neden ayri
+    # tabloda degil" notu.
+    #
+    # ondelete SET NULL, CASCADE DEGIL: katalogdan bir urun
+    # kalkarsa mesaj SILINMEMELI. Insanlarin yazismasi urun
+    # kataloguna bagli olamaz; kart yerine "bu urun artik
+    # yok" gosterilir.
+    product_id = Column(
+        String,
+        ForeignKey("products.product_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+    )
+
+    # Okundu bilgisi. Birebir sohbette tek alan yetiyor;
+    # grup olsaydi ayri bir okundu tablosu gerekirdi.
+    read_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    product = relationship("Product")
+
+    __table_args__ = (
+
+        # Bos mesaj yok: ya metin ya urun (ya da ikisi).
+        CheckConstraint(
+            "body IS NOT NULL OR product_id IS NOT NULL",
+            name="ck_messages_not_empty",
+        ),
+
+        # Sohbet acilisi: son mesajlar, yeniden eskiye.
+        Index(
+            "ix_messages_conversation_created",
+            "conversation_id",
+            "created_at",
+        ),
+
+        # Okunmamis rozeti: bu sohbette bana gelen ve
+        # okunmamis mesajlar.
+        Index(
+            "ix_messages_unread",
+            "conversation_id",
+            "read_at",
+        ),
+    )
