@@ -53,6 +53,7 @@ import base64
 import binascii
 import logging
 import os
+import re
 import time
 
 from google import genai
@@ -61,9 +62,81 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 
-# Ayni model zinciri mantigi degil: gorsel tarifi tek atislik
-# ve kisa. Kota dolarsa kullaniciya soylenip birakiliyor.
-VISION_MODEL = os.getenv("VISION_MODEL", "gemini-3.5-flash")
+# MODEL ZINCIRI — kota model basina ayri.
+#
+# Ilk surum tek modele bagliydi (gemini-3.5-flash) ve o
+# tukenince ozellik komple duruyordu: kullanici "Gorsel arama
+# dakikalik istek sinirina takildi" disinda bir sey goremiyordu.
+# Ayni hatayi sohbet tarafinda yapip duzeltmistik; buraya
+# uygulamayi atlamisim.
+#
+# SIRA NEDEN SOHBETTEKININ TERSI
+# Sohbette flash basta, cunku orada MUHAKEME onemli (ne zaman
+# arayacak, ne zaman soru soracak). Burada is PERCEPTION: bir
+# giysiyi tarif etmek. Olculdu:
+#
+#     gemini-3.5-flash-lite   1.3s
+#     gemini-3.1-flash-lite   1.1s
+#     gemini-3.6-flash        7.0s
+#     gemini-3.7-flash        30s+ (zaman asimi)
+#
+# lite'lar hem daha hizli hem yeterli. Once onlar.
+DEFAULT_VISION_CHAIN = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+)
+
+# Kota hatasi retry suresi bildirmezse kullanilacak soguma.
+DEFAULT_COOLDOWN_SECONDS = 60
+
+_model_cooldown: dict[str, float] = {}
+
+
+def _model_chain() -> list[str]:
+    """VISION_MODEL verilmisse o basa gecer, yedekler kalir."""
+
+    chain = list(DEFAULT_VISION_CHAIN)
+
+    preferred = os.getenv("VISION_MODEL", "").strip()
+
+    if preferred:
+        if preferred in chain:
+            chain.remove(preferred)
+        chain.insert(0, preferred)
+
+    return chain
+
+
+def _usable_models() -> list[str]:
+    """
+    Sogumada olmayanlar once.
+
+    Soguma olmasa her istek once tukenmis modele gidip 429
+    yiyecek, sonra digerine gececekti: her fotografa bosuna
+    bir tur gecikme.
+    """
+
+    now = time.monotonic()
+
+    chain = _model_chain()
+
+    ready = [m for m in chain if _model_cooldown.get(m, 0.0) <= now]
+
+    # Hepsi sogumadaysa yine deneriz: soguma bizim tahminimiz.
+    return ready or chain
+
+
+def _retry_seconds(error: Exception) -> int | None:
+
+    match = re.search(r"retry in ([0-9.]+)s", str(error), re.IGNORECASE)
+
+    return int(float(match.group(1))) + 1 if match else None
+
+
+# Geriye donuk uyumluluk: disaridan bu ad okunuyordu.
+VISION_MODEL = DEFAULT_VISION_CHAIN[0]
 
 # Sunucu tarafi ust sinir (ham bayt). Istemci zaten ~1024px'e
 # kucultuyor ve tipik sonuc 150-400 KB.
@@ -235,36 +308,82 @@ def describe(image: bytes, mime: str) -> dict:
 
     started = time.time()
 
-    try:
-        response = client.models.generate_content(
-            model=VISION_MODEL,
-            contents=[
-                types.Part.from_bytes(data=image, mime_type=mime),
-                types.Part(text=PROMPT),
-            ],
-            config=types.GenerateContentConfig(
-                # Dusuk sicaklik: ayni fotograf ayni cumleyi
-                # uretsin. Kullanici tekrar denediginde farkli
-                # sonuc almasi guveni sarsardi.
-                temperature=0.2,
-                max_output_tokens=MAX_OUTPUT_TOKENS,
-            ),
-        )
+    config = types.GenerateContentConfig(
+        # Dusuk sicaklik: ayni fotograf ayni cumleyi uretsin.
+        # Kullanici tekrar denediginde farkli sonuc almasi
+        # guveni sarsardi.
+        temperature=0.2,
+        max_output_tokens=MAX_OUTPUT_TOKENS,
+    )
 
-    except Exception as error:
+    response = None
+    used_model = None
 
-        text_error = str(error)
+    last_quota_wait = None
+    timed_out: list[str] = []
 
-        # ZAMAN ASIMI — kota degil, servis yavas.
-        # Ikisini ayirmak onemli: kullaniciya "bekle, kotan
-        # doldu" demekle "su an yavas, tekrar dene" demek
-        # farkli sey.
-        if (
-            "timeout" in type(error).__name__.lower()
-            or "timed out" in text_error.lower()
-            or "deadline" in text_error.lower()
-            or getattr(error, "code", None) in (503, 504)
-        ):
+    # ZINCIRI SIRAYLA DENE. Kota model basina ayri; biri
+    # tukendiyse digeri calisiyor olabilir.
+    for model in _usable_models():
+
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=[
+                    types.Part.from_bytes(data=image, mime_type=mime),
+                    types.Part(text=PROMPT),
+                ],
+                config=config,
+            )
+
+            used_model = model
+
+            break
+
+        except Exception as error:
+
+            text_error = str(error)
+
+            is_timeout = (
+                "timeout" in type(error).__name__.lower()
+                or "timed out" in text_error.lower()
+                or "deadline" in text_error.lower()
+                or getattr(error, "code", None) in (503, 504)
+            )
+
+            is_quota = (
+                "RESOURCE_EXHAUSTED" in text_error
+                or "429" in text_error
+            )
+
+            if not is_timeout and not is_quota:
+                # Gercek hata (bozuk gorsel, gecersiz istek):
+                # siradaki modelde de ayni sonucu verir.
+                logger.exception("Gorsel tarif edilemedi (%s)", model)
+
+                raise VisionError(
+                    "Görsel işlenemedi. Birazdan tekrar dene.", 502
+                )
+
+            wait = _retry_seconds(error) or DEFAULT_COOLDOWN_SECONDS
+
+            _model_cooldown[model] = time.monotonic() + wait
+
+            if is_quota:
+                last_quota_wait = _retry_seconds(error) or last_quota_wait
+            else:
+                timed_out.append(model)
+
+            logger.warning(
+                "%s gorseli isleyemedi (%s), siradaki model.",
+                model,
+                "kota" if is_quota else "zaman asimi",
+            )
+
+    if response is None:
+
+        # Hepsi zaman asimina ugradiysa bu KOTA sorunu degil.
+        if timed_out and last_quota_wait is None:
             raise VisionError(
                 "Fotoğraf işleme %d saniyede tamamlanamadı. "
                 "Servis şu an yavaş; tekrar dener misin?"
@@ -272,17 +391,15 @@ def describe(image: bytes, mime: str) -> dict:
                 504,
             )
 
-        if "RESOURCE_EXHAUSTED" in text_error or "429" in text_error:
-            raise VisionError(
-                "Görsel arama dakikalık istek sınırına takıldı. "
-                "Birazdan tekrar dene.",
-                429,
-            )
-
-        logger.exception("Gorsel tarif edilemedi")
+        extra = (
+            " Yaklaşık %d saniye sonra tekrar dene." % last_quota_wait
+            if last_quota_wait
+            else " Birazdan tekrar dene."
+        )
 
         raise VisionError(
-            "Görsel işlenemedi. Birazdan tekrar dene.", 502
+            "Görsel arama şu an istek sınırına takıldı." + extra,
+            429,
         )
 
     sentence = (response.text or "").strip()
@@ -300,7 +417,7 @@ def describe(image: bytes, mime: str) -> dict:
     return {
         "query": sentence[:MAX_QUERY_CHARS],
         "seconds": round(time.time() - started, 2),
-        "model": VISION_MODEL,
+        "model": used_model or "",
     }
 
 
