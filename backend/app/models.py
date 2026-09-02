@@ -318,6 +318,18 @@ class User(Base):
     # icin kayit sirasinda veya Hesabim'dan eklenebilir.
     address = Column(Text, nullable=True)
 
+    # KULLANICI ADI (@handle) — scripts/20_add_usernames.py
+    #
+    # Arkadas bulmanin ana yolu. E-posta ile arama TAM
+    # eslesme istiyor ve kimse arkadasinin adresini ezbere
+    # bilmiyor; kullanici adi paylasilmak UZERE tasarlanmis
+    # bir tanimlayici.
+    #
+    # Tekillik duz UNIQUE degil, LOWER(username) uzerinde
+    # fonksiyonel indeks: "Pinar" ve "pinar" ayni anda var
+    # olamaz. Bu yalnizca karisiklik degil TAKLIT engeli.
+    username = Column(String(24), nullable=True)
+
     # BEDEN PROFILI (scripts/19_add_user_sizes.py)
     #
     # Kalip karari "bir beden buyuk al" diyor; BIR BEDEN

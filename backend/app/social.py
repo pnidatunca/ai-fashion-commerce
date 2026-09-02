@@ -102,6 +102,10 @@ def public_user(user: User) -> dict:
         "initials": (
             (first[:1] + last[:1]).upper() or "W"
         ),
+        # @handle: paylasilmak uzere tasarlanmis tanimlayici.
+        # Ayni adi tasiyan iki kisiyi ayirt etmenin de tek
+        # yolu ("ali Y." iki kisi olabilir, @aliyilmaz bir).
+        "username": user.username,
     }
 
 
@@ -162,11 +166,24 @@ def search_users(db: Session, me: User, query: str) -> list[dict]:
 
     pattern = f"%{cleaned}%"
 
+    # KULLANICI ADI ARAMASI
+    #
+    # Bastaki @ atiliyor: kullanici "@pinar" da yazabilir
+    # "pinar" da. Kullanici adinda KISMI eslesmeye izin
+    # veriliyor (e-postanin aksine) cunku amaci tam da
+    # bulunabilir olmak — paylasilmak uzere tasarlanmis bir
+    # tanimlayici. E-postada kismi arama adres hasat araci
+    # olurdu, burada oyle bir risk yok.
+    handle = cleaned[1:] if cleaned.startswith("@") else cleaned
+
+    handle_pattern = f"%{handle.lower()}%"
+
     statement = (
         select(User)
         .where(User.id != me.id)
         .where(
             or_(
+                func.lower(User.username).like(handle_pattern),
                 func.lower(User.email) == cleaned.lower(),
                 User.first_name.ilike(pattern),
                 User.last_name.ilike(pattern),

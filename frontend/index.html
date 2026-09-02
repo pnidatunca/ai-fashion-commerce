@@ -1582,6 +1582,39 @@
                 </div>
 
 
+                <!-- KULLANICI ADI
+                     Arkadaslarin seni bununla bulacak. Bos
+                     birakilirsa ad-soyaddan uretiliyor
+                     (backend/app/username.py suggest). -->
+
+                <div class="field">
+
+                    <label for="register-username">
+                        KULLANICI ADI
+                    </label>
+
+                    <div class="username-field">
+                        <span class="username-at">@</span>
+                        <input
+                            type="text"
+                            id="register-username"
+                            placeholder="kullaniciadin"
+                            autocomplete="username"
+                            maxlength="24"
+                        >
+                    </div>
+
+                    <span
+                        class="field-hint"
+                        id="register-username-hint"
+                    >
+                        Arkadaşların seni bununla bulacak.
+                        Boş bırakırsan biz üretiriz.
+                    </span>
+
+                </div>
+
+
                 <div class="field-row">
 
                     <div class="field">
@@ -1835,6 +1868,37 @@
                             max="100"
                         >
                     </div>
+
+                </div>
+
+                <div class="field">
+
+                    <label for="account-username">
+                        KULLANICI ADI
+                    </label>
+
+                    <div class="username-field">
+                        <span class="username-at">@</span>
+                        <input
+                            type="text"
+                            id="account-username"
+                            placeholder="kullaniciadin"
+                            maxlength="24"
+                        >
+                    </div>
+
+                    <span class="field-hint" id="account-username-hint">
+                        Arkadaşların seni bununla bulur.
+                    </span>
+
+                    <button
+                        type="button"
+                        class="username-copy"
+                        id="account-copy-link"
+                    >
+                        <i class="fa-regular fa-copy"></i>
+                        Davet bağlantımı kopyala
+                    </button>
 
                 </div>
 
@@ -3091,7 +3155,7 @@
                     <input
                         type="text"
                         id="social-search-input"
-                        placeholder="İsim veya e-posta ile ara..."
+                        placeholder="@kullaniciadi, isim veya e-posta..."
                         autocomplete="off"
                     >
 

@@ -223,6 +223,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupSearch();
     setupAiChat();
     setupSocial();
+    setupUsername();
     setupSearchAlternatives();
     setupScrollTop();
     setupCategories();
@@ -2803,6 +2804,10 @@ function fillAccountForms(user) {
     const sizeBottom = $("account-size-bottom");
     const sizeShoe = $("account-size-shoe");
 
+    const usernameInput = $("account-username");
+
+    if (usernameInput) usernameInput.value = user.username || "";
+
     if (sizeTop) sizeTop.value = user.size_top || "";
     if (sizeBottom) sizeBottom.value = user.size_bottom || "";
     if (sizeShoe) sizeShoe.value = user.size_shoe || "";
@@ -2877,6 +2882,10 @@ async function handleAccountProfileSubmit(event) {
                 gender: gender || null,
                 age,
                 address: address || null,
+                username:
+                    ($("account-username")?.value || "")
+                        .trim()
+                        .replace(/^@/, "") || null,
                 size_top: $("account-size-top")?.value || null,
                 size_bottom: $("account-size-bottom")?.value || null,
                 size_shoe: $("account-size-shoe")?.value || null,
@@ -3345,6 +3354,10 @@ async function handleRegister(event) {
                     first_name: firstName,
                     last_name: lastName,
                     email,
+                    username:
+                        ($("register-username")?.value || "")
+                            .trim()
+                            .replace(/^@/, "") || null,
                     gender,
                     age,
                     password,
@@ -3440,6 +3453,23 @@ function signIn(user) {
 
     /* Favoriler ve Kesfet yeni kullaniciya gore tazelenir */
     onSessionChanged();
+
+    /*
+       DAVET BAGLANTISI BEKLIYORSA DEVAM ET.
+
+       Kullanici ?add=birisi ile geldi ama giris yapmamisti;
+       simdi yaptigina gore o kisiyi aratalim. Aksi halde
+       baglanti tiklandigi anda kaybolur ve kullanici neden
+       geldigini kendi hatirlamak zorunda kalirdi.
+    */
+    if (socialState.pendingAdd) {
+
+        const handle = socialState.pendingAdd;
+
+        socialState.pendingAdd = null;
+
+        openSocialWithSearch(handle);
+    }
 }
 
 
@@ -13112,6 +13142,11 @@ function renderPersonRow(user, relation) {
 
             <span class="social-row-body">
                 <strong>${escapeHTML(user.name)}</strong>
+                ${
+                    user.username
+                        ? `<small>@${escapeHTML(user.username)}</small>`
+                        : ""
+                }
             </span>
 
             ${action}
@@ -13994,4 +14029,222 @@ function appendAiChatPhotoBubble(url) {
     aiChatLog.appendChild(wrapper);
 
     scrollAiChatToBottom();
+}
+
+
+/* =========================================================
+   KULLANICI ADI (@handle)
+
+   Üç iş, tek alan:
+     arama : "@pinar" yazıp bul
+     kod   : kullanıcı adını söyle, o seni bulsun
+     link  : site/?add=pinar
+
+   Kurallar BACKEND'de (app/username.py). Buradaki kontrol
+   yalnızca anlık geri bildirim; doğrulamayı sunucu yapıyor.
+   Kuralı iki yere yazmak, gün gelip birinin
+   güncellenmemesi demek.
+========================================================= */
+
+/**
+ * Yazarken müsaitlik kontrolü.
+ *
+ * Debounce şart: "pinaryilmaz" yazmak 11 tuş, yani 11 istek
+ * demekti. Kullanıcı yazmayı bırakınca tek istek gidiyor.
+ */
+function attachUsernameCheck(inputId, hintId, defaultHint) {
+
+    const input = $(inputId);
+    const hint = $(hintId);
+
+    if (!input || !hint) return;
+
+    let timer = null;
+
+    const setHint = (text, state) => {
+        hint.textContent = text;
+        hint.classList.remove("ok", "bad");
+        if (state) hint.classList.add(state);
+    };
+
+    input.addEventListener("input", () => {
+
+        clearTimeout(timer);
+
+        const value = input.value.trim();
+
+        if (!value) {
+            setHint(defaultHint, null);
+            return;
+        }
+
+        setHint("Kontrol ediliyor...", null);
+
+        timer = setTimeout(async () => {
+
+            try {
+
+                const data = await apiFetch(
+                    "/auth/username-available?username=" +
+                    encodeURIComponent(value)
+                );
+
+                if (data.available) {
+                    setHint(`@${data.username} müsait.`, "ok");
+                } else {
+                    setHint(
+                        data.reason +
+                        (data.suggestion
+                            ? ` Öneri: @${data.suggestion}`
+                            : ""),
+                        "bad"
+                    );
+                }
+
+            } catch (error) {
+                /* Kontrol başarısızsa engellemiyoruz —
+                   sunucu kaydederken yine doğrulayacak. */
+                setHint(defaultHint, null);
+            }
+        }, 350);
+    });
+}
+
+
+function setupUsername() {
+
+    attachUsernameCheck(
+        "register-username",
+        "register-username-hint",
+        "Arkadaşların seni bununla bulacak. Boş bırakırsan biz üretiriz."
+    );
+
+    attachUsernameCheck(
+        "account-username",
+        "account-username-hint",
+        "Arkadaşların seni bununla bulur."
+    );
+
+    $("account-copy-link")?.addEventListener("click", copyInviteLink);
+
+    handleAddFriendLink();
+}
+
+
+/** Davet bağlantısı: site/?add=kullaniciadi */
+function inviteLinkFor(handle) {
+
+    const url = new URL(window.location.href);
+
+    /* Sorgu dizesini sıfırla: sayfada başka parametreler
+       (ör. eski bir ?add=) varsa bağlantıya sızmasın. */
+    url.search = "";
+    url.hash = "";
+
+    url.searchParams.set("add", handle);
+
+    return url.toString();
+}
+
+
+async function copyInviteLink() {
+
+    const handle = (
+        $("account-username")?.value ||
+        getCurrentUser()?.username ||
+        ""
+    ).trim().replace(/^@/, "");
+
+    if (!handle) {
+
+        showToast({
+            title: "Önce kullanıcı adı belirle",
+            tone: "neutral",
+        });
+
+        return;
+    }
+
+    const link = inviteLinkFor(handle);
+
+    try {
+
+        await navigator.clipboard.writeText(link);
+
+        showToast({
+            title: "Bağlantı kopyalandı",
+            message: link,
+            tone: "success",
+        });
+
+    } catch (error) {
+
+        /* clipboard izni yoksa (http, eski tarayıcı) en
+           azından bağlantıyı göster ki elle kopyalayabilsin. */
+        showToast({
+            title: "Davet bağlantın",
+            message: link,
+            tone: "info",
+        });
+    }
+}
+
+
+/**
+ * ?add=kullaniciadi ile gelindiyse arkadaş panelini açıp
+ * o kişiyi arar.
+ *
+ * Parametre URL'den TEMİZLENİYOR: kullanıcı sayfayı
+ * yenilediğinde ya da paylaştığında aynı kişiyi tekrar
+ * aramasın.
+ */
+function handleAddFriendLink() {
+
+    const params = new URLSearchParams(window.location.search);
+
+    const handle = (params.get("add") || "").trim().replace(/^@/, "");
+
+    if (!handle) return;
+
+    /* URL'i temizle — geçmişe yeni kayıt eklemeden */
+    params.delete("add");
+
+    const clean =
+        window.location.pathname +
+        (params.toString() ? "?" + params.toString() : "");
+
+    window.history.replaceState({}, "", clean);
+
+    if (!isUserLoggedIn()) {
+
+        requestLoginForInteraction(
+            null,
+            `@${handle} seni arkadaş olarak eklemek istiyor. ` +
+            "Devam etmek için giriş yap."
+        );
+
+        /* Giriş sonrası devam edebilmek için sakla */
+        socialState.pendingAdd = handle;
+
+        return;
+    }
+
+    openSocialWithSearch(handle);
+}
+
+
+/** Sosyal paneli açıp arama sekmesinde bir sorguyla başlatır. */
+function openSocialWithSearch(handle) {
+
+    openSocial();
+
+    setSocialTab("friends");
+
+    const input = $("social-search-input");
+
+    if (input) {
+        input.value = handle;
+    }
+
+    runSocialSearch(handle);
 }

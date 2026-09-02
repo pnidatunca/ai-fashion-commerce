@@ -34,6 +34,7 @@ from app import (
     style_customize,
     style_engine,
     trends,
+    username as username_rules,
     vision,
 )
 from app.database import engine, get_db
@@ -337,6 +338,33 @@ def register_user(
             detail="Bu email adresi zaten kayıtlı.",
         )
 
+    # KULLANICI ADI
+    #
+    # Verilmisse dogrulanir, verilmemisse ad-soyaddan
+    # uretilir. Bos birakma secenegi YOK: adi olmayan hesap
+    # aranamaz ve ozelligin amaci tam da arkadas bulmak.
+    if user_data.username:
+
+        try:
+            handle = username_rules.validate(user_data.username)
+
+        except username_rules.UsernameError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+
+        if username_rules.is_taken(db, handle):
+            raise HTTPException(
+                status_code=400,
+                detail="Bu kullanıcı adı alınmış, başka bir tane dene.",
+            )
+
+    else:
+        handle = username_rules.suggest(
+            db,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            email=user_data.email,
+        )
+
     # Şifreyi hashle
     hashed_password = pwd_context.hash(
         user_data.password
@@ -347,6 +375,7 @@ def register_user(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
         email=user_data.email,
+        username=handle,
         gender=user_data.gender,
         age=user_data.age,
         address=user_data.address,
@@ -365,6 +394,7 @@ def register_user(
             "first_name": new_user.first_name,
             "last_name": new_user.last_name,
             "email": new_user.email,
+            "username": new_user.username,
             "gender": new_user.gender,
             "age": new_user.age,
             "address": new_user.address,
@@ -516,6 +546,63 @@ def _account_response(user: User) -> schemas.AccountResponse:
         size_top=user.size_top,
         size_bottom=user.size_bottom,
         size_shoe=user.size_shoe,
+        username=user.username,
+    )
+
+
+@app.get(
+    "/auth/username-available",
+    response_model=schemas.UsernameCheckResponse,
+)
+def check_username(
+    username: str = Query(min_length=1, max_length=32),
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kullanici adi musait mi?
+
+    Kayit formu ve hesap ayarlari yazarken cagiriyor.
+    GIRIS ZORUNLU DEGIL: kayit sirasinda henuz kimlik yok.
+
+    Giris yapilmissa KENDI adi "alinmis" sayilmiyor —
+    kullanici ayarlarda kendi adini gorurken "bu ad alinmis"
+    uyarisi almamalı.
+
+    SEBEP DE DONUYOR. "Gecersiz" demek kullaniciyi
+    calistirmiyor; "nokta ile bitemez" demek neyi
+    duzeltecegini soyluyor.
+    """
+
+    raw = username
+
+    try:
+        handle = username_rules.validate(raw)
+
+    except username_rules.UsernameError as error:
+
+        return schemas.UsernameCheckResponse(
+            username=username_rules.normalize(raw),
+            available=False,
+            reason=str(error),
+        )
+
+    exclude = user.id if user is not None else None
+
+    if username_rules.is_taken(db, handle, exclude_user_id=exclude):
+
+        return schemas.UsernameCheckResponse(
+            username=handle,
+            available=False,
+            reason="Bu kullanıcı adı alınmış.",
+            suggestion=username_rules.suggest(
+                db, first_name=handle
+            ),
+        )
+
+    return schemas.UsernameCheckResponse(
+        username=handle,
+        available=True,
     )
 
 
@@ -560,6 +647,25 @@ def update_profile(
     user.size_top = payload.size_top or None
     user.size_bottom = payload.size_bottom or None
     user.size_shoe = payload.size_shoe or None
+
+    # KULLANICI ADI — bos gelirse mevcut ad KORUNUYOR.
+    # Adres ve bedenin aksine silinebilir bir alan degil:
+    # silinirse hesap aranamaz hale gelir.
+    if payload.username:
+
+        try:
+            handle = username_rules.validate(payload.username)
+
+        except username_rules.UsernameError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+
+        if username_rules.is_taken(db, handle, exclude_user_id=user.id):
+            raise HTTPException(
+                status_code=400,
+                detail="Bu kullanıcı adı alınmış, başka bir tane dene.",
+            )
+
+        user.username = handle
 
     db.commit()
     db.refresh(user)

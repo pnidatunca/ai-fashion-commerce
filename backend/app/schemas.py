@@ -350,6 +350,18 @@ class RegisterRequest(BaseModel):
     first_name: str
     last_name: str
     email: str
+
+    # KULLANICI ADI — opsiyonel.
+    #
+    # Arayuz soruyor ama API zorunlu tutmuyor: bos gelirse
+    # ad-soyaddan uretiliyor (username.suggest). Zorunlu
+    # kilsaydik hem eski istemciler kirilirdi hem de kaydin
+    # onune bir engel daha koymus olurduk.
+    #
+    # Adi OLMAYAN kullanici aranamaz hale gelirdi; bu yuzden
+    # "bos birak" secenegi yok, yalnizca "sen sec ya da biz
+    # uretelim" var.
+    username: str | None = Field(default=None, max_length=24)
     gender: str | None = None
     age: int | None = None
     password: str
@@ -408,6 +420,11 @@ class UpdateProfileRequest(BaseModel):
     size_top: str | None = Field(default=None, max_length=8)
     size_bottom: str | None = Field(default=None, max_length=8)
     size_shoe: str | None = Field(default=None, max_length=8)
+
+    # Bos/None gelirse MEVCUT AD KORUNUYOR (adres ve bedenin
+    # aksine). Sebep: kullanici adini silmek diye bir sey yok
+    # — silinirse hesap aranamaz hale gelir.
+    username: str | None = Field(default=None, max_length=24)
 
 
 class ChangeEmailRequest(BaseModel):
@@ -489,6 +506,8 @@ class AccountResponse(BaseModel):
     size_top: str | None = None
     size_bottom: str | None = None
     size_shoe: str | None = None
+
+    username: str | None = None
 
 
 # =========================================================
@@ -1312,11 +1331,17 @@ class PublicUser(BaseModel):
     mesaj basliklari, kullanicinin adresini gormeyi hak
     etmeyen kisilere de gorunuyor. Ayni karar
     ReviewResponse'ta da alinmisti.
+
+    KULLANICI ADI VAR ve bu da bilincli: paylasilmak uzere
+    tasarlanmis tanimlayici o. Ayni adi tasiyan iki kisiyi
+    ayirt etmenin de tek yolu.
     """
 
     id: str
     name: str
     initials: str
+
+    username: str | None = None
 
 
 class UserSearchResult(PublicUser):
@@ -1532,4 +1557,21 @@ class VisionDescribeResponse(BaseModel):
     seconds: float = 0.0
     model: str = ""
     bytes: int = 0
+
+class UsernameCheckResponse(BaseModel):
+    """
+    Kullanici adi musait mi?
+
+    reason: musait DEGILSE sebebi (kural ihlali ya da
+    alinmis). Arayuz bunu oldugu gibi gosteriyor —
+    "gecersiz" demek yerine "nokta ile bitemez" demek
+    kullanicinin ne duzeltecegini soyluyor.
+
+    suggestion: alinmissa yakin bir alternatif.
+    """
+
+    username: str
+    available: bool
+    reason: str | None = None
+    suggestion: str | None = None
 

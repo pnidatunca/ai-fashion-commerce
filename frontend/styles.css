@@ -8724,3 +8724,72 @@ a {
 
     display: block;
 }
+
+/* =========================================================
+   KULLANICI ADI (@handle)
+========================================================= */
+
+.username-field {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 12px;
+
+    transition: border-color .25s ease;
+}
+
+.username-field:focus-within {
+    border-color: var(--black);
+}
+
+.username-at {
+    font-size: 13px;
+    color: var(--gray);
+}
+
+.username-field input {
+    flex: 1;
+
+    border: 0;
+    outline: 0;
+    background: transparent;
+
+    padding: 11px 4px;
+
+    font-size: 13px;
+}
+
+/* Müsaitlik geri bildirimi: yeşil müsait, kırmızı değil */
+.field-hint.ok {
+    color: #4a7c59;
+}
+
+.field-hint.bad {
+    color: #c2402f;
+}
+
+.username-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+
+    margin-top: 10px;
+    padding: 8px 13px;
+
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--white);
+
+    font-size: 11px;
+    letter-spacing: .3px;
+
+    transition: border-color .25s ease, background .25s ease;
+}
+
+.username-copy:hover {
+    border-color: var(--black);
+    background: var(--cream);
+}
