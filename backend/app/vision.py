@@ -89,6 +89,22 @@ MAX_QUERY_CHARS = 160
 MAX_OUTPUT_TOKENS = 2048
 
 
+# CAGRI ZAMAN SINIRI.
+#
+# Sohbet tarafinda bu ders zaten alinmisti (toolchat
+# config.py) ama vision'a uygulanmamisti ve kullanici
+# "dakikalardir arama yapiyor" dedi.
+#
+# Olculdu: ucretsiz katmanda ayni onemsiz istek 0.66s ile
+# 105s arasinda degisiyor — gecikme uretimde degil KUYRUKTA.
+# Gorsel tarifi olculen normal sure 5-6 saniye; 30 saniye
+# "bu artik normal degil" demek icin rahat bir pay.
+#
+# API 10 saniyenin altini reddediyor
+# ("Manually set deadline 8s is too short").
+CALL_TIMEOUT_SECONDS = max(11, int(os.getenv("VISION_TIMEOUT", "30")))
+
+
 PROMPT = """Bu fotoğraftaki GİYSİ, AYAKKABI veya AKSESUARI bir moda \
 kataloğunda aratmak için tek satırlık Türkçe bir arama cümlesi yaz.
 
@@ -203,7 +219,19 @@ def describe(image: bytes, mime: str) -> dict:
             "Görselle arama şu anda kullanılamıyor.", 503
         )
 
-    client = genai.Client(api_key=api_key)
+    # SDK'nin kendi yeniden denemesi kapali: kuyrukta
+    # bekleyen bir istegi tekrar denemek ayni kuyruga
+    # girmek. Sinira takilan cagri birakiliyor.
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            retry_options=types.HttpRetryOptions(
+                attempts=1,
+                http_status_codes=[],
+            ),
+            timeout=CALL_TIMEOUT_SECONDS * 1000,
+        ),
+    )
 
     started = time.time()
 
@@ -226,6 +254,23 @@ def describe(image: bytes, mime: str) -> dict:
     except Exception as error:
 
         text_error = str(error)
+
+        # ZAMAN ASIMI — kota degil, servis yavas.
+        # Ikisini ayirmak onemli: kullaniciya "bekle, kotan
+        # doldu" demekle "su an yavas, tekrar dene" demek
+        # farkli sey.
+        if (
+            "timeout" in type(error).__name__.lower()
+            or "timed out" in text_error.lower()
+            or "deadline" in text_error.lower()
+            or getattr(error, "code", None) in (503, 504)
+        ):
+            raise VisionError(
+                "Fotoğraf işleme %d saniyede tamamlanamadı. "
+                "Servis şu an yavaş; tekrar dener misin?"
+                % CALL_TIMEOUT_SECONDS,
+                504,
+            )
 
         if "RESOURCE_EXHAUSTED" in text_error or "429" in text_error:
             raise VisionError(

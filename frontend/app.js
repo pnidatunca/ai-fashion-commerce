@@ -13919,11 +13919,29 @@ async function handleChatPhoto(file) {
         setAiChatStatus("Katalogda arıyor...");
 
         /*
+           KILIDI BIRAK — yoksa sendAiChatMessage hicbir sey
+           yapmaz.
+
+           O fonksiyon `if (!text || aiChat.sending) return;`
+           ile basliyor. Buraya kadar kilit BIZDE oldugu icin
+           cagri aninda geri donuyordu ve erken donus yuzunden
+           finally de calismadigindan kilit hic acilmiyordu:
+           "Fotografa bakiyor..." sonsuza kadar kaliyor,
+           hicbir arama yapilmiyordu.
+
+           Kilidi burada birakiyoruz; bundan sonrasini
+           sendAiChatMessage kendi yonetiyor.
+        */
+        setAiChatSending(false);
+
+        /*
            Cümle sohbete NORMAL bir kullanıcı mesajı olarak
            giriyor ve olağan akışı tetikliyor. Görselle arama
            bu noktadan sonra ayrı bir yol değil.
         */
         await sendAiChatMessage(query);
+
+        return;
 
     } catch (error) {
 
