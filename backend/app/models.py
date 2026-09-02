@@ -1082,10 +1082,17 @@ FRIENDSHIP_PENDING = "pending"
 FRIENDSHIP_ACCEPTED = "accepted"
 FRIENDSHIP_DECLINED = "declined"
 
+# ENGELLI. Reddetmekten farki: reddedilen kisi TEKRAR istek
+# gonderebiliyor (send_request reddedilmis satiri yeniden
+# pending'e cekiyor), engelli gonderemiyor. Yani reddetmek
+# erteleme, engelleme gercek durak.
+FRIENDSHIP_BLOCKED = "blocked"
+
 FRIENDSHIP_STATUSES = (
     FRIENDSHIP_PENDING,
     FRIENDSHIP_ACCEPTED,
     FRIENDSHIP_DECLINED,
+    FRIENDSHIP_BLOCKED,
 )
 
 
@@ -1163,14 +1170,38 @@ class Friendship(Base):
         nullable=True,
     )
 
+    # KIM ENGELLEDI.
+    #
+    # Bir cift icin TEK satir var (uq_friendship_pair) ama
+    # engelleme YONLU: A B'yi engellediyse engeli yalnizca A
+    # kaldirabilir. Satir paylasildigi icin bu bilgi ayri bir
+    # kolonda olmak zorunda — requester_id yetmiyor, istegi
+    # B gondermis olabilir.
+    #
+    # Bu olmadan engellenen kisi kendi engelini kaldirabilirdi.
+    blocked_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
     requester = relationship("User", foreign_keys=[requester_id])
     addressee = relationship("User", foreign_keys=[addressee_id])
 
     __table_args__ = (
 
         CheckConstraint(
-            "status IN ('pending', 'accepted', 'declined')",
+            "status IN ('pending', 'accepted', 'declined', 'blocked')",
             name="ck_friendships_status",
+        ),
+
+        # blocked_by yalnizca engelli satirlarda dolu olmali.
+        # Aksi halde "engelli degil ama engelleyeni var" gibi
+        # anlamsiz satirlar birikirdi.
+        CheckConstraint(
+            "(status = 'blocked' AND blocked_by IS NOT NULL)"
+            " OR (status <> 'blocked' AND blocked_by IS NULL)",
+            name="ck_friendships_blocked_by",
         ),
 
         # Kendi kendine arkadaslik istegi gonderilemez.
@@ -1265,6 +1296,26 @@ class Conversation(Base):
         server_default=text("NOW()"),
         index=True,
     )
+
+    # SOHBET GIZLEME (arsivleme) — taraf basina.
+    #
+    # NEDEN BOOLEAN DEGIL ZAMAN DAMGASI
+    # Gizleme arsivleme gibi davranmali: yeni mesaj gelince
+    # sohbet kendiliginden geri gelmeli. Kural tek satir:
+    #
+    #     gizli <=> hidden_at IS NOT NULL
+    #               AND hidden_at >= last_message_at
+    #
+    # Yeni mesaj last_message_at'i ileri tasiyor ve sohbet
+    # otomatik geri geliyor; bayrak sifirlamak gerekmiyor.
+    # Boolean olsaydi bir yerde unutulunca kullanici mesaji
+    # HIC gormezdi.
+    #
+    # Iki ayri kolon: biri gizlerken digerinin gelen kutusuna
+    # dokunmamali. Kanonik sira sayesinde hangi kolonun kime
+    # ait oldugu belirsiz degil.
+    hidden_low_at = Column(DateTime(timezone=True), nullable=True)
+    hidden_high_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
 

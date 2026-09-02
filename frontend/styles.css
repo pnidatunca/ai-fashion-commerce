@@ -8793,3 +8793,34 @@ a {
     border-color: var(--black);
     background: var(--cream);
 }
+
+/* Yıkıcı işlem düğmesi (engelle) — kırmızı çerçeve, dolgu
+   yok: dikkat çekmeli ama birincil eylem gibi görünmemeli. */
+.social-action.danger {
+    background: transparent;
+    border-color: #d9a8a0;
+    color: #c2402f;
+
+    padding: 7px 9px;
+}
+
+.social-action.danger:hover {
+    background: #fdf1ef;
+    border-color: #c2402f;
+    opacity: 1;
+}
+
+.social-archive {
+    border: 0;
+    background: transparent;
+    color: var(--gray);
+
+    font-size: 14px;
+    margin-right: 8px;
+
+    transition: color .2s ease;
+}
+
+.social-archive:hover {
+    color: var(--black);
+}

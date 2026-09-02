@@ -12684,6 +12684,16 @@ function setupSocial() {
     $("close-social")?.addEventListener("click", closeSocial);
     $("social-back")?.addEventListener("click", showSocialHome);
 
+    $("social-archive")?.addEventListener("click", () => {
+
+        if (!socialState.thread?.id) return;
+
+        hideConversation(
+            socialState.thread.id,
+            socialState.thread.name
+        );
+    });
+
     $("social-overlay")?.addEventListener("click", event => {
 
         if (event.target === $("social-overlay")) {
@@ -12736,7 +12746,7 @@ function setupSocial() {
         ?.addEventListener("click", handleFriendListClick);
 
     $("social-requests")
-        ?.addEventListener("click", handleRequestClick);
+        ?.addEventListener("click", handleRequestsPaneClick);
 
     $("social-messages")
         ?.addEventListener("click", handleSocialMessageClick);
@@ -12865,7 +12875,7 @@ async function loadSocialHome() {
     } else if (socialState.tab === "friends") {
         await loadFriends();
     } else {
-        await loadRequests();
+        await loadRequestsPane();
     }
 
     /* İstek rozeti sekmeden bağımsız: kullanıcı "İstekler"e
@@ -13121,6 +13131,13 @@ function renderPersonRow(user, relation) {
 
     } else if (relation === "friends") {
 
+        /*
+           ARKADASLIKTAN CIKAR ve ENGELLE.
+
+           Backend'de remove_friend ZATEN VARDI ama arayuzde
+           hicbir dugme yoktu — ozellik yazilmis, erisilemez
+           durumdaydi.
+        */
         action = `
             <button
                 type="button"
@@ -13130,6 +13147,22 @@ function renderPersonRow(user, relation) {
             >
                 Mesaj
             </button>
+
+            <button
+                type="button"
+                class="social-action ghost"
+                data-unfriend="${escapeHTML(user.id)}"
+                data-name="${escapeHTML(user.name)}"
+                title="Arkadaşlıktan çıkar"
+            ><i class="fa-solid fa-user-minus"></i></button>
+
+            <button
+                type="button"
+                class="social-action danger"
+                data-block="${escapeHTML(user.id)}"
+                data-name="${escapeHTML(user.name)}"
+                title="Engelle"
+            ><i class="fa-solid fa-ban"></i></button>
         `;
     }
 
@@ -13147,6 +13180,7 @@ function renderPersonRow(user, relation) {
                         ? `<small>@${escapeHTML(user.username)}</small>`
                         : ""
                 }
+                ${mutualLine(user.mutual_friends)}
             </span>
 
             ${action}
@@ -13156,6 +13190,10 @@ function renderPersonRow(user, relation) {
 
 
 async function handleFriendListClick(event) {
+
+    /* Cikar/engelle dugmeleri once: ikisi de arkadas
+       satirinda ve digerlerinden once kontrol edilmeli. */
+    if (handleFriendManageClick(event)) return;
 
     const add = event.target.closest("[data-add-friend]");
 
@@ -13226,85 +13264,15 @@ async function handleFriendListClick(event) {
    İSTEKLER
 ========================================================= */
 
-async function loadRequests() {
+/*
+   loadRequests() ve handleRequestClick() KALDIRILDI.
 
-    const box = $("social-requests");
-
-    if (!box) return;
-
-    try {
-
-        const rows = await apiFetch("/social/requests");
-
-        if (!rows.length) {
-
-            box.innerHTML = `
-                <p class="social-empty">
-                    Bekleyen arkadaşlık isteğin yok.
-                </p>
-            `;
-
-            return;
-        }
-
-        box.innerHTML = rows
-            .map(row => `
-                <div class="social-row static">
-
-                    <span class="social-avatar">
-                        ${escapeHTML(row.initials)}
-                    </span>
-
-                    <span class="social-row-body">
-                        <strong>${escapeHTML(row.name)}</strong>
-                        <small>arkadaş olmak istiyor</small>
-                    </span>
-
-                    <button
-                        type="button"
-                        class="social-action"
-                        data-accept="${escapeHTML(row.friendship_id)}"
-                    >
-                        Kabul
-                    </button>
-
-                    <button
-                        type="button"
-                        class="social-action ghost"
-                        data-decline="${escapeHTML(row.friendship_id)}"
-                    >
-                        Yoksay
-                    </button>
-                </div>
-            `)
-            .join("");
-
-    } catch (error) {
-
-        console.error("İstekler yüklenemedi:", error);
-
-        box.innerHTML = `
-            <p class="social-empty">İstekler yüklenemedi.</p>
-        `;
-    }
-}
-
-
-function handleRequestClick(event) {
-
-    const accept = event.target.closest("[data-accept]");
-
-    if (accept) {
-        respondToRequest(accept.dataset.accept, true);
-        return;
-    }
-
-    const decline = event.target.closest("[data-decline]");
-
-    if (decline) {
-        respondToRequest(decline.dataset.decline, false);
-    }
-}
+   Yerlerine loadRequestsPane() ve
+   handleRequestsPaneClick() geldi: Istekler sekmesi artik
+   uc listeyi birden gosteriyor (gelen / gonderilen /
+   engelliler). Eskileri yalnizca geleni ciziyordu ve
+   hicbir yerden cagrilmiyordu.
+*/
 
 
 async function respondToRequest(friendshipId, accept) {
@@ -13382,6 +13350,13 @@ async function openThread(conversationId, name, userId = null) {
     const title = $("social-title");
 
     if (title) title.textContent = socialState.thread.name;
+
+    /* Arsivle dugmesi yalnizca acik bir sohbette anlamli */
+    const archive = $("social-archive");
+
+    if (archive) {
+        archive.classList.toggle("hidden", !conversationId);
+    }
 
     const box = $("social-messages");
 
@@ -14247,4 +14222,381 @@ function openSocialWithSearch(handle) {
     }
 
     runSocialSearch(handle);
+}
+
+
+/* =========================================================
+   ARKADAŞ YÖNETİMİ
+     - arkadaşlıktan çıkar   (backend hazırdı, düğmesi yoktu)
+     - gönderilen isteği geri çek
+     - engelle / engeli kaldır
+     - sohbeti arşivle
+========================================================= */
+
+/**
+ * Yıkıcı işlemler için onay.
+ *
+ * confirm() kullanıyoruz: arkadaşlıktan çıkarma ve engelleme
+ * geri alınabilir ama kullanıcının niyetini doğrulamadan
+ * yapılmamalı — tek yanlış tıkla arkadaşlık silinmemeli.
+ */
+function confirmAction(message) {
+    return window.confirm(message);
+}
+
+
+async function unfriend(userId, name) {
+
+    if (!confirmAction(
+        `${name} arkadaş listenden çıkarılacak. Sohbetiniz ` +
+        `silinmeyecek ama yeni mesaj gönderemezsiniz. Emin misin?`
+    )) return;
+
+    try {
+
+        await apiFetch(`/social/friends/${userId}`, {
+            method: "DELETE",
+        });
+
+        showToast({
+            title: "Arkadaşlıktan çıkarıldı",
+            tone: "neutral",
+        });
+
+        loadSocialHome();
+
+    } catch (error) {
+
+        showToast({
+            title: "İşlem başarısız",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+    }
+}
+
+
+async function blockUser(userId, name) {
+
+    if (!confirmAction(
+        `${name} engellenecek. Sana istek gönderemez, mesaj ` +
+        `atamaz ve aramada seni bulamaz. Arkadaşsanız ` +
+        `arkadaşlık da kalkar. Emin misin?`
+    )) return;
+
+    try {
+
+        await apiFetch("/social/blocked", {
+            method: "POST",
+            body: JSON.stringify({ user_id: userId }),
+        });
+
+        showToast({ title: "Engellendi", tone: "neutral" });
+
+        loadSocialHome();
+
+    } catch (error) {
+
+        showToast({
+            title: "Engellenemedi",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+    }
+}
+
+
+async function unblockUser(userId) {
+
+    try {
+
+        await apiFetch(`/social/blocked/${userId}`, {
+            method: "DELETE",
+        });
+
+        showToast({ title: "Engel kaldırıldı", tone: "success" });
+
+        loadSocialHome();
+
+    } catch (error) {
+
+        showToast({
+            title: "İşlem başarısız",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+    }
+}
+
+
+async function cancelSentRequest(friendshipId) {
+
+    try {
+
+        await apiFetch(`/social/requests/${friendshipId}`, {
+            method: "DELETE",
+        });
+
+        showToast({ title: "İstek geri çekildi", tone: "neutral" });
+
+        loadSocialHome();
+
+    } catch (error) {
+
+        showToast({
+            title: "Geri çekilemedi",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+    }
+}
+
+
+async function hideConversation(conversationId, name) {
+
+    if (!confirmAction(
+        `${name} ile sohbetin gelen kutundan kaldırılacak. ` +
+        `Mesajlar silinmez ve yeni mesaj gelirse sohbet geri ` +
+        `döner. Devam?`
+    )) return;
+
+    try {
+
+        await apiFetch(`/social/conversations/${conversationId}`, {
+            method: "DELETE",
+        });
+
+        showToast({ title: "Sohbet arşivlendi", tone: "neutral" });
+
+        showSocialHome();
+
+        loadConversations();
+
+    } catch (error) {
+
+        showToast({
+            title: "İşlem başarısız",
+            message: error?.message || "",
+            tone: "neutral",
+        });
+    }
+}
+
+
+/* =========================================================
+   GÖNDERİLEN İSTEKLER + ENGELLİLER LİSTESİ
+========================================================= */
+
+/**
+ * İstekler sekmesi: gelen + gönderilen + engelliler.
+ *
+ * Üçü bir arada çünkü hepsi "bekleyen/kapalı ilişkiler" —
+ * ayrı sekmeler yapmak dört sekme demekti ve kullanıcı
+ * hangisine bakacağını bilemezdi.
+ */
+async function loadRequestsPane() {
+
+    const box = $("social-requests");
+
+    if (!box) return;
+
+    try {
+
+        const [incoming, sent, blocked] = await Promise.all([
+            apiFetch("/social/requests"),
+            apiFetch("/social/requests/sent"),
+            apiFetch("/social/blocked"),
+        ]);
+
+        const parts = [];
+
+        /* GELEN */
+        parts.push(
+            `<span class="quick-section-label">SANA GELENLER</span>`
+        );
+
+        if (!incoming.length) {
+            parts.push(
+                `<p class="social-empty">Bekleyen istek yok.</p>`
+            );
+        } else {
+            parts.push(incoming.map(renderIncomingRow).join(""));
+        }
+
+        /* GÖNDERİLEN */
+        if (sent.length) {
+
+            parts.push(
+                `<span class="quick-section-label">GÖNDERDİKLERİN</span>`
+            );
+
+            parts.push(sent.map(renderSentRow).join(""));
+        }
+
+        /* ENGELLİLER */
+        if (blocked.length) {
+
+            parts.push(
+                `<span class="quick-section-label">ENGELLEDİKLERİN</span>`
+            );
+
+            parts.push(blocked.map(renderBlockedRow).join(""));
+        }
+
+        box.innerHTML = parts.join("");
+
+    } catch (error) {
+
+        console.error("İstekler yüklenemedi:", error);
+
+        box.innerHTML = `
+            <p class="social-empty">İstekler yüklenemedi.</p>
+        `;
+    }
+}
+
+
+/** Ortak arkadaş satırı — 0 ise hiç yazılmıyor. */
+function mutualLine(count) {
+
+    if (!count) return "";
+
+    return `<small>${count} ortak arkadaş</small>`;
+}
+
+
+function renderIncomingRow(row) {
+
+    return `
+        <div class="social-row static">
+
+            <span class="social-avatar">
+                ${escapeHTML(row.initials)}
+            </span>
+
+            <span class="social-row-body">
+                <strong>${escapeHTML(row.name)}</strong>
+                ${
+                    row.username
+                        ? `<small>@${escapeHTML(row.username)}</small>`
+                        : ""
+                }
+                ${mutualLine(row.mutual_friends)}
+            </span>
+
+            <button
+                type="button"
+                class="social-action"
+                data-accept="${escapeHTML(row.friendship_id)}"
+            >Kabul</button>
+
+            <button
+                type="button"
+                class="social-action ghost"
+                data-decline="${escapeHTML(row.friendship_id)}"
+            >Yoksay</button>
+
+            <button
+                type="button"
+                class="social-action danger"
+                data-block="${escapeHTML(row.id)}"
+                data-name="${escapeHTML(row.name)}"
+                title="Engelle"
+            ><i class="fa-solid fa-ban"></i></button>
+        </div>
+    `;
+}
+
+
+function renderSentRow(row) {
+
+    return `
+        <div class="social-row static">
+
+            <span class="social-avatar">
+                ${escapeHTML(row.initials)}
+            </span>
+
+            <span class="social-row-body">
+                <strong>${escapeHTML(row.name)}</strong>
+                <small>yanıt bekliyor</small>
+            </span>
+
+            <button
+                type="button"
+                class="social-action ghost"
+                data-cancel-request="${escapeHTML(row.friendship_id)}"
+            >Geri çek</button>
+        </div>
+    `;
+}
+
+
+function renderBlockedRow(row) {
+
+    return `
+        <div class="social-row static">
+
+            <span class="social-avatar">
+                ${escapeHTML(row.initials)}
+            </span>
+
+            <span class="social-row-body">
+                <strong>${escapeHTML(row.name)}</strong>
+                <small>engelli</small>
+            </span>
+
+            <button
+                type="button"
+                class="social-action ghost"
+                data-unblock="${escapeHTML(row.id)}"
+            >Engeli kaldır</button>
+        </div>
+    `;
+}
+
+
+/**
+ * İstekler sekmesindeki tüm tıklamalar.
+ *
+ * Olay delegasyonu: satırlar her yüklemede yeniden çiziliyor,
+ * tek tek dinleyici bağlamak sızıntı yaratırdı.
+ */
+function handleRequestsPaneClick(event) {
+
+    const accept = event.target.closest("[data-accept]");
+    if (accept) return respondToRequest(accept.dataset.accept, true);
+
+    const decline = event.target.closest("[data-decline]");
+    if (decline) return respondToRequest(decline.dataset.decline, false);
+
+    const cancel = event.target.closest("[data-cancel-request]");
+    if (cancel) return cancelSentRequest(cancel.dataset.cancelRequest);
+
+    const block = event.target.closest("[data-block]");
+    if (block) return blockUser(block.dataset.block, block.dataset.name);
+
+    const unblock = event.target.closest("[data-unblock]");
+    if (unblock) return unblockUser(unblock.dataset.unblock);
+}
+
+
+/** Arkadaş listesi ve arama sonuçlarındaki yönetim düğmeleri. */
+function handleFriendManageClick(event) {
+
+    const remove = event.target.closest("[data-unfriend]");
+
+    if (remove) {
+        unfriend(remove.dataset.unfriend, remove.dataset.name);
+        return true;
+    }
+
+    const block = event.target.closest("[data-block]");
+
+    if (block) {
+        blockUser(block.dataset.block, block.dataset.name);
+        return true;
+    }
+
+    return false;
 }

@@ -42,6 +42,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     FRIENDSHIP_ACCEPTED,
+    FRIENDSHIP_BLOCKED,
     FRIENDSHIP_DECLINED,
     FRIENDSHIP_PENDING,
     Conversation,
@@ -201,6 +202,36 @@ def search_users(db: Session, me: User, query: str) -> list[dict]:
     if not found:
         return []
 
+    # ENGELLI KULLANICILAR ARAMADA GORUNMUYOR.
+    #
+    # Iki yon de gizleniyor: engelledigim kisiyi gormek
+    # istemem, beni engelleyen kisiyi de bulmamam gerekir
+    # (bulabilsem engel anlamsiz olurdu).
+    blocked_rows = db.execute(
+        select(Friendship).where(
+            and_(
+                Friendship.status == FRIENDSHIP_BLOCKED,
+                or_(
+                    Friendship.requester_id == me.id,
+                    Friendship.addressee_id == me.id,
+                ),
+            )
+        )
+    ).scalars()
+
+    blocked_ids = set()
+
+    for row in blocked_rows:
+        blocked_ids.add(row.requester_id)
+        blocked_ids.add(row.addressee_id)
+
+    blocked_ids.discard(me.id)
+
+    found = [u for u in found if u.id not in blocked_ids]
+
+    if not found:
+        return []
+
     # Iliskileri TEK sorguda cek: kullanici basina ayri sorgu
     # 10 istek demek olurdu.
     ids = [u.id for u in found]
@@ -232,6 +263,9 @@ def search_users(db: Session, me: User, query: str) -> list[dict]:
 
         by_other[other] = row
 
+    # ORTAK ARKADAS SAYILARI — tek sorguda.
+    mutual = mutual_counts(db, me, [u.id for u in found])
+
     results = []
 
     for user in found:
@@ -239,6 +273,8 @@ def search_users(db: Session, me: User, query: str) -> list[dict]:
         row = by_other.get(user.id)
 
         entry = public_user(user)
+
+        entry["mutual_friends"] = mutual.get(str(user.id), 0)
 
         if row is None:
             entry["relation"] = "none"
@@ -291,6 +327,18 @@ def send_request(db: Session, me: User, target_id) -> Friendship:
     existing = get_friendship(db, me.id, target.id)
 
     if existing is not None:
+
+        # ENGEL VARSA ISTEK GONDERILEMEZ.
+        #
+        # Yonu sormuyoruz: engel hangi tarafta olursa olsun
+        # iletisim kapali. Ayrica mesaj da "engellendin"
+        # demiyor — engellendigini bilmek engelleyenin
+        # vermek zorunda olmadigi bir bilgi.
+        if existing.status == FRIENDSHIP_BLOCKED:
+            raise SocialError(
+                "Bu kullanıcıya şu anda istek gönderemezsin.",
+                403,
+            )
 
         if existing.status == FRIENDSHIP_ACCEPTED:
             raise SocialError("Zaten arkadaşsınız.")
@@ -451,6 +499,12 @@ def list_pending(db: Session, me: User) -> list[dict]:
         .order_by(Friendship.created_at.desc())
     ).scalars()
 
+    rows = list(rows)
+
+    # Ortak arkadas sayisi: tanimadigin birinden gelen istegi
+    # degerlendirmenin en pratik yolu.
+    mutual = mutual_counts(db, me, [r.requester_id for r in rows])
+
     pending = []
 
     for row in rows:
@@ -463,6 +517,9 @@ def list_pending(db: Session, me: User) -> list[dict]:
         entry = public_user(requester)
         entry["friendship_id"] = str(row.id)
         entry["created_at"] = row.created_at
+        entry["mutual_friends"] = mutual.get(
+            str(row.requester_id), 0
+        )
 
         pending.append(entry)
 
@@ -614,7 +671,22 @@ def list_conversations(db: Session, me: User) -> list[dict]:
                 ORDER BY created_at DESC
                 LIMIT 1
             ) m ON TRUE
-            WHERE c.user_low_id = :me OR c.user_high_id = :me
+            WHERE (c.user_low_id = :me OR c.user_high_id = :me)
+              -- GIZLENMIS SOHBETLER ATLANIYOR.
+              -- Kural: gizli <=> hidden_at >= last_message_at.
+              -- Yeni mesaj last_message_at'i ileri tasidigi
+              -- icin sohbet kendiliginden geri geliyor;
+              -- bayrak sifirlamak gerekmiyor.
+              AND NOT (
+                  c.user_low_id = :me
+                  AND c.hidden_low_at IS NOT NULL
+                  AND c.hidden_low_at >= c.last_message_at
+              )
+              AND NOT (
+                  c.user_high_id = :me
+                  AND c.hidden_high_at IS NOT NULL
+                  AND c.hidden_high_at >= c.last_message_at
+              )
             ORDER BY c.last_message_at DESC
             """
         ),
@@ -798,6 +870,12 @@ def send_message(
 
         conversation = None
 
+    if is_blocked_between(db, me.id, target_id) is not None:
+        raise SocialError(
+            "Bu kullanıcıyla mesajlaşma kapalı.",
+            403,
+        )
+
     if not are_friends(db, me.id, target_id):
         raise SocialError(
             "Yalnızca arkadaşlarına mesaj gönderebilirsin.",
@@ -828,3 +906,328 @@ def send_message(
     db.refresh(conversation)
 
     return conversation, message
+
+
+# =========================================================
+# ENGELLEME
+# =========================================================
+#
+# REDDETMEKTEN FARKI
+# Reddedilen istek 'declined' olarak kaliyor ama ayni kisi
+# TEKRAR gonderebiliyor: send_request reddedilmis satiri
+# yeniden 'pending'e cekiyor (bilincli — insanlar fikir
+# degistirir). Yani reddetmek bir koruma degil, erteleme.
+#
+# Engelleme gercek durak: istek gonderilemiyor, mesaj
+# gidemiyor, aramada gorunmuyor.
+
+def is_blocked_between(db: Session, a, b) -> Friendship | None:
+    """
+    Iki kullanici arasinda engel var mi?
+
+    YONU SORMUYOR. Engel hangi yonde olursa olsun iletisim
+    kapali: A B'yi engellediyse B de A'ya yazamaz. Aksi halde
+    engelleme tek tarafli bir "sessize alma" olurdu ve
+    engellenen kisi yazmaya devam ederdi.
+    """
+
+    row = get_friendship(db, a, b)
+
+    if row is not None and row.status == FRIENDSHIP_BLOCKED:
+        return row
+
+    return None
+
+
+def block_user(db: Session, me: User, other_id) -> Friendship:
+    """
+    Kullaniciyi engeller.
+
+    Arkadaslik varsa BOZULUYOR: engelledigin biri arkadas
+    listende kalmamali.
+
+    Satir yoksa olusturuluyor — arkadas olmayan birini de
+    engelleyebilmek gerekiyor (tanimadigin biri istek
+    gonderiyorsa asil ihtiyac bu).
+    """
+
+    if str(other_id) == str(me.id):
+        raise SocialError("Kendini engelleyemezsin.")
+
+    other = db.get(User, other_id)
+
+    if other is None:
+        raise SocialError("Kullanıcı bulunamadı.", 404)
+
+    row = get_friendship(db, me.id, other.id)
+
+    if row is None:
+
+        row = Friendship(
+            requester_id=me.id,
+            addressee_id=other.id,
+            status=FRIENDSHIP_BLOCKED,
+            blocked_by=me.id,
+        )
+
+        db.add(row)
+
+    else:
+
+        if (
+            row.status == FRIENDSHIP_BLOCKED
+            and row.blocked_by == me.id
+        ):
+            raise SocialError("Bu kullanıcıyı zaten engellemişsin.")
+
+        if (
+            row.status == FRIENDSHIP_BLOCKED
+            and row.blocked_by != me.id
+        ):
+            # Karsi taraf beni engellemis. Ustune yazmak,
+            # onun engelini kaldirmak olurdu.
+            raise SocialError(
+                "Bu kullanıcıyla iletişim engellenmiş durumda.",
+                403,
+            )
+
+        row.status = FRIENDSHIP_BLOCKED
+        row.blocked_by = me.id
+        row.responded_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(row)
+
+    return row
+
+
+def unblock_user(db: Session, me: User, other_id) -> None:
+    """
+    Engeli kaldirir.
+
+    YALNIZCA ENGELLEYEN KALDIRABILIR. blocked_by kolonunun
+    var olma sebebi bu: bir cift icin tek satir oldugu icin
+    "kim engelledi" bilgisi olmadan engellenen kisi kendi
+    engelini kaldirabilirdi.
+
+    Satir SILINIYOR, 'declined'a cevrilmiyor: engel kalkinca
+    iki taraf da bastan baslayabilmeli.
+    """
+
+    row = get_friendship(db, me.id, other_id)
+
+    if row is None or row.status != FRIENDSHIP_BLOCKED:
+        raise SocialError("Böyle bir engel yok.", 404)
+
+    if row.blocked_by != me.id:
+        raise SocialError(
+            "Bu engeli yalnızca engelleyen kişi kaldırabilir.",
+            403,
+        )
+
+    db.delete(row)
+    db.commit()
+
+
+def list_blocked(db: Session, me: User) -> list[dict]:
+    """Benim engelledigim kisiler."""
+
+    rows = db.execute(
+        select(Friendship).where(
+            and_(
+                Friendship.status == FRIENDSHIP_BLOCKED,
+                Friendship.blocked_by == me.id,
+            )
+        )
+    ).scalars()
+
+    blocked = []
+
+    for row in rows:
+
+        other_id = (
+            row.addressee_id
+            if row.requester_id == me.id
+            else row.requester_id
+        )
+
+        other = db.get(User, other_id)
+
+        if other is not None:
+            blocked.append(public_user(other))
+
+    return blocked
+
+
+# =========================================================
+# GONDERILEN ISTEKLER
+# =========================================================
+
+def list_sent(db: Session, me: User) -> list[dict]:
+    """
+    Benim gonderdigim, henuz yanitlanmamis istekler.
+
+    NEDEN GEREKLI
+    Onceden yalnizca GELEN istekler gorunuyordu. Yanlis
+    kisiye istek atan kullanici onu hicbir yerde goremiyor ve
+    geri cekemiyordu; istek karsi tarafta sonsuza kadar
+    asili kaliyordu.
+    """
+
+    rows = db.execute(
+        select(Friendship)
+        .where(
+            and_(
+                Friendship.requester_id == me.id,
+                Friendship.status == FRIENDSHIP_PENDING,
+            )
+        )
+        .order_by(Friendship.created_at.desc())
+    ).scalars()
+
+    sent = []
+
+    for row in rows:
+
+        other = db.get(User, row.addressee_id)
+
+        if other is None:
+            continue
+
+        entry = public_user(other)
+        entry["friendship_id"] = str(row.id)
+        entry["created_at"] = row.created_at
+
+        sent.append(entry)
+
+    return sent
+
+
+def cancel_request(db: Session, me: User, friendship_id) -> None:
+    """
+    Gonderilmis istegi geri ceker.
+
+    YALNIZCA GONDEREN cagirabilir ve yalnizca HENUZ
+    YANITLANMAMIS istek geri cekilebilir. Kabul edilmis bir
+    arkadasligi "geri cekmek" diye bir sey yok; o
+    remove_friend'in isi.
+
+    Satir SILINIYOR: geri cekilen istek hic olmamis gibi
+    davranmali, ikisi de bastan baslayabilmeli.
+    """
+
+    row = db.get(Friendship, friendship_id)
+
+    if row is None:
+        raise SocialError("İstek bulunamadı.", 404)
+
+    if row.requester_id != me.id:
+        raise SocialError("Bu isteği geri çekme yetkin yok.", 403)
+
+    if row.status != FRIENDSHIP_PENDING:
+        raise SocialError(
+            "Bu istek zaten yanıtlanmış, geri çekilemez."
+        )
+
+    db.delete(row)
+    db.commit()
+
+
+# =========================================================
+# ORTAK ARKADAS
+# =========================================================
+
+def mutual_counts(db: Session, me: User, other_ids) -> dict:
+    """
+    Her hedef kullanici icin ORTAK arkadas sayisi.
+
+    TEK SORGU, kullanici basina bir tane degil: arama 10
+    sonuc donduruyor ve her biri icin ayri sorgu 10 istek
+    demekti.
+
+    Mantik: benim kabul edilmis arkadaslarim ile onun kabul
+    edilmis arkadaslarinin kesisimi. Iliski yonsuz oldugu
+    icin her satirdan "digeri kim" hesaplanarak iki taraf da
+    taraniyor.
+
+    NEDEN GOSTERILIYOR
+    Tanimadigin birinden gelen istegi degerlendirmenin en
+    pratik yolu. "2 ortak arkadasin var" bilgisi, kabul edip
+    etmeme kararini kullanicinin kendisinin vermesini
+    sagliyor — sistemin onun yerine karar vermesi yerine.
+    """
+
+    ids = [str(i) for i in (other_ids or []) if i]
+
+    if not ids:
+        return {}
+
+    rows = db.execute(
+        text(
+            """
+            -- DIKKAT: ":ids::uuid[]" YAZILMAZ.
+            -- SQLAlchemy'nin text() ayristirmasi "::" cast
+            -- sozdizimini bind parametresiyle karistiriyor ve
+            -- parametre HIC baglanmiyor; sonuc 500. Olculdu.
+            -- CAST(... AS ...) bicimi belirsiz degil.
+            WITH hedefler AS (
+                SELECT UNNEST(CAST(:ids AS uuid[])) AS hedef
+            ),
+            benim AS (
+                SELECT CASE WHEN requester_id = CAST(:me AS uuid)
+                            THEN addressee_id ELSE requester_id END AS uid
+                FROM friendships
+                WHERE status = 'accepted'
+                  AND (requester_id = CAST(:me AS uuid)
+                       OR addressee_id = CAST(:me AS uuid))
+            ),
+            onlar AS (
+                SELECT
+                    h.hedef AS hedef,
+                    CASE WHEN f.requester_id = h.hedef
+                         THEN f.addressee_id ELSE f.requester_id END AS uid
+                FROM hedefler h
+                JOIN friendships f
+                  ON f.status = 'accepted'
+                 AND (f.requester_id = h.hedef OR f.addressee_id = h.hedef)
+            )
+            SELECT o.hedef, COUNT(*)
+            FROM onlar o
+            JOIN benim b ON b.uid = o.uid
+            WHERE o.uid <> CAST(:me AS uuid)
+            GROUP BY o.hedef
+            """
+        ),
+        {"me": str(me.id), "ids": ids},
+    ).all()
+
+    return {str(row[0]): int(row[1]) for row in rows}
+
+
+# =========================================================
+# SOHBET GIZLEME (ARSIVLEME)
+# =========================================================
+
+def hide_conversation(db: Session, me: User, conversation_id) -> None:
+    """
+    Sohbeti BENIM gelen kutumdan kaldirir.
+
+    MESAJLAR SILINMIYOR. Iki kisilik bir konusmanin yarisini
+    silmek, karsi tarafin gecmisini de yok etmek olurdu.
+
+    Zaman damgasi yaziliyor; yeni mesaj gelince
+    last_message_at ileri gidiyor ve sohbet KENDILIGINDEN
+    geri geliyor (bkz. models.py Conversation notu). Yani bu
+    "sil" degil "arsivle".
+    """
+
+    conversation = _require_participant(db, me, conversation_id)
+
+    now = datetime.now(timezone.utc)
+
+    if conversation.user_low_id == me.id:
+        conversation.hidden_low_at = now
+    else:
+        conversation.hidden_high_at = now
+
+    db.commit()

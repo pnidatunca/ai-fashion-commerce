@@ -2279,6 +2279,147 @@ def social_remove_friend(
     return None
 
 
+
+# ---------------------------------------------------------
+# GONDERILEN ISTEKLER / GERI CEKME
+# ---------------------------------------------------------
+
+@app.get(
+    "/social/requests/sent",
+    response_model=list[schemas.FriendRequest],
+)
+def social_list_sent(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Benim gonderdigim, henuz yanitlanmamis istekler.
+
+    Onceden yalnizca GELEN istekler gorunuyordu; yanlis
+    kisiye istek atan kullanici onu goremiyor ve geri
+    cekemiyordu.
+    """
+
+    return social.list_sent(db=db, me=user)
+
+
+@app.delete(
+    "/social/requests/{friendship_id}",
+    status_code=204,
+)
+def social_cancel_request(
+    friendship_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Gonderilmis istegi geri ceker. Yalnizca GONDEREN."""
+
+    try:
+        social.cancel_request(
+            db=db, me=user, friendship_id=friendship_id
+        )
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return None
+
+
+# ---------------------------------------------------------
+# ENGELLEME
+# ---------------------------------------------------------
+
+@app.get(
+    "/social/blocked",
+    response_model=list[schemas.PublicUser],
+)
+def social_list_blocked(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return social.list_blocked(db=db, me=user)
+
+
+@app.post("/social/blocked", status_code=201)
+def social_block(
+    payload: schemas.BlockRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Kullaniciyi engeller.
+
+    Reddetmekten farki: reddedilen kisi TEKRAR istek
+    gonderebiliyor, engelli gonderemiyor. Arkadaslik varsa
+    bozuluyor — engelledigin biri arkadas listende kalmamali.
+    """
+
+    try:
+        social.block_user(db=db, me=user, other_id=payload.user_id)
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return {"status": "blocked"}
+
+
+@app.delete(
+    "/social/blocked/{other_id}",
+    status_code=204,
+)
+def social_unblock(
+    other_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Engeli kaldirir.
+
+    YALNIZCA ENGELLEYEN kaldirabilir (bkz. blocked_by
+    kolonunun var olma gerekcesi).
+    """
+
+    try:
+        social.unblock_user(db=db, me=user, other_id=other_id)
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return None
+
+
+# ---------------------------------------------------------
+# SOHBETI GIZLE (ARSIVLE)
+# ---------------------------------------------------------
+
+@app.delete(
+    "/social/conversations/{conversation_id}",
+    status_code=204,
+)
+def social_hide_conversation(
+    conversation_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Sohbeti BENIM gelen kutumdan kaldirir.
+
+    MESAJLAR SILINMIYOR: karsi taraf yazismayi gormeye devam
+    ediyor. Yeni mesaj gelirse sohbet kendiliginden geri
+    geliyor — yani "sil" degil "arsivle".
+    """
+
+    try:
+        social.hide_conversation(
+            db=db, me=user, conversation_id=conversation_id
+        )
+
+    except social.SocialError as error:
+        raise _social_error(error)
+
+    return None
+
+
 # ---------------------------------------------------------
 # MESAJLASMA
 # ---------------------------------------------------------

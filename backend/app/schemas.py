@@ -1362,6 +1362,11 @@ class UserSearchResult(PublicUser):
     # Yalnizca incoming durumunda dolu.
     friendship_id: str | None = None
 
+    # ORTAK ARKADAS SAYISI. Tanimadigin birinden gelen istegi
+    # degerlendirmenin en pratik yolu; karari kullanicinin
+    # kendisi versin diye gosteriliyor.
+    mutual_friends: int = 0
+
 
 class FriendRequestCreate(BaseModel):
     user_id: UUID
@@ -1370,6 +1375,8 @@ class FriendRequestCreate(BaseModel):
 class FriendRequest(PublicUser):
     friendship_id: str
     created_at: datetime
+
+    mutual_friends: int = 0
 
 
 class FriendRequestResponse(BaseModel):
@@ -1574,4 +1581,9 @@ class UsernameCheckResponse(BaseModel):
     available: bool
     reason: str | None = None
     suggestion: str | None = None
+
+class BlockRequest(BaseModel):
+    """Engellenecek kullanici."""
+
+    user_id: UUID
 
