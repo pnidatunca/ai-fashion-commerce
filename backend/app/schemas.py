@@ -1478,3 +1478,58 @@ class SendMessageResponse(BaseModel):
 
 class UnreadCountResponse(BaseModel):
     unread: int = 0
+
+# =========================================================
+# GORSELLE ARAMA
+# =========================================================
+#
+# Kurallar app/vision.py'de. Gorsel SAKLANMIYOR: baytlar
+# istek boyunca bellekte, cevap donunce gidiyor.
+
+class VisionDescribeRequest(BaseModel):
+    """
+    Fotograf, base64 olarak.
+
+    NEDEN multipart/form-data DEGIL
+    FastAPI'nin UploadFile'i python-multipart paketini
+    zorunlu kiliyor ve o kurulu degil. Base64 %33 sisiriyor
+    ama arayuz gorseli gondermeden once canvas ile ~1024px'e
+    kucultuyor: tipik sonuc 150-400 KB, base64 ile 200-550 KB.
+    Yeni bir bagimlilik eklemeye degmeyecek bir fark.
+
+    Kucultmenin ikinci faydasi: Gemini'ye 12 megapiksel
+    gondermenin tarife hicbir katkisi yok, yalnizca gecikme
+    ve maliyet.
+    """
+
+    # data:image/jpeg;base64,... ya da ciplak base64
+    image: str = Field(min_length=32)
+
+    @field_validator("image")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        return (value or "").strip()
+
+
+class VisionDescribeResponse(BaseModel):
+    """
+    Uretilen arama cumlesi.
+
+    Arayuz bunu sohbete NORMAL BIR KULLANICI MESAJI olarak
+    koyuyor. Boylece:
+      - sohbet sozlesmesi degismiyor (gecmis metin kaliyor,
+        her turda dev base64 tasinmiyor)
+      - kullanici modelin ne anladigini GORUYOR ve
+        duzeltebiliyor ("hayir, lacivert olacak")
+
+    Ikincisi bilincli: arama analiz panelindeki seffaflik
+    kararinin aynisi.
+    """
+
+    query: str
+
+    # Tani/olcum icin: kac saniye surdu, hangi model, kac bayt.
+    seconds: float = 0.0
+    model: str = ""
+    bytes: int = 0
+

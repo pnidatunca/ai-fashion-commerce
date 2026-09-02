@@ -34,6 +34,7 @@ from app import (
     style_customize,
     style_engine,
     trends,
+    vision,
 )
 from app.database import engine, get_db
 from app.models import (
@@ -3519,6 +3520,62 @@ def ai_chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# =========================================================
+# GORSELLE ARAMA
+# =========================================================
+
+@api.post(
+    "/vision/describe",
+    response_model=schemas.VisionDescribeResponse,
+)
+def ai_vision_describe(
+    payload: schemas.VisionDescribeRequest,
+    user: User | None = Depends(get_optional_user),
+):
+    """
+    Fotograftaki urunu ARAMA CUMLESINE cevirir.
+
+    Aramayi BURASI YAPMIYOR. Donen cumleyi arayuz sohbete
+    normal bir kullanici mesaji olarak koyuyor ve asistan
+    kendi arac dongusuyle ariyor. Iki fayda:
+
+      1. Sohbet sozlesmesi degismiyor — gecmis metin kaliyor,
+         her turda dev bir base64 tasinmiyor.
+      2. Kullanici modelin ne anladigini GORUYOR ve
+         duzeltebiliyor ("hayir, lacivert olacak"). Arama
+         analiz panelindeki seffaflik kararinin aynisi.
+
+    GORSEL SAKLANMIYOR: baytlar istek boyunca bellekte,
+    cevap donunce gidiyor. Diske de veritabanina da
+    yazilmiyor (bkz. app/vision.py).
+
+    Giris ZORUNLU DEGIL: gorselle arama, sohbetin kendisi
+    gibi misafire de acik.
+    """
+
+    try:
+        result = vision.describe_base64(payload.image)
+
+    except vision.VisionError as error:
+
+        # NoGarmentFound da buraya duser ve 422 ile kendi
+        # aciklayici mesajini tasir — "gorsel islenemedi"
+        # demek yerine "fotografta giysi goremedim".
+        raise HTTPException(
+            status_code=error.status,
+            detail=str(error),
+        )
+
+    logger.info(
+        "Gorsel arama: %d KB -> %r (%.1fs)",
+        result["bytes"] // 1024,
+        result["query"][:60],
+        result["seconds"],
+    )
+
+    return schemas.VisionDescribeResponse(**result)
 
 
 app.include_router(api)

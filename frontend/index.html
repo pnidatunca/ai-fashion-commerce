@@ -1309,11 +1309,32 @@
             id="ai-chat-form"
         >
 
+            <!-- GORSELLE ARAMA
+                 Dosya secici gizli; gorunen sey atas simgesi.
+                 accept=image/* mobilde dogrudan kamerayi da
+                 aciyor. -->
+            <input
+                type="file"
+                id="ai-chat-photo"
+                accept="image/*"
+                hidden
+            >
+
+            <button
+                type="button"
+                id="ai-chat-photo-btn"
+                class="ai-chat-photo-btn"
+                aria-label="Fotoğraf yükle"
+                title="Fotoğraftaki ürünü bul"
+            >
+                <i class="fa-solid fa-camera"></i>
+            </button>
+
             <textarea
                 id="ai-chat-input"
                 rows="1"
                 maxlength="2000"
-                placeholder="Ne aradığını anlat..."
+                placeholder="Ne aradığını anlat ya da fotoğraf yükle..."
                 autocomplete="off"
             ></textarea>
 

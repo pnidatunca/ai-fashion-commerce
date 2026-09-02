@@ -8684,3 +8684,43 @@ a {
         grid-template-columns: 1fr;
     }
 }
+
+/* =========================================================
+   GÖRSELLE ARAMA — sohbetteki fotoğraf düğmesi ve önizleme
+========================================================= */
+
+.ai-chat-photo-btn {
+    flex: 0 0 auto;
+
+    width: 34px;
+    height: 34px;
+
+    display: grid;
+    place-items: center;
+
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+
+    font-size: 14px;
+    color: var(--gray);
+
+    transition: background .2s ease, color .2s ease;
+}
+
+.ai-chat-photo-btn:hover {
+    background: var(--cream);
+    color: var(--black);
+}
+
+/* Yüklenen fotoğrafın önizlemesi. Kullanıcı ne gönderdiğini
+   görsün diye; sohbet geçmişine girmiyor. */
+.ai-chat-photo {
+    max-width: 190px;
+    max-height: 240px;
+
+    border-radius: 14px 14px 4px 14px;
+    object-fit: cover;
+
+    display: block;
+}

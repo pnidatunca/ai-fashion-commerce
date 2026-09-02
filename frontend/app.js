@@ -10725,6 +10725,8 @@ function setupAiChat() {
 
     aiChatLog?.addEventListener("click", handleAiChatLogClick);
 
+    setupAiChatPhoto();
+
 
     /*
        Kartlar div + role="button" olarak ciziliyor (icinde
@@ -13721,4 +13723,257 @@ async function handleShareClick(event) {
             tone: "neutral",
         });
     }
+}
+
+
+/* =========================================================
+   GÖRSELLE ARAMA — fotoğraftaki ürünü bul
+
+   Akış:
+     fotoğraf seç → tarayıcıda küçült → /api/vision/describe
+     → dönen cümle sohbete NORMAL BİR MESAJ olarak girer
+     → asistan kendi arama döngüsüyle ürünleri bulur
+
+   NEDEN CÜMLE SOHBETE MESAJ OLARAK GİRİYOR
+   Görseli sohbet geçmişine koymadık. İki sebep:
+
+     1. Geçmiş her turda backend'e AYNEN gidiyor. Görsel
+        orada dursaydı üçüncü mesajda hâlâ ilk fotoğrafın
+        base64'ünü taşıyor olurduk.
+
+     2. Kullanıcı modelin ne anladığını GÖRÜYOR ve
+        düzeltebiliyor: "hayır, lacivert olacak". Arama
+        analiz panelindeki şeffaflık kararının aynısı.
+
+   NEDEN TARAYICIDA KÜÇÜLTÜYORUZ
+   Telefon fotoğrafı 3-5 MB. Gemini'ye 12 megapiksel
+   göndermenin tarife hiçbir katkısı yok — yalnızca yükleme
+   süresi ve maliyet. 1024px uzun kenar yeterli ve dosya
+   150-400 KB'a iniyor.
+========================================================= */
+
+/* Uzun kenar bu piksele indiriliyor. */
+const VISION_MAX_EDGE = 1024;
+
+/* JPEG kalitesi: 0.82 gözle fark edilmiyor ama dosyayı
+   belirgin küçültüyor. */
+const VISION_JPEG_QUALITY = 0.82;
+
+
+/**
+ * Dosyayı canvas ile küçültüp data URL döndürür.
+ *
+ * HEIC NOTU: iPhone fotoğrafları HEIC olabiliyor ve bazı
+ * tarayıcılar bunu <img> ile çözemiyor. O durumda küçültme
+ * başarısız olur ve dosya OLDUĞU GİBİ gönderilir — backend
+ * HEIC'i kabul ediyor, yalnızca daha büyük bir yükleme olur.
+ */
+function shrinkImage(file) {
+
+    return new Promise(resolve => {
+
+        const url = URL.createObjectURL(file);
+
+        const image = new Image();
+
+        image.onload = () => {
+
+            URL.revokeObjectURL(url);
+
+            try {
+
+                const scale = Math.min(
+                    1,
+                    VISION_MAX_EDGE / Math.max(image.width, image.height)
+                );
+
+                const canvas = document.createElement("canvas");
+
+                canvas.width = Math.round(image.width * scale);
+                canvas.height = Math.round(image.height * scale);
+
+                canvas
+                    .getContext("2d")
+                    .drawImage(image, 0, 0, canvas.width, canvas.height);
+
+                resolve(
+                    canvas.toDataURL("image/jpeg", VISION_JPEG_QUALITY)
+                );
+
+            } catch (error) {
+
+                console.warn("Görsel küçültülemedi:", error);
+
+                resolve(null);
+            }
+        };
+
+        image.onerror = () => {
+
+            URL.revokeObjectURL(url);
+
+            /* HEIC gibi tarayıcının açamadığı biçimler */
+            resolve(null);
+        };
+
+        image.src = url;
+    });
+}
+
+
+/** Küçültme başarısızsa dosyayı olduğu gibi base64'e çevirir. */
+function fileToDataUrl(file) {
+
+    return new Promise((resolve, reject) => {
+
+        const reader = new FileReader();
+
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Dosya okunamadı."));
+
+        reader.readAsDataURL(file);
+    });
+}
+
+
+function setupAiChatPhoto() {
+
+    const button = $("ai-chat-photo-btn");
+    const input = $("ai-chat-photo");
+
+    if (!button || !input) return;
+
+    button.addEventListener("click", () => input.click());
+
+    input.addEventListener("change", async () => {
+
+        const file = input.files && input.files[0];
+
+        /* Aynı dosyayı ikinci kez seçebilmek için sıfırla:
+           change olayı aynı değerde tetiklenmiyor. */
+        input.value = "";
+
+        if (!file) return;
+
+        await handleChatPhoto(file);
+    });
+}
+
+
+async function handleChatPhoto(file) {
+
+    if (aiChat.sending) return;
+
+    if (!file.type.startsWith("image/")) {
+
+        showToast({
+            title: "Bu bir görsel değil",
+            message: "Lütfen bir fotoğraf seç.",
+            tone: "neutral",
+        });
+
+        return;
+    }
+
+    /* Panel kapalıysa aç — kullanıcı ürün sayfasından da
+       tetikleyebilir. */
+    if (!aiChat.open) openAiChat();
+
+    collapseAiChatSuggestPanels();
+
+    /* Kullanıcı ne yüklediğini görsün: küçük önizleme
+       balonu. Bu balon sohbet GEÇMİŞİNE girmiyor, yalnızca
+       ekranda duruyor. */
+    const previewUrl = URL.createObjectURL(file);
+
+    appendAiChatPhotoBubble(previewUrl);
+
+    setAiChatSending(true);
+
+    const typing = appendAiChatTyping();
+
+    setAiChatStatus("Fotoğrafa bakıyor...");
+
+    try {
+
+        let dataUrl = await shrinkImage(file);
+
+        if (!dataUrl) {
+            /* Küçültülemedi (HEIC vb.) — ham dosyayı gönder */
+            dataUrl = await fileToDataUrl(file);
+        }
+
+        const data = await apiFetch("/api/vision/describe", {
+            method: "POST",
+            body: JSON.stringify({ image: dataUrl }),
+        });
+
+        typing?.remove();
+
+        const query = String(data?.query || "").trim();
+
+        if (!query) {
+            throw new Error("Fotoğraftan bir arama cümlesi çıkmadı.");
+        }
+
+        setAiChatStatus("Katalogda arıyor...");
+
+        /*
+           Cümle sohbete NORMAL bir kullanıcı mesajı olarak
+           giriyor ve olağan akışı tetikliyor. Görselle arama
+           bu noktadan sonra ayrı bir yol değil.
+        */
+        await sendAiChatMessage(query);
+
+    } catch (error) {
+
+        typing?.remove();
+
+        console.error("Görsel arama hatası:", error);
+
+        appendAiChatMessage({
+            role: "assistant",
+            error: true,
+            content:
+                error?.message ||
+                "Fotoğrafı işleyemedim. Tekrar dener misin?",
+        });
+
+        setAiChatSending(false);
+
+        setAiChatStatus("Katalogdan gerçek ürünler önerir");
+    }
+}
+
+
+/**
+ * Yüklenen fotoğrafın küçük önizlemesi.
+ *
+ * Sohbet geçmişine GİRMİYOR (aiChat.messages'a eklenmiyor):
+ * geçmiş her turda backend'e aynen gidiyor ve orada bir
+ * görselin işi yok.
+ */
+function appendAiChatPhotoBubble(url) {
+
+    if (!aiChatLog) return;
+
+    const wrapper = document.createElement("div");
+
+    wrapper.className = "ai-chat-msg user";
+
+    const image = document.createElement("img");
+
+    image.className = "ai-chat-photo";
+    image.src = url;
+    image.alt = "Yüklediğin fotoğraf";
+
+    /* Blob URL'i serbest bırak: yüklendikten sonra bellekte
+       tutmanın anlamı yok. */
+    image.onload = () => URL.revokeObjectURL(url);
+
+    wrapper.appendChild(image);
+
+    aiChatLog.appendChild(wrapper);
+
+    scrollAiChatToBottom();
 }
